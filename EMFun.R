@@ -90,8 +90,6 @@ ex1$b$mu; borg$mu
 ex1$b$sigma; borg$sigma
 #ex2$b$mu; borg$mu
 #ex2$b$sigma; borg$sigma
-#ex3$b$mu; borg$mu
-#ex3$b$sigma; borg$sigma
 
 EMfun <- function(l, silent = T){ # CHANGE HERE!
 
