@@ -16,7 +16,7 @@ library(numDeriv)
 
 `%!in%` <- Negate(`%in%`)
 
-setwd("C:/Users/carde/Dropbox/Camilo and Irini/Research/Simulation/Heteroscedastic Factor Model/WPJ-2020-10-26")
+#setwd("C:/Users/carde/Dropbox/Camilo and Irini/Research/Simulation/Heteroscedastic Factor Model/WPJ-2020-10-26")
 
 source("ddFun.R")
 source("SimFA.R")
@@ -26,12 +26,12 @@ source("GLVMfit.R")
 source("graphFun.R")
 
 n = 1000     # Number of individuals
-p = 6       # Number of items
+p = 10       # Number of items
 nsim = 1000  # Number of simulations
-form <- list("mu" = "~ Z1", "sigma" = "~ Z1")
+form <- list("mu" = "~ Z1", "sigma" = "~ Z1") # 
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("normal", p)
+fam <- rep("gamma", p)
 
 l1 <- NULL
 l1$mu <- matrix(1,ncol = 2, nrow = p)
@@ -54,11 +54,13 @@ l1$sigma <- matrix(1, ncol = 2, nrow = p)
 #l12$mu <- l12$mu[,-ncol(l12$mu), drop = F]
 
 lc <- NULL
-lc$mu <- matrix(runif(length(l1$mu), min = 0.7, max = 1.5),nrow = p)
-#lc$mu[,3] <- -lc$mu[,3]
-lc$sigma <- matrix(runif(length(l1$sigma), min = 0.5, max = 1.3), nrow = p)
-#lc$sigma[,1] <- runif(p,-0.5,0.5)
-#lc$sigma[,2] <- -lc$sigma[,2]
+lc$mu <- matrix(runif(length(l1$mu), min = 0.1, max = 0.5),nrow = p)
+lc$mu[,1] <-  runif(p,-1,1)
+lc$mu[,2] <-  runif(p,0.5,3)
+#lc$mu[,3] <-  runif(p,0.2,0.5)
+lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.5), nrow = p)
+lc$sigma[,1] <- runif(p,-1,1)
+lc$sigma[,2] <- runif(p,-1,1)
 
 # lc when model misspecification
 # ______________________________
@@ -75,7 +77,7 @@ Z <- simR$Z
 borg <- simR$borg
 
 #profvis({
-ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 200, iter.lim = 700, tol = .Machine$double.eps, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 100, iter.lim = 700, tol = .Machine$double.eps, loadmt = l1, icoefs = lc, useoptim = T, skipEM = T)
 #ex2 <- GLVM.fit(Y = Y, fam = fam2, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F)
 #ex3 <- GLVM.fit(Y = Y, fam = fam, form = form2, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l12, icoefs = lc2, useoptim = F)
@@ -84,20 +86,19 @@ ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 200, iter.lim 
 ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma
 
-plotGLVM(item = 1,mod = ex1, Y = Y, morg = simR, fam = fam, plot.org = T, plot.ci = T, plot.addpoints = F)
+plotGLVM(item = 3,mod = ex1, Y = Y, morg = simR, fam = fam, plot.org = T, plot.ci = T, plot.addpoints = F)
 
 ex1$b$mu; borg$mu
 ex1$b$sigma; borg$sigma
-#ex2$b$mu; borg$mu
-#ex2$b$sigma; borg$sigma
+#plot(ex1$cvgRes[,sample(1:ncol(ex1$cvgRes),2,replace = F)])
 
 EMfun <- function(l, silent = T){ # CHANGE HERE!
-
- AA <- simGLVM(n = n, p = p, form = form, dist = fam, coefs = lc, loadmt = l1)
- tmp1 <- GLVM.fit(Y = AA$Y, fam = fam, form = AA$form, silent = T, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
- if(silent == F) cat("Run = ", l, "Iter. to Convg.: ",tmp1$iter,"\n")
- return(c(unlist(tmp1$b),tmp1$iter))
- 
+        
+        AA <- simGLVM(n = n, p = p, form = form, dist = fam, coefs = lc, loadmt = l1)
+        tmp1 <- GLVM.fit(Y = AA$Y, fam = fam, form = AA$form, silent = T, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+        if(silent == F) cat("Run = ", l, "Iter. to Convg.: ",tmp1$iter,"\n")
+        return(c(unlist(tmp1$b),tmp1$iter))
+        
 }
 
 cores <- detectCores()-2
@@ -108,13 +109,13 @@ progress <- function(n) setTxtProgressBar(txtProgressBar(max = nsim, style = 3),
 opts <- list(progress = progress)
 
 FCOL <- foreach(l = 1:nsim,
-        .combine = rbind,
-        .packages = c("mvtnorm", "statmod"),
-        .options.snow = opts) %dopar% EMfun(l, silent = T)
+                .combine = rbind,
+                .packages = c("mvtnorm", "statmod"),
+                .options.snow = opts) %dopar% EMfun(l, silent = T)
 
 stopCluster(cl)
 
-save.image(paste0("nsim",nsim,"_n",n, "_p", p,"_Gaussian(QTIgnore_HT).RData"))
+save.image(paste0("nsim",nsim,"_n",n, "_p", p,"_ZIP(LinMu_QtSig).RData"))
 
 # FCOLorg <- FCOL # FCOL <- FCOLorg
 FCOL1 <- FCOL[FCOL[,ncol(FCOL)] %!in% c(700,-999),-ncol(FCOL)]
