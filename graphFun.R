@@ -1,36 +1,44 @@
 
 library(scales)
 
-plotGLVM <- function(item = 1, Y = Y, mod = ex1, morg = simR, fam = fam, plot.org = T, plot.ci = T, plot.addpoints = F){
+plotGLVM <- function(item = 1, Y = Y, mod = ex1, morg = simR, fam = fam, plot.org = T, plot.quant = T, 
+                     quant = c(0.05,0.2,0.4,0.6,0.8,0.95), plot.addpoints = F){
 
-# item = 2; mod = ex1; morg = simR; fam = fam; plot.org = T; plot.ci = T; plot.addpoints = F
+# item = 3; mod = ex1; morg = simR; fam = fam; plot.org = T; plot.quant = T; plot.addpoints = F;
+# quant = c(0.05,0.2,0.4,0.6,0.8,0.95)
   
  if(ncol(mod$gr$points) == 1){
   plot(morg$Z$mu$Z1, Y[[paste0("Y",item)]], pch = 16, col = alpha("gray", 0.7),
        xlab = expression("Latent Variable Z"[1]), ylab = substitute("Y"[item]))
   
-  lines(mod$gr$points, fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b)$EY, lwd = 2, col = 2)
+  lines(mod$gr$points, fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b)$mean, lwd = 2, col = 2)
   
-  if(plot.ci == T){
-   lines(mod$gr$points, fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b)$EY
-         - fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b)$SDY, lwd = 2, col = 2, lty = 3)
-   lines(mod$gr$points, fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b)$EY
-          + fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b)$SDY, lwd = 2, col = 2, lty = 3)}
-  
+  if(plot.quant == T){
+  if(missing(quant)){warning("Argument `quant' is missing. Setting it to 0.05 and 0.95."); quant <- c(0.05,0.95)}
+   for(i in seq_along(quant)){ # For plotting quantiles
+    lines(mod$gr$points, fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b, qnt = quant)$quant[,i],
+          lwd = 2, col = 2, lty = 3)  
+   }
+  }
+
   if(plot.org == T){
    tmp <- mvgH(length(mod$gr$points), mu = morg$Z.mu, sigma = morg$Z.Sigma, formula = morg$formula)
-   lines(mod$gr$points, fFun(item, fam[[item]], Z = tmp$out, b = morg$borg)$EY, lwd = 2, col = "black")
-   if(plot.ci == T){
-    lines(mod$gr$points, fFun(item, fam[[item]], Z = tmp$out, b = morg$borg)$EY
-         - fFun(item, fam[[item]], Z = tmp$out, b = morg$borg)$SDY, lwd = 2, col = "black", lty = 3)
-    lines(mod$gr$points, fFun(item, fam[[item]], Z = tmp$out, b = morg$borg)$EY
-         + fFun(item, fam[[item]], Z = tmp$out, b = morg$borg)$SDY, lwd = 2, col = "black", lty = 3)}
-    legend("topleft",legend=c("Fitted model", "Original model"), col=c("red", "black"), cex=0.8, lty = 1, inset = 0.02, bty = "n")
+   lines(mod$gr$points, fFun(item, fam[[item]], Z = tmp$out, b = morg$borg)$mean, lwd = 2, col = "black")
+   
+   if(plot.quant == T){
+    if(missing(quant)){warning("Argument `quant' is missing. Setting it to 0.05 and 0.95."); quant <- c(0.05,0.95)}
+     for(i in seq_along(quant)){ # For plotting quantiles
+         lines(mod$gr$points, fFun(item, fam[[item]], Z = tmp$out, b = morg$borg, qnt = quant)$quant[,i],
+               lwd = 2, col = 1, lty = 3)  
+     }
    }
+   
+  legend("topleft",legend=c("Fitted model", "Original model"), col=c("red", "black"), cex=0.8, lty = 1, inset = 0.02, bty = "n")
+  }
   
   else legend("topleft",legend=c("Fitted model"), col=c("red"), cex=0.8, lty = 1, inset = 0.02, lwd = 2, bty = "n")
   
-  }
+ }
   
  else{
   #if(ncol(mod$gr$points) >= 1){
