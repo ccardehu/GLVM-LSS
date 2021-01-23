@@ -152,7 +152,8 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     
     hist <- hist[1:iter,]
     
-    return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, gr = gr, Score = Sco, Hessian = Hes, cvgRes = hist))
+    return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, gr = gr, Score = Sco, Hessian = Hes, cvgRes = hist,
+                Y = as.data.frame(Y), fam = fam, formula = form))
     
   }, error = function(e){
     

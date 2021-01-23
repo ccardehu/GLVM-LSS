@@ -21,8 +21,7 @@ probs <- function(x){
   return(pr)
 }
 
-expit <- function(x) exp(x)/(1+exp(x))
-logit <- function(x) log(x/(1-x))
+expit <- function(x) exp(x)/(1+exp(x)); logit <- function(x) log(x/(1-x))
 
 pFun <- function(i,fam){ # should be evaluated at i = 1:p; fam = fam[i]
   if(fam == "normal") pars <- c("mu","sigma")
@@ -164,14 +163,14 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8)){
   if(fam == "normal"){
     mu = drop(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
     sigma = drop(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,])))
-    EY = qnorm(0.5, mean = mu, sd = sigma) # EY = mu
+    EY = mu
     SY = sigma
     qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
     for(i in seq_along(qnt)){ qM[,i] <- qnorm(qnt[i],mu,sigma) }
   }
   if(fam == "poisson"){
     mu = drop(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
-    EY = qpois(0.5,lambda = mu) #EY = drop(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
+    EY = mu
     SY = sqrt(mu)
     qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
     for(i in seq_along(qnt)){ qM[,i] <- qpois(qnt[i],mu) }
@@ -179,25 +178,21 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8)){
   if(fam == "gamma"){
     mu = drop(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
     sigma = drop(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,])))
-    EY = qgamma(0.5, shape = mu, scale = sigma)
+    EY = mu*sigma
     SY = sqrt(mu*sigma^2)
     qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
     for(i in seq_along(qnt)){ qM[,i] <- qgamma(qnt[i], scale = mu, scale = sigma) }
   }
   if(fam == "binom"){
     mu = drop(probs(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
-    EY = qbinom(0.5, 1, mu) # EY = probs(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
-    SY = sqrt(EY*(1-EY))
+    EY = mu
+    SY = sqrt(mu*(1-mu))
     qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
     for(i in seq_along(qnt)){ qM[,i] <- qbinom(qnt[i], 1, mu) }
   }
   if(fam == "ZIpoisson"){
     mu = drop(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
     sigma = drop(probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,])))
-    
-    # EY = (1-sigma)*mu
-    # SY = sqrt(mu*(1-sigma)*(1+mu*sigma))
-    
     qZIpoisson <- function (p,mu,sigma){
       ly <- max(length(p), length(mu), length(sigma))
       p <- rep(p, length = ly); sigma <- rep(sigma, length = ly); mu <- rep(mu, length = ly)
@@ -208,7 +203,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8)){
       return(q)
     }
     # https://stats.stackexchange.com/questions/463844/is-there-an-equation-for-the-median-and-percentile-of-a-zero-inflated-poisson
-    EY = qZIpoisson(0.5,mu,sigma)
+    EY = (1-sigma)*mu
     SY = sqrt(mu*(1-sigma)*(1+mu*sigma))
     qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
     for(i in seq_along(qnt)){ qM[,i] <- qZIpoisson(qnt[i], mu, sigma) }

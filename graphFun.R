@@ -1,44 +1,54 @@
 
 library(scales)
 
-plotGLVM <- function(item = 1, Y = Y, mod = ex1, morg = simR, fam = fam, plot.org = T, plot.quant = T, 
-                     quant = c(0.05,0.2,0.4,0.6,0.8,0.95), plot.addpoints = F){
+plotGLVM <- function(item = 1, mod = ex1, morg = simR,
+                     plot.mean = T, plot.sd = F, plot.org = T,
+                     plot.quant = T, quant = c(0.05,0.2,0.4,0.6,0.8,0.95),
+                     plot.addpoints = F){
 
-# item = 3; mod = ex1; morg = simR; fam = fam; plot.org = T; plot.quant = T; plot.addpoints = F;
+# item = 1; mod = ex1; morg = simR; plot.org = T; plot.quant = T; plot.addpoints = F; plot.mean = T; plot.sd = F
 # quant = c(0.05,0.2,0.4,0.6,0.8,0.95)
-  
+   
+ fam <- mod$fam;# Y <- mod$Y; 
+ fFun.mod <- fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b, qnt = quant)
+ 
  if(ncol(mod$gr$points) == 1){
-  plot(morg$Z$mu$Z1, Y[[paste0("Y",item)]], pch = 16, col = alpha("gray", 0.7),
+  plot(morg$Z$mu$Z1, mod$Y[[paste0("Y",item)]], pch = 16, col = alpha("gray", 0.7),
        xlab = expression("Latent Variable Z"[1]), ylab = substitute("Y"[item]))
-  
-  lines(mod$gr$points, fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b)$mean, lwd = 2, col = 2)
-  
-  if(plot.quant == T){
-  if(missing(quant)){warning("Argument `quant' is missing. Setting it to 0.05 and 0.95."); quant <- c(0.05,0.95)}
-   for(i in seq_along(quant)){ # For plotting quantiles
-    lines(mod$gr$points, fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b, qnt = quant)$quant[,i],
-          lwd = 2, col = 2, lty = 3)  
-   }
-  }
-
-  if(plot.org == T){
-   tmp <- mvgH(length(mod$gr$points), mu = morg$Z.mu, sigma = morg$Z.Sigma, formula = morg$formula)
-   lines(mod$gr$points, fFun(item, fam[[item]], Z = tmp$out, b = morg$borg)$mean, lwd = 2, col = "black")
-   
-   if(plot.quant == T){
-    if(missing(quant)){warning("Argument `quant' is missing. Setting it to 0.05 and 0.95."); quant <- c(0.05,0.95)}
-     for(i in seq_along(quant)){ # For plotting quantiles
-         lines(mod$gr$points, fFun(item, fam[[item]], Z = tmp$out, b = morg$borg, qnt = quant)$quant[,i],
-               lwd = 2, col = 1, lty = 3)  
-     }
-   }
-   
-  legend("topleft",legend=c("Fitted model", "Original model"), col=c("red", "black"), cex=0.8, lty = 1, inset = 0.02, bty = "n")
-  }
-  
-  else legend("topleft",legend=c("Fitted model"), col=c("red"), cex=0.8, lty = 1, inset = 0.02, lwd = 2, bty = "n")
-  
+ 
+ if(plot.mean == T) lines(mod$gr$points, fFun.mod$mean, lwd = 2, col = 2)
+ plot.sd <- ifelse(plot.quant, F, plot.sd)
+ 
+ if(plot.sd == T){
+  lines(mod$gr$points, fFun.mod$mean + fFun.mod$sd, lwd = 2, col = 2, lty = 3)
+  lines(mod$gr$points, fFun.mod$mean - fFun.mod$sd, lwd = 2, col = 2, lty = 3)
  }
+  
+ if(plot.quant == T){
+  if(missing(quant)){warning("Argument `quant' is missing. Setting it to 0.05 and 0.95."); quant <- c(0.05,0.95)}
+  for(i in seq_along(quant)){ lines(mod$gr$points, fFun.mod$quant[,i], lwd = 2, col = 2, lty = 3) }
+ }
+
+ if(plot.org == T){
+  if(missing(morg)) stop("Argument `morg' missing.")
+  tmp <- mvgH(length(mod$gr$points), mu = morg$Z.mu, sigma = morg$Z.Sigma, formula = morg$formula)
+  fFun.org <- fFun(item, fam[[item]], Z = tmp$out, b = morg$borg, qnt = quant)
+   
+  lines(mod$gr$points, fFun.org$mean, lwd = 2, col = "black")
+  if(plot.sd == T){
+   lines(mod$gr$points, fFun.org$mean + fFun.org$sd, lwd = 2, col = 1, lty = 3)
+   lines(mod$gr$points, fFun.org$mean - fFun.org$sd, lwd = 2, col = 1, lty = 3)  
+  }
+   
+  if(plot.quant == T){
+   if(missing(quant)){warning("Argument `quant' is missing. Setting it to 0.05 and 0.95."); quant <- c(0.05,0.95)}
+    for(i in seq_along(quant)){ lines(mod$gr$points, fFun.org$quant[,i], lwd = 2, col = 1, lty = 3) }
+  }
+   
+ legend("topleft",legend=c("Fitted model", "Original model"), col=c("red", "black"), cex=0.8, lty = 1, inset = 0.02, bty = "n")
+ }
+else legend("topleft",legend=c("Fitted model"), col=c("red"), cex=0.8, lty = 1, inset = 0.02, lwd = 2, bty = "n")
+}
   
  else{
   #if(ncol(mod$gr$points) >= 1){
@@ -67,7 +77,7 @@ plotGLVM <- function(item = 1, Y = Y, mod = ex1, morg = simR, fam = fam, plot.or
                 r = 5, ticktype = "detailed", nticks = 7, 
                 ltheta = -45, lphi = 45, col = color[cutz], shade = 0.25, main = paste0("Expected (fitted) value of item Y",item))
    
-   if(plot.addpoints == T) points(trans3d(morg$Z$mu$Z1, morg$Z$mu$Z2, Y[[paste0("Y",item)]], res), pch = 16, cex = 0.5, col = alpha("gray", 0.7))
+   if(plot.addpoints == T) points(trans3d(morg$Z$mu$Z1, morg$Z$mu$Z2, mod$Y[[paste0("Y",item)]], res), pch = 16, cex = 0.5, col = alpha("gray", 0.7))
   }
    
   if(plot.org == T){
@@ -95,13 +105,13 @@ plotGLVM <- function(item = 1, Y = Y, mod = ex1, morg = simR, fam = fam, plot.or
                  xlab = "\n Z1", ylab = "\n Z2", zlab = paste0("\n E(Y",item," | Z)"),
                  r = 5, ticktype = "detailed", nticks = 5, 
                  ltheta = -45, lphi = 45, col = color[cutz1], shade = 0.25, main = paste0("Expected (fitted) value of item Y",item))
-   if(plot.addpoints == T) points(trans3d(morg$Z$mu$Z1, morg$Z$mu$Z2, Y[[paste0("Y",item)]], res1), pch = 16, cex = 0.5, col = alpha("gray", 0.7))
+   if(plot.addpoints == T) points(trans3d(morg$Z$mu$Z1, morg$Z$mu$Z2, mod$Y[[paste0("Y",item)]], res1), pch = 16, cex = 0.5, col = alpha("gray", 0.7))
    
    res2 <- persp(x = tmpx, y = tmpy, z = tmpz2, theta = -45, phi = 30,  expand = 0.8,
                  xlab = "\n Z1", ylab = "\n Z2", zlab = paste0("\n E(Y",item," | Z)"),
                  r = 5, ticktype = "detailed", nticks = 5, 
                  ltheta = -45, lphi = 45, col = color[cutz2], shade = 0.25, main = paste0("Expected (original) value of item Y",item))
-   if(plot.addpoints == T) points(trans3d(morg$Z$mu$Z1, morg$Z$mu$Z2, Y[[paste0("Y",item)]], res2), pch = 16, cex = 0.5, col = alpha("gray", 0.7)) 
+   if(plot.addpoints == T) points(trans3d(morg$Z$mu$Z1, morg$Z$mu$Z2, mod$Y[[paste0("Y",item)]], res2), pch = 16, cex = 0.5, col = alpha("gray", 0.7)) 
     
   }
     
