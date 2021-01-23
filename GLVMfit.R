@@ -142,17 +142,6 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
         if(optmres$convergence != 0) warning("Maximization did not converge properly")
         eps1 <- tol/2
       }
-      # 
-      # if(useoptim == "trustR" & iter >= 40){
-      #   if(skipEM == T) cat("\n Using `trust` to find ML estimates") else cat(paste0("\n Using `trust` to refine ML estimates", catmsg))
-      #   optmres <- trust::trust(loglik, beta = bnew, ghQ = gr, loadmt = loadmt, method = "BFGS", control = list(maxit = iter.lim, fnscale = -1))
-      #   bnew <- coefmod(bet = optmres$par, beta = bnew, gr = gr,loadmt)
-      #   lln <- sum(log(mfy(Y,bnew,gr,fam)))
-      #   iter <- optmres$convergence
-      #   if(optmres$convergence != 0) warning("Maximization did not converge properly")
-      #   eps1 <- tol/2
-      # }
-      
     }
     
     Sco <- Hes <- NULL
