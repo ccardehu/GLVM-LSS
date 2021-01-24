@@ -28,14 +28,14 @@ source("graphFun.R")
 n = 1000     # Number of individuals
 p = 10       # Number of items
 nsim = 1000  # Number of simulations
-form <- list("mu" = "~ Z1", "sigma" = "~ Z1") # 
+form <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ Z1 + I(Z1^2)") # 
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("ZIpoisson", p)
+fam <- rep("normal", p)
 
 l1 <- NULL
-l1$mu <- matrix(1,ncol = 2, nrow = p)
-l1$sigma <- matrix(1, ncol = 2, nrow = p)
+l1$mu <- matrix(1,ncol = 3, nrow = p)
+l1$sigma <- matrix(1, ncol = 3, nrow = p)
 
 # Restrictions
 # ____________
@@ -56,11 +56,12 @@ l1$sigma <- matrix(1, ncol = 2, nrow = p)
 lc <- NULL
 lc$mu <- matrix(runif(length(l1$mu), min = 0.1, max = 0.5),nrow = p)
 lc$mu[,1] <-  runif(p,1,2)
-lc$mu[,2] <-  runif(p,0.1,0.7)
+lc$mu[,2] <-  runif(p,0.7,1.7)
 #lc$mu[,3] <-  runif(p,0.2,0.5)
 lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.5), nrow = p)
 lc$sigma[,1] <- runif(p,-1,1)
 lc$sigma[,2] <- runif(p,2,4)
+lc$sigma[,3] <- runif(p,-0.4,-0.1)
 
 # lc when model misspecification
 # ______________________________
@@ -86,9 +87,9 @@ ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim =
 ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma
 
-plotGLVM(item = 2, mod = ex1, morg = simR, plot.org = T,
+plotGLVM(item = 6, mod = ex1, morg = simR, plot.org = F,
          plot.mean = T, plot.sd = F, plot.addpoints = F,
-         plot.quant = F, quant = c(0.025,0.2,0.4,0.6,0.8,0.975)) #
+         plot.quant = T, quant = c(0.025,0.2,0.4,0.6,0.8,0.975)) #
 
 ex1$b$mu; borg$mu
 ex1$b$sigma; borg$sigma
