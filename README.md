@@ -1,7 +1,11 @@
 # SPLVM
+
 GitHub Repository for the Project - SPLVM: Semiparametric Latent Variable Models
+
 Author: Camilo Cardenas-Hurtado (c.a.cardenas-hurtado@lse.ac.uk)
+
 Initial date: 20/01/2021
+
 Most recent update: 25/01/2021
 
 In this version:
