@@ -3,13 +3,14 @@ library(scales)
 
 plotGLVM <- function(item = 1, mod = ex1, morg = simR,
                      plot.mean = T, plot.sd = F, plot.org = T,
-                     plot.quant = T, quant = c(0.05,0.2,0.4,0.6,0.8,0.95),
+                     quant = c(0.05,0.2,0.4,0.6,0.8,0.95), # plot.quant = T, 
                      plot.addpoints = F){
 
 # item = 1; mod = ex1; morg = simR; plot.org = T; plot.quant = T; plot.addpoints = F; plot.mean = T; plot.sd = F
 # quant = c(0.05,0.2,0.4,0.6,0.8,0.95)
-   
+
  fam <- mod$fam;# Y <- mod$Y; 
+ plot.quant <- ifelse(missing(quant),F,T)
  fFun.mod <- fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b, qnt = quant)
  
  if(ncol(mod$gr$points) == 1){
@@ -126,3 +127,47 @@ else legend("topleft",legend=c("Fitted model"), col=c("red"), cex=0.8, lty = 1, 
 }
 
 
+
+
+
+
+# attach(cars)
+# n=2
+# X= cars$speed 
+# Y=cars$dist
+# df=data.frame(X,Y)
+# vX=seq(min(X)-2,max(X)+2,length=n)
+# vY=seq(min(Y)-15,max(Y)+15,length=n)
+# mat=persp(vX,vY,matrix(0,n,n),zlim=c(0,.1),theta=-30,ticktype ="detailed", box = FALSE)
+# reggig=glm(Y~X,data=df,family=gaussian(link="identity"))
+# x=seq(min(X),max(X),length=501)
+# C=trans3d(x,predict(reggig,newdata=data.frame(X=x),type="response"),rep(0,length(x)),mat)
+# lines(C,lwd=2)
+# sdgig=sqrt(summary(reggig)$dispersion)
+# x=seq(min(X),max(X),length=501)
+# y1=qnorm(.95,predict(reggig,newdata=data.frame(X=x),type="response"), sdgig)
+# C=trans3d(x,y1,rep(0,length(x)),mat)
+# lines(C,lty=2)
+# y2=qnorm(.05,predict(reggig,newdata=data.frame(X=x),type="response"), sdgig)
+# C=trans3d(x,y2,rep(0,length(x)),mat)
+# lines(C,lty=2)
+# C=trans3d(c(x,rev(x)),c(y1,rev(y2)),rep(0,2*length(x)),mat)
+# polygon(C,border=NA,col="yellow")
+# C=trans3d(X,Y,rep(0,length(X)),mat)
+# points(C,pch=19,col="red")
+# n=8
+# vX=seq(min(X),max(X),length=n)
+# mgig=predict(reggig,newdata=data.frame(X=vX))
+# sdgig=sqrt(summary(reggig)$dispersion)
+# for(j in n:1){
+#    stp=251
+#    x=rep(vX[j],stp)
+#    y=seq(min(min(Y)-15,qnorm(.05,predict(reggig,newdata=data.frame(X=vX[j]),type="response"), sdgig)),max(Y)+15,length=stp)
+#    z0=rep(0,stp)
+#    z=dnorm(y, mgig[j], sdgig)
+#    C=trans3d(c(x,x),c(y,rev(y)),c(z,z0),mat)
+#    polygon(C,border=NA,col="light blue",density=40)
+#    C=trans3d(x,y,z0,mat)
+#    lines(C,lty=2)
+#    C=trans3d(x,y,z,mat)
+#    lines(C,col="blue")}
