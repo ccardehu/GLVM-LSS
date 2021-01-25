@@ -28,14 +28,14 @@ source("graphFun.R")
 n = 1000     # Number of individuals
 p = 10       # Number of items
 nsim = 1000  # Number of simulations
-form <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ Z1") # 
+form <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ Z1 + I(Z1^2)") # 
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("normal", p)
+fam <- rep("normal",p)# c(rep("normal", p/2), rep("ZIpoisson", p/2))
 
 l1 <- NULL
 l1$mu <- matrix(1,ncol = 3, nrow = p)
-l1$sigma <- matrix(1, ncol = 2, nrow = p)
+l1$sigma <- matrix(1, ncol = 3, nrow = p)
 
 # Restrictions
 # ____________
@@ -49,25 +49,25 @@ l1$sigma <- matrix(1, ncol = 2, nrow = p)
 # ______________________________
 #
 #l11 <- l1
-#l11$sigma <- l11$sigma[,-ncol(l11$sigma), drop = F]
+#l11$sigma <- l11$sigma[,-c(2:ncol(l11$sigma)), drop = F]
 #l12 <- l11
 #l12$mu <- l12$mu[,-ncol(l12$mu), drop = F]
 
 lc <- NULL
 lc$mu <- matrix(runif(length(l1$mu), min = 0.1, max = 0.5),nrow = p)
 lc$mu[,1] <-  runif(p,1,2)
-lc$mu[,2] <-  runif(p,0.7,1.7)
+lc$mu[,2] <-  runif(p,0.7,1.5)
 #lc$mu[,3] <-  runif(p,0.5,0.7)
 lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.5), nrow = p)
-lc$sigma[,1] <- runif(p,-1,1)
-lc$sigma[,2] <- runif(p,2,4)
+#lc$sigma[,1] <- runif(p/2,-1,1)
+#lc$sigma[,2] <- runif(p/2,2,4)
 #lc$sigma[,3] <- runif(p,-0.4,-0.1)
 
 # lc when model misspecification
 # ______________________________
 #
 #lc1 <- lc
-#lc1$sigma <- lc1$sigma[,-ncol(lc1$sigma), drop = F]
+#lc1$sigma <- lc1$sigma[,-c(2:ncol(lc1$sigma)), drop = F]
 #lc2 <- lc1
 #lc2$mu <- lc2$mu[,-ncol(lc2$mu), drop = F]
 #lc2$sigma <- lc2$sigma + 1
@@ -79,7 +79,7 @@ borg <- simR$borg
 
 #profvis({
 ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
-#ex2 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 100, iter.lim = 700, tol = .Machine$double.eps, loadmt = l1, icoefs = lc, useoptim = T, skipEM = T)
+#ex2 <- GLVM.fit(Y = Y, fam = fam, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam2, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F)
 #ex3 <- GLVM.fit(Y = Y, fam = fam, form = form2, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l12, icoefs = lc2, useoptim = F)
 #})
@@ -87,9 +87,10 @@ ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim =
 ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma
 
-plotGLVM(item = 6, mod = ex1, morg = simR, plot.org = F,
-         plot.mean = T, plot.sd = F, plot.addpoints = F,
-         quant = c(0.025,0.25,0.75,0.975)) # plot.quant = T, 
+plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
+         plot.mean = T, plot.sd = T, plot.addpoints = F,
+         quant = c(0.025,0.25,0.75,0.975)) # plot.quant = T,
+plot.score(ex1)
 
 ex1$b$mu; borg$mu
 ex1$b$sigma; borg$sigma
@@ -173,3 +174,4 @@ Msd <- matrix(apply(FCOL1,2,sd)); colnames(Msd) <- "SD"
 MR <- round(cbind(Morg, Mest, Msd, Mrmse1),3); head(MR,15)
 MR <- round(cbind(Morg, Mbias1, Mrbias1, Mrmse1),3); head(MR,15)
 #xtable(unname(MR),digits = 3)
+

@@ -171,3 +171,17 @@ else legend("topleft",legend=c("Fitted model"), col=c("red"), cex=0.8, lty = 1, 
 #    lines(C,lty=2)
 #    C=trans3d(x,y,z,mat)
 #    lines(C,col="blue")}
+
+plot.score <- function(mod = ex1){
+num.score <- grad(func = loglik, x = unlist(mod$b), method = "Richardson",
+                  method.args=list(r = 8), ghQ = mod$gr, loadmt = mod$loadmt, beta = mod$b)
+tmp.min <- min(num.score,unlist(mod$Score)) - 1e-5
+tmp.max <- max(num.score,unlist(mod$Score)) + 1e-5
+plot.ts(unlist(mod$Score), pch = 16, col = "gray40", lwd = 2, main = "Analytical (in EM) vs. Numerical Scores",
+        ylim = c(tmp.min,tmp.max), xlab = "Paramter (#)", ylab = "Score value"); abline(h = 0, col = "blue", lty = 2)
+lines(num.score, col = 2, lwd = 2)
+legend("bottomright",legend=c("Analytical", "Numerical"), col=c("black", "red"), cex=1, lty = 1, inset = 0.02, bty = "n")
+}
+
+
+
