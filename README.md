@@ -1,5 +1,10 @@
 # SPLVM
-Semiparametric Latent Variable Models
+GitHub Repository for the Project - SPLVM: Semiparametric Latent Variable Models
+Author: Camilo Cardenas-Hurtado (c.a.cardenas-hurtado@lse.ac.uk)
+Initial date: 20/01/2021
+Most recent update: 25/01/2021
+
+In this version:
 
 Files in this repository:
 - EMFun.R    : Main file for setting simulations of the SPLVM. Controls simulation parameters, and MonteCarlo simulations.
