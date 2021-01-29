@@ -7,7 +7,7 @@ simGLVM <- function(n,p,form,dist,loadmt,coefs){
 # n = 500; p = 10; form = form; dist = fam; 
 # loadmt = l1; coefs = lc;
 # _________________________________________________________
-parY <- unlist(unique(lapply(1:length(dist),function(i) pFun(i,dist[i]))))
+parY <- unlist(unique(lapply(1:length(dist),function(i) pFun(dist[i]))))
 
 if(!is.list(form)) stop("Argument `form` should be a list with elements mu, sigma, tau or nu")
 if(!all(names(form) == parY)) stop("Missing formula, check for mu, sigma, tau or nu")

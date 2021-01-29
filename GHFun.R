@@ -81,7 +81,7 @@ mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
     out[[i]] <- Z.[[i]]
   }
   
-  return(list(points = pts, weights = wts, out = out))
+  return(list(points = pts, weights = wts, out = out, n = n))
 }
 
 
