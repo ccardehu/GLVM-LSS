@@ -208,7 +208,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
      eM[,k] <- muM
      sM[,k] <- sqrt(muM)
      qMM[[k]] <- matrix(nrow = length(mu), ncol = length(qnt)); colnames(qMM[[k]]) <- paste0("q",qnt*100)
-     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qnorm(qnt[j],muM,sgM) }
+     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qpois(qnt[j],muM) }
     }
     lvpl = paste0("Z",lvp)
     mu2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,]))))
@@ -220,7 +220,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
     EY = mu*sigma
     SY = sqrt(mu*sigma^2)
     qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
-    for(i in seq_along(qnt)){ qM[,i] <- qgamma(qnt[i], scale = mu, scale = sigma) }
+    for(i in seq_along(qnt)){ qM[,i] <- qgamma(qnt[i], shape = mu, scale = sigma) }
     eM <- sM <- matrix(nrow = length(mu), ncol = length(lvar)); colnames(eM) <- colnames(sM) <- lvar
     for(k in lvar){
      muM = drop(unname(exp(as.matrix(Zm(k,Z$mu))%*%matrix(b$mu[i,]))))
@@ -228,7 +228,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
      eM[,k] <- muM*sgM
      sM[,k] <- sqrt(muM*sgM^2)
      qMM[[k]] <- matrix(nrow = length(mu), ncol = length(qnt)); colnames(qMM[[k]]) <- paste0("q",qnt*100)
-     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qnorm(qnt[j],muM,sgM) }
+     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qgamma(qnt[j],  shape = muM, scale = sgM) }
     }
     lvpl = paste0("Z",lvp)
     mu2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,]))))
@@ -247,7 +247,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
      eM[,k] <- muM
      sM[,k] <- sqrt(muM*(1-muM))
      qMM[[k]] <- matrix(nrow = length(mu), ncol = length(qnt)); colnames(qMM[[k]]) <- paste0("q",qnt*100)
-     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qnorm(qnt[j],muM,sgM) }
+     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qbinom(qnt[j],1,muM) }
     }
     lvpl = paste0("Z",lvp)
     mu2M = drop(unname(probs(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,]))))
@@ -277,11 +277,11 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
      eM[,k] <- (1-sgM)*muM
      sM[,k] <- sqrt(muM*(1-sgM)*(1+muM*sgM))
      qMM[[k]] <- matrix(nrow = length(mu), ncol = length(qnt)); colnames(qMM[[k]]) <- paste0("q",qnt*100)
-     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qnorm(qnt[j],muM,sgM) }
+     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qZIpoisson(qnt[j],muM,sgM) }
     }
     lvpl = paste0("Z",lvp)
     mu2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,]))))
-    sg2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$sigma))%*%matrix(b$sigma[i,]))))
+    sg2M = drop(unname(probs(as.matrix(Zm(lvpl,Z$sigma))%*%matrix(b$sigma[i,]))))
     EY2M = (1-sg2M)*mu2M
   }
   # Add other distributions in SimFA::fod

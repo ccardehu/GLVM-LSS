@@ -65,7 +65,7 @@ if(plot.3D == F){
  if(dimp == 2){
  par(mfrow = c(1,1)) 
  for(k in 1:dimp){
-  tmpx <- tmpy <- -unique(round(c(mod$gr$points),5)); tmpz <- matrix(NA, nrow = length(tmpx), ncol = length(tmpy))
+  tmpx <- tmpy <- sort(unique(round(c(mod$gr$points),5))); tmpz <- matrix(NA, nrow = length(tmpx), ncol = length(tmpy))
   fFun.mod <- fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b, forms = mod$formula, lvp = c(1:dimp))
   tmpB <- cbind(round(mod$gr$points,5), fFun.mod$EY2M)
   for(i in 1:length(tmpx)){
@@ -102,18 +102,18 @@ if(plot.3D == F){
  cmb <- combn(dimp,2)
  if(plot.org == T && sep.plots == F){X11(); par(mfrow=c(((ncol(cmb)*2+1)%/%2),2))} else{X11(); par(mfrow=c((ncol(cmb)+1)%/%2,2))}
  for(k in 1:ncol(cmb)){
- tmpx <- tmpy <- -unique(round(c(mod$gr$points),5)); tmpz <- matrix(NA, nrow = length(tmpx), ncol = length(tmpy))
+ tmpx <- tmpy <- sort(unique(round(c(mod$gr$points),5))); tmpz <- matrix(NA, nrow = length(tmpx), ncol = length(tmpy))
  fFun.mod <- fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b, forms = mod$formula, lvp = c(cmb[,k]))
- tmpB <- cbind(round(mod$gr$points,5), fFun.mod$EY2M)
+ tmpB <- cbind(round(mod$gr$points[,paste0("Z",c(cmb[,k]))],5), fFun.mod$EY2M)
  for(i in 1:length(tmpx)){
   for(j in 1:length(tmpy)){
-      tmpz[i,j] <- tmpB[intersect(which(tmpB[,1] == tmpx[i]), which(tmpB[,2] == tmpy[j])),3]}}
+      tmpz[i,j] <- unique(tmpB[intersect(which(tmpB[,1] == tmpx[i]), which(tmpB[,2] == tmpy[j])),3])}}
  color <- colorRampPalette(c("lightblue", "purple"))(length(tmpx))
  tmpzz <- tmpz[-1, -1] + tmpz[-1, -ncol(tmpz)] + tmpz[-nrow(tmpz), -1] + tmpz[-nrow(tmpz), -ncol(tmpz)]
  cutz <- cut(c(tmpzz), 10)
  
  res <- persp(x = tmpx, y = tmpy, z = tmpz, theta = -45, phi = 30,  expand = 0.8,
-              xlab = "\n Z1", ylab = "\n Z2", zlab = paste0("\n E(Y",item," | Z)"),
+              xlab = paste0("\n Z",cmb[1,k]), ylab = paste0("\n Z",cmb[2,k]), zlab = paste0("\n E(Y",item," | Z)"),
               r = 5, ticktype = "detailed", nticks = 7, 
               ltheta = -45, lphi = 45, col = color[cutz], shade = 0.25,
               main = paste0("Fitted values for E(item ",item," | Z)"))
@@ -122,26 +122,22 @@ if(plot.3D == F){
  if(missing(morg)) stop("Argument `morg' missing.")
  tmp <- mvgH(mod$gr$n, mu = morg$Z.mu, sigma = morg$Z.Sigma, formula = morg$formula)
  fFun.morg <- fFun(item, fam[[item]], Z = tmp$out, b = morg$b, forms = morg$formula, lvp = c(cmb[,k]))
- tmpB. <- cbind(round(mod$gr$points,5), fFun.morg$EY2M); tmpz. <- tmpz
+ tmpB. <- cbind(round(mod$gr$points[,paste0("Z",c(cmb[,k]))],5), fFun.morg$EY2M); tmpz. <- tmpz
  for(i in 1:length(tmpx)){
   for(j in 1:length(tmpy)){
-      tmpz.[i,j] <- tmpB.[intersect(which(tmpB.[,1] == tmpx[i]), which(tmpB.[,2] == tmpy[j])),3]}}
+      tmpz.[i,j] <- unique(tmpB.[intersect(which(tmpB.[,1] == tmpx[i]), which(tmpB.[,2] == tmpy[j])),3])}}
  color. <- colorRampPalette(c("gold","royalblue1"))(length(tmpx))
  tmpzz. <- tmpz.[-1, -1] + tmpz.[-1, -ncol(tmpz.)] + tmpz.[-nrow(tmpz.), -1] + tmpz.[-nrow(tmpz.), -ncol(tmpz.)]
  cutz. <- cut(c(tmpzz.), 10)
  
  res <- persp(x = tmpx, y = tmpy, z = tmpz., theta = -45, phi = 30,  expand = 0.8,
-              xlab = "\n Z1", ylab = "\n Z2", zlab = paste0("\n E(Y",item," | Z)"),
+              xlab = paste0("\n Z",cmb[1,k]), ylab = paste0("\n Z",cmb[2,k]), zlab = paste0("\n E(Y",item," | Z)"),
               r = 5, ticktype = "detailed", nticks = 7, 
               ltheta = -45, lphi = 45, col = color.[cutz.], shade = 0.25,
               main = paste0("Original E(item ",item," | Z)")) } } }
  
 #   if(plot.addpoints == T) points(trans3d(morg$Z$mu$Z1, morg$Z$mu$Z2, mod$Y[[paste0("Y",item)]], res), pch = 16, cex = 0.5, col = alpha("gray", 0.7))
-
 } # else 3D
-  
- 
-  
 } # function
 
 
