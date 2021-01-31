@@ -8,7 +8,7 @@ plotGLVM <- function(item = 1, mod = ex1, morg = simR,
 
 if("scales" %in% rownames(installed.packages()) == F) install.packages("scales")
 # item = 1; mod = ex1; morg = simR; plot.mean = T; plot.org = F
-# plot.sd = T; plot.addpoints = F; sep.plots = F
+# plot.sd = T; plot.addpoints = F; sep.plots = F, plot.3D = T
 # quant = c(0.05,0.2,0.4,0.6,0.8,0.95)
 
 if(missing(sep.plots)) sep.plots <- F
@@ -63,10 +63,10 @@ if(plot.3D == F){
 } else { #else 3D
  if(dimp < 2) stop("Change argument `plot.3D': Only one latent variable in the model.")
  if(dimp == 2){
- par(mfrow = c(1,1)) 
+ if(plot.org == T) par(mfrow = c(1,2)) else par(mfrow = c(1,1))
  for(k in 1:dimp){
   tmpx <- tmpy <- sort(unique(round(c(mod$gr$points),5))); tmpz <- matrix(NA, nrow = length(tmpx), ncol = length(tmpy))
-  fFun.mod <- fFun(item, fam[[item]], Z = mod$gr$out, b = mod$b, forms = mod$formula, lvp = c(1:dimp))
+  fFun.mod <- fFun(i = item, fam = fam[[item]], Z = mod$gr$out, b = mod$b, forms = mod$formula, lvp = c(1:dimp))
   tmpB <- cbind(round(mod$gr$points,5), fFun.mod$EY2M)
   for(i in 1:length(tmpx)){
    for(j in 1:length(tmpy)){
@@ -83,7 +83,7 @@ if(plot.3D == F){
   if(plot.org == T){
    if(missing(morg)) stop("Argument `morg' missing.")
    tmp <- mvgH(mod$gr$n, mu = morg$Z.mu, sigma = morg$Z.Sigma, formula = morg$formula)
-   fFun.morg <- fFun(item, fam[[item]], Z = tmp$out, b = morg$b, forms = morg$formula, lvp = c(1:dimp))
+   fFun.morg <- fFun(i = item, fam = fam[[item]], Z = tmp$out, b = morg$b, forms = morg$formula, lvp = c(1:dimp))
    tmpB. <- cbind(round(mod$gr$points,5), fFun.morg$EY2M); tmpz. <- tmpz
    for(i in 1:length(tmpx)){
     for(j in 1:length(tmpy)){
@@ -96,7 +96,8 @@ if(plot.3D == F){
                 xlab = "\n Z1", ylab = "\n Z2", zlab = paste0("\n E(Y",item," | Z)"),
                 r = 5, ticktype = "detailed", nticks = 7, 
                 ltheta = -45, lphi = 45, col = color.[cutz.], shade = 0.25,
-                main = paste0("Original E(item ",item," | Z)")) } } 
+                main = paste0("Original E(item ",item," | Z)"))
+   } } 
  }
  if(dimp > 2){
  cmb <- combn(dimp,2)
@@ -147,7 +148,7 @@ if(plot.3D == F){
 
 # attach(cars)
 # n=2
-# X= cars$speed 
+# X= cars$speed
 # Y=cars$dist
 # df=data.frame(X,Y)
 # vX=seq(min(X)-2,max(X)+2,length=n)
@@ -191,10 +192,12 @@ num.score <- grad(func = loglik, x = unlist(mod$b), method = "Richardson",
                   method.args=list(r = 8), ghQ = mod$gr, loadmt = mod$loadmt, beta = mod$b)
 tmp.min <- min(num.score,unlist(mod$Score)) - 1e-5
 tmp.max <- max(num.score,unlist(mod$Score)) + 1e-5
-plot.ts(unlist(mod$Score), pch = 16, col = "gray40", lwd = 2, main = "Analytical (in EM) vs. Numerical Scores",
-        ylim = c(tmp.min,tmp.max), xlab = "Parameters (#)", ylab = "Score value"); abline(h = 0, col = "blue", lty = 2)
-lines(num.score, col = 2, lwd = 2)
-legend("bottomright",legend=c("Analytical", "Numerical"), col=c("black", "red"), cex=1, lty = 1, inset = 0.02, bty = "n")
+t <- seq_along(num.score)
+plot(x = t, y = unlist(mod$Score), pch = 2, col = "gray50", lwd = 2, main = "Analytical vs. Numerical",
+        ylim = c(tmp.min,tmp.max), xlab = "Parameters (#)", ylab = "Score (@ ML estimates parameter vector)"); abline(h = 0, col = "red", lty = 2)
+points(num.score, col = "red", lwd = 2, pch = 1)
+segments(x0 = t, y0 = unlist(mod$Score), y1 = num.score, col = "blue", lty = 3, lwd = 1)
+legend("bottomright",legend=c("Analytical score", "Numerical score"), col=c("gray50", "red"), pch = c(2,1), cex=1, inset = 0.02, bty = "n")
 }
 
 

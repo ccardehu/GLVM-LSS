@@ -26,7 +26,7 @@ expit <- function(x) exp(x)/(1+exp(x)); logit <- function(x) log(x/(1-x))
 # To use in fFun() below and outside
 
 Zm <- function(lv = c("Z1"), Z. = Z){
-# Z. = simR$Z$mu; lv = "Z1"
+# Z. = simR$Z$sigma; lv = "Z1"
   tmpr <- vector(mode = "list", length = length(lv)); names(tmpr) <- lv
   for(i in lv){ tmpr[[i]] <- grep(i, colnames(Z.), fixed = T) }
   rmv <- unname(unlist(tmpr))
@@ -170,7 +170,8 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
 
 fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
   #should be evaluated at i = 1:p; fam = fam[i]; Z = simR$Z; b = borg; qnt = c(0.2,0.4,0.6,0.8) forms = ex1$formula
-  if(missing(lvp)){ lvp = c(1,2); rtF = F } else rtF = T
+  if(missing(lvp)){ lvp = c(1); rtF = F } else rtF = T
+  if(missing(qnt)){ qnt = c(0.2,0.8)}
   pars <- pFun(fam)
   lvar <- unique(unlist(lapply(pars, function(i) all.vars(forms[[i]]))))
   lvar <- lvar[grep("Z", lvar, fixed = T)]; qMM <- list()
