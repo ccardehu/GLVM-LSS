@@ -67,15 +67,75 @@ rFun <- function(n,i,fam,Z,b){ #should be evaluated at i = 1:p; fam = fam[i]; Z 
   if(fam == "ZIpoisson"){
     mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
     sigma = probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
-    #u <- rbinom(n,1,1-sigma)
-    #pois <- rpois(n,mu)
-    #fyz <- u * pois
     fyz <- ifelse(rbinom(n,1,1-sigma) == 0, 0, rpois(n,mu))
-    #fyz <- gamlss.dist::rZIP(n, drop(mu), drop(sigma))
   }
   
   # Add other distributions in SimFA::fod
   return(fyz)
+}
+
+gFun <- function(Z,b,fam,i){
+  # To be evaluated at:
+  # Z <- gr$out; b <- borg; fam = fam[i]
+  gout <- vector(mode = "list", length = length(pFun(fam))); names(gout) <- pFun(fam)
+  if(fam == "normal"){
+    gout$mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
+    gout$sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
+  }
+  if(fam == "poisson"){ gout$mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,])))) }
+  if(fam == "gamma"){
+    gout$mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
+    gout$sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
+  }
+  if(fam == "binom"){ gout$mu = drop(unname(probs(as.matrix(Z$mu)%*%matrix(b$mu[i,])))) }
+  if(fam == "ZIpoisson"){
+    gout$mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
+    gout$sigma = drop(unname(probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
+  }
+ return(gout)
+}
+
+# 
+# rbenchmark::benchmark(
+#   "for" = {
+#     r1 <- array(NA,dim= c(nrow(Y),ncol(Y),gr$n));
+#     for(r in 1:gr$n){r1[,,r] <- dFun2(as.matrix(Y),fam,gr$out,b,r)} },
+#   "lapply" = {r2 <- lapply(1:gr$n, function(r) dFun2(as.matrix(Y),fam,gr$out,b,r))},
+#   "mfyz" = {
+#     r3 <- array(NA,dim= c(nrow(Y),ncol(Y),gr$n));
+#     for(r in 1:gr$n){r3[,,r] <- sapply(1:ncol(Y), FUN = function(i) dFun(i,r, fam = fam[i], Y = Y[,i], Z = Z, b = b))}},
+#   replications = 100, columns = c("test", "replications", "elapsed",
+#                                   "relative", "user.self", "sys.self")
+# )
+
+
+dFun2 <- function(Y,fam,Z,b,j){
+dY <- Y
+for(i in 1:ncol(Y)){
+
+  if(fam[i] == "normal"){
+    dY[,i] <- dnorm(Y[,i], gFun(Z,b,fam[i],i)$mu[j], gFun(Z,b,fam[i],i)$sigma[j], log = T)
+  }
+  if(fam[i] == "poisson"){
+    dY[,i] <- dpois(Y[,i], gFun(Z,b,fam[i],i)$mu[j], log = T) 
+  }
+  if(fam[i] == "gamma"){
+    dY[,i] <- dgamma(Y[,i], shape = gFun(Z,b,fam[i],i)$mu[j], scale = gFun(Z,b,fam[i],i)$sigma[j], log = T)
+  }
+  if(fam[i] == "binom"){
+    dY[,i] <- dbinom(Y[,i],size = 1,prob = gFun(Z,b,fam[i],i)$mu[j], log = T)
+  }
+  if(fam[i] == "ZIpoisson"){
+    dZIpoisson <- function(Y,mu,sigma, log = T){
+      u <- as.numeric(Y == 0)
+      lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+      if(log == T) return(lf) else return(exp(lf))
+    }
+    dY[,i] <- dZIpoisson(Y[,i], gFun(Z,b,fam[i],i)$mu[j], gFun(Z,b,fam[i],i)$sigma[j], log = T)
+  }
+  # Add other distributions
+}
+return(dY)
 }
 
 dFun <- function(i,z,fam,Y,Z,b){ #should be evaluated at i = 1:p; z = 10; fam = fam[i]; Y = simR$Y[,i]; Z = gr$out; b = borg
@@ -103,10 +163,10 @@ dFun <- function(i,z,fam,Y,Z,b){ #should be evaluated at i = 1:p; z = 10; fam = 
   if(fam == "ZIpoisson"){
     mu = exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
     sigma = probs(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
-    dZIpoisson <- function(Y,mu,sigma){
+    dZIpoisson <- function(Y,mu,sigma,log = T){
       u <- as.numeric(Y == 0)
       lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
-      return(lf)
+      if(log == T) return(lf) else return(exp(lf))
     }
     fyz <- dZIpoisson(Y, drop(mu), drop(sigma))
     #fyz <- gamlss.dist::dZIP(Y, drop(mu), drop(sigma), log = T)
@@ -288,5 +348,34 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
   # Add other distributions in SimFA::fod
   if(rtF == T){ return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM, EY2M = EY2M))
   } else return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM))
+}
+
+
+f2Fun <- function(Y,fam,g,i){
+  #For graphics: Y = mod$Y[,item]; fam = mod$fam[item]; g = gFun(mod$gr$out,mod$b,fam[[item]],item); i = cuts
+  
+  if(fam == "normal"){
+    fyz <- dnorm(Y, g$mu[i], g$sigma[i])
+  }
+  if(fam == "poisson"){
+    fyz <- dpois(ceiling(Y), g$mu[i]) 
+  }
+  if(fam == "gamma"){
+    fyz <- dgamma(Y,shape = g$mu[i], scale = g$sigma[i])
+  }
+  if(fam == "binom"){
+    fyz <- dbinom(round(Y),1,prob = g$mu[i])
+  }  
+  if(fam == "ZIpoisson"){
+    dZIpoisson <- function(Y,mu,sigma,log=T){
+      u <- as.numeric(Y == 0)
+      lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+      if(log == T) return(lf) else return(exp(lf))
+    }
+    fyz <- dZIpoisson(ceiling(Y), g$mu[i], g$sigma[i], log = F)
+  }
+  
+  # Add other distributions in SimFA::fod
+  return(fyz)
 }
 
