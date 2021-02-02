@@ -379,3 +379,13 @@ f2Fun <- function(Y,fam,g,i){
   return(fyz)
 }
 
+p2Fun <- function(fam){ # should be evaluated at i = 1:p; fam = fam[i]
+  if(fam == "normal") lims <- c(-Inf,Inf)
+  if(fam == "poisson") lims <- c(0,Inf)
+  if(fam == "gamma") lims <- c(0  + .Machine$double.eps, Inf)
+  if(fam == "binom") lims <- c(0,1)
+  if(fam == "ZIpoisson") lims <- c(0,Inf)
+  # Add other parameters for other distributions
+  return(lims)
+}
+

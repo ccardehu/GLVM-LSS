@@ -79,7 +79,7 @@ Z <- simR$Z
 borg <- simR$borg
 
 #profvis({
-ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 20, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 15, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam2, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F)
 #ex3 <- GLVM.fit(Y = Y, fam = fam, form = form2, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l12, icoefs = lc2, useoptim = F)
@@ -88,7 +88,7 @@ ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 20, iter.lim =
 ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma
 
-plotGLVM(item = 8, mod = ex1, morg = simR, plot.org = F,
+plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
          plot.mean = T, plot.sd = T, quant = c(0.025,0.25,0.75,0.975),
          sep.plots = F, plot.3D = T, plot.dist = T, plot.addpoints = T)
 plot.score(ex1)

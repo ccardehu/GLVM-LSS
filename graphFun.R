@@ -122,7 +122,7 @@ if(plot.3D == F){
  for(k in 1:dimp){
   tmpx <- tmpy <- sort(unique(round(c(mod$gr$points),5))); tmpz <- matrix(NA, nrow = length(tmpx), ncol = length(tmpy))
   fFun.mod <- fFun(i = item, fam = fam[[item]], Z = mod$gr$out, b = mod$b, forms = mod$formula, lvp = c(1:dimp))
-  tmpB <- cbind(round(mod$gr$points,5), fFun.mod$EY2M)
+  tmpB <- cbind(round(mod$gr$points,5), fFun.mod$mean)
   for(i in 1:length(tmpx)){
    for(j in 1:length(tmpy)){
        tmpz[i,j] <- tmpB[intersect(which(tmpB[,1] == tmpx[i]), which(tmpB[,2] == tmpy[j])),3]}}
@@ -132,14 +132,18 @@ if(plot.3D == F){
     
   res <- persp(x = tmpx, y = tmpy, z = tmpz, theta = -45, phi = 30,  expand = 0.8,
                xlab = "\n Z1", ylab = "\n Z2", zlab = paste0("\n E(Y",item," | Z)"),
-               r = 5, ticktype = "detailed", nticks = 7, 
+               r = 5, ticktype = "detailed", nticks = 5, 
                ltheta = -45, lphi = 45, col = color[cutz], shade = 0.25,
                main = paste0("Fitted values for E(item ",item," | Z)"))
+  
+  # if(plot.addpoints == T){ C <- trans3d(Zorg[[paste0("Z",dimp)]], mod$Y[[paste0("Y",item)]],rep(0,length(mod$Y[[paste0("Y",item)]])),res)
+  # points(C, pch = 20, col= scales::alpha("gray", 0.7)) }
+  
   if(plot.org == T){
    if(missing(morg)) stop("Argument `morg' missing.")
    tmp <- mvgH(mod$gr$n, mu = morg$Z.mu, sigma = morg$Z.Sigma, formula = morg$formula)
    fFun.morg <- fFun(i = item, fam = fam[[item]], Z = tmp$out, b = morg$b, forms = morg$formula, lvp = c(1:dimp))
-   tmpB. <- cbind(round(mod$gr$points,5), fFun.morg$EY2M); tmpz. <- tmpz
+   tmpB. <- cbind(round(mod$gr$points,5), fFun.morg$mean); tmpz. <- tmpz
    for(i in 1:length(tmpx)){
     for(j in 1:length(tmpy)){
         tmpz.[i,j] <- tmpB.[intersect(which(tmpB.[,1] == tmpx[i]), which(tmpB.[,2] == tmpy[j])),3]}}
@@ -149,7 +153,7 @@ if(plot.3D == F){
     
    res <- persp(x = tmpx, y = tmpy, z = tmpz., theta = -45, phi = 30,  expand = 0.8,
                 xlab = "\n Z1", ylab = "\n Z2", zlab = paste0("\n E(Y",item," | Z)"),
-                r = 5, ticktype = "detailed", nticks = 7, 
+                r = 5, ticktype = "detailed", nticks = 5, 
                 ltheta = -45, lphi = 45, col = color.[cutz.], shade = 0.25,
                 main = paste0("Original E(item ",item," | Z)"))
    } } 
