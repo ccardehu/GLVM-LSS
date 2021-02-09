@@ -143,7 +143,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
         eps1 <- tol/2
       }
     }
-    
+
     Sco <- Hes <- NULL
     if(skipEM == F){
       if("mu" %in% parY) {Sco$mu <- Sm; Hes$mu <- Hm}

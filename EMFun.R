@@ -17,8 +17,6 @@ library(numDeriv)
 
 `%!in%` <- Negate(`%in%`)
 
-#setwd("C:/Users/carde/Dropbox/Camilo and Irini/Research/Simulation/Heteroscedastic Factor Model/WPJ-2020-10-26")
-
 source("ddFun.R")
 source("SimFA.R")
 source("GHFun.R")
@@ -32,7 +30,7 @@ nsim = 1000  # Number of simulations
 form <- list("mu" = "~ Z1", "sigma" = "~ Z1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("ZIpoisson",p)# c(rep("normal", p/2), rep("ZIpoisson", p/2))
+fam <- rep("normal",p)# c(rep("normal", p/2), rep("ZIpoisson", p/2))
 
 l1 <- NULL
 l1$mu <- matrix(1,ncol = 2, nrow = p)
@@ -60,9 +58,9 @@ lc$mu <- matrix(runif(length(l1$mu), min = 0.1, max = 0.5),nrow = p)
 #lc$mu[,2] <-  runif(p,-0.5,0.5)
 #lc$mu[,3] <-  runif(p,-0.5,0.5)
 lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.5), nrow = p)
-lc$sigma[,1] <- runif(p,-1,1)
-lc$sigma[,2] <- runif(p,2,4)
-lc$sigma[,3] <- runif(p,-0.5,-0.1)
+#lc$sigma[,1] <- runif(p,-1,1)
+#lc$sigma[,2] <- runif(p,2,4)
+#lc$sigma[,3] <- runif(p,-0.5,-0.1)
 
 # lc when model misspecification
 # ______________________________
@@ -79,7 +77,7 @@ Z <- simR$Z
 borg <- simR$borg
 
 #profvis({
-ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 15, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam2, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F)
 #ex3 <- GLVM.fit(Y = Y, fam = fam, form = form2, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l12, icoefs = lc2, useoptim = F)
@@ -89,7 +87,7 @@ ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma
 
 plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
-         plot.mean = T, plot.sd = T, quant = c(0.025,0.25,0.75,0.975),
+         plot.mean = F, plot.sd = F, quant = c(0.025,0.25,0.75,0.975),
          sep.plots = F, plot.3D = T, plot.dist = T, plot.addpoints = T)
 plot.score(ex1)
 

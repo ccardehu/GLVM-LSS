@@ -68,12 +68,12 @@ if(plot.3D == F){
    tmpy <- sort(unique(mod$Y[[paste0("Y",item)]]))
    vX <- seq(min(tmpx)-1,max(tmpx)+1,length = 2); vY <- seq(min(tmpy)-1,max(tmpy)+1,length = 2)
    
-   res  <- persp(vX,vY,matrix(0,2,2),zlim=c(0,2),theta= -55, phi = 30, expand = 0.8, ticktype ="detailed",
+   res  <- persp(vX,vY,matrix(0,2,2),zlim=c(0,1),theta= -55, phi = 30, expand = 0.8, ticktype ="detailed",
                  box = T, xlab = "\n Z1", ylab = paste0("Y",item),zlab = paste0("\n P(Y",item," | Z)"),
                  nticks = 4, main = paste0("Fitted distribution for P(item ",item," | Z)"))
    
    if(plot.addpoints == T){ C <- trans3d(Zorg[[paste0("Z",dimp)]], mod$Y[[paste0("Y",item)]],rep(0,length(mod$Y[[paste0("Y",item)]])),res)
-     points(C, pch = 20, col= scales::alpha("gray", 0.7)) }
+     points(C, pch = 20, col= scales::alpha("gray", 0.6), cex = 0.8) }
    fFun.mod <- fFun(i = item, fam = fam[[item]], Z = mod$gr$out, b = mod$b, forms = mod$formula, qnt = quant)
    plot.sd <- ifelse(plot.quant, F, plot.sd) # plot.quant overrides plot.sd
    if(plot.sd == T){
@@ -87,26 +87,35 @@ if(plot.3D == F){
    tmpd <- gFun(mod$gr$out,mod$b,fam[item],item)
    cuts <- 10
    vXa <- tmpx[round(seq(1,length(tmpx),length.out = cuts))]
-     for(w in cuts:1){
+     for(w in 1:cuts){
      if(length(tmpy) < 10) stp <- 10 else stp <- ifelse(round(length(tmpy)/10) < 10, 10, round(length(tmpy)/10))
      x <- rep(vXa[w],stp)
      # y <- seq(min(min(tmpy)-1, fFun.mod$quantM[[paste0("Z",dimp)]][,paste0("q",100*min(quant))]),
               # max(tmpy)+1, length = stp)
-     liminf <- ifelse(fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*min(quant))]-2*fFun.mod$sd[which(vXa[w]==tmpx1)] < min(vY),
-                     min(vY),fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*min(quant))]-2*fFun.mod$sd[which(vXa[w]==tmpx1)])
-     limsup <- ifelse(fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*max(quant))]+2*fFun.mod$sd[which(vXa[w]==tmpx1)] > max(vY),
-                     max(vY), fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*max(quant))]+2*fFun.mod$sd[which(vXa[w]==tmpx1)])
-     y <- seq(liminf,limsup, length = stp)
-     
+     liminf <- ifelse(fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*min(quant))]-2*fFun.mod$sd[which(vXa[w]==tmpx1)] < max(min(vY), p2Fun(fam[[item]])[1]),
+                      max(min(vY),p2Fun(fam[[item]])[1]),fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*min(quant))]-2*fFun.mod$sd[which(vXa[w]==tmpx1)])
+     limsup <- ifelse(fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*max(quant))]+2*fFun.mod$sd[which(vXa[w]==tmpx1)] > min(max(vY),p2Fun(fam[[item]])[2]),
+                      min(max(vY),p2Fun(fam[[item]])[2]), fFun.mod$quant[which(vXa[w]==tmpx1),paste0("q",100*max(quant))]+2*fFun.mod$sd[which(vXa[w]==tmpx1)])
      z0 <- rep(0,stp)
-     z <- ifelse(f2Fun(y,fam[item],tmpd, which(vXa[w]==tmpx1)) > 2, 2, f2Fun(y,fam[item],tmpd, which(vXa[w]==tmpx1)))
+     if(any(fam[[item]] == c("ZIpoisson","poisson","binom"))) {
+     y <- round(seq(liminf,limsup, length = stp))
+     z <- ifelse(f2Fun(y,fam[item],tmpd, which(vXa[w]==tmpx1)) > 1, 1, f2Fun(y,fam[item],tmpd, which(vXa[w]==tmpx1)))
+     C=trans3d(c(x,x),c(y,rev(y)),c(z,z0),res)
+     for(m in 1:length(z0)){ lines(trans3d(x[m],y[m],c(z0[m],z[m]),res), col = scales::alpha("blue",0.4), lty = 3) }
+     C=trans3d(x,y,z0,res); lines(C,lty=3, col = scales::alpha("lightblue",0.6))
+     C=trans3d(x,y,z,res)
+     points(C, pch = 16, col= scales::alpha("blue",0.4), cex = 0.5)
+     #lines(C,col="blue", lty = 3)
+     } else {
+     y <- seq(liminf,limsup, length = stp)
+     z <- ifelse(f2Fun(y,fam[item],tmpd, which(vXa[w]==tmpx1)) > 1, 1, f2Fun(y,fam[item],tmpd, which(vXa[w]==tmpx1)))
      C=trans3d(c(x,x),c(y,rev(y)),c(z,z0),res)
      polygon(C,border=NA,col=scales::alpha("lightblue",0.3))
      C=trans3d(x,y,z0,res)
      lines(C,lty=3, col = scales::alpha("lightblue",0.6))
      C=trans3d(x,y,z,res)
-     lines(C,col="blue")
-     }
+     lines(C,col=scales::alpha("blue",0.4)) }
+     }; legend("bottomleft",legend=c("Fitted distribution"), col= scales::alpha("blue",0.5), lty =1, inset = 0.05, bty = "n")
    }
    
    if(plot.quant == T){
@@ -114,6 +123,8 @@ if(plot.3D == F){
      for(j in quant){
        C <- trans3d(tmpx,fFun.mod$quant[sel1,paste0("q",100*j)],rep(0,length(tmpx)),res)
        lines(C,lwd=2, lty = 3, col = 2)
+       #C <- trans3d(c(tmpx,rev(tmpx)),c(c(fFun.mod$mean + fFun.mod$sM)[sel1],rev(c(fFun.mod$mean - fFun.mod$sM)[sel1])),rep(0,2*length(tmpx)),res)
+       #polygon(Ck,border=NA,col=scales::alpha("yellow", 0.5))
      }
    }
 }
