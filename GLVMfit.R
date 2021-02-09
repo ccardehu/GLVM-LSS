@@ -134,7 +134,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
       } else{iter = 40} #skipEM
       
       if(useoptim == T & iter >= 40){
-        if(skipEM == T) cat("\n Using `optim-BFGS` to find ML estimates") else cat(paste0("\n Using `optim-BFGS` to refine ML estimates", catmsg))
+        if(skipEM == T) cat("\n Using `optim-BFGS` to find ML estimates") else cat(paste0("\n Using `optim-BFGS` to refine ML estimates ", catmsg))
         optmres <- optim(unlist(bnew), loglik, beta = bnew, ghQ = gr, loadmt = loadmt, method = "BFGS", control = list(maxit = iter.lim, fnscale = -1))
         bnew <- coefmod(bet = optmres$par, beta = bnew, gr = gr,loadmt)
         lln <- sum(log(mfy(Y,bnew,gr,fam)))

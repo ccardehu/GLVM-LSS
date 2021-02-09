@@ -62,6 +62,7 @@ lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.5), nrow = p)
 #lc$sigma[,2] <- runif(p,2,4)
 #lc$sigma[,3] <- runif(p,-0.5,-0.1)
 
+
 # lc when model misspecification
 # ______________________________
 #
@@ -86,9 +87,11 @@ ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim =
 ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma
 
+
 plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
          plot.mean = F, plot.sd = F, quant = c(0.025,0.25,0.75,0.975),
          sep.plots = F, plot.3D = T, plot.dist = T, plot.addpoints = T)
+
 plot.score(ex1)
 
 ex1$b$mu; borg$mu
