@@ -32,7 +32,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
       if(!is.matrix(loadmt[[i]])) loadmt[[i]] <- matrix(loadmt[[i]], nrow = p., ncol = ncol(gr$out[[i]]))
     }
   } else {
-    warning("Restrictions matrix not supplied, simple structure assumed", call. = F)
+    message("Restrictions matrix not supplied, simple structure assumed")
     loadmt <- NULL
     for(i in parY){
       if(length(all.vars(form[[i]])) > 1){
@@ -49,7 +49,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
         loadmt[[i]] <- matrix(1,nrow = p., ncol = ncol(gr$out[[i]]))
         # loadmt[[i]][1,ncol(gr$out[[i]])] <- 0 # ! HERE
         if(ncol(gr$out[[i]])-1 > 1){
-          warning(paste0("Nonlinear functions for ", i, ", identification restriction impossed in item 1"), call. = F)
+          message(paste0("Nonlinear functions for ", i, ", identification restriction impossed in item 1"))
           loadmt[[i]][1,ncol(gr$out[[i]])] <- 0
         }
       }
@@ -76,7 +76,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     }
     bold <- icoefs
   } else {
-    warning("Initial Coefficients not supplied, Value = 1 assumed", call. = F)
+    message("Initial Coefficients not supplied, Value = 1 assumed")
     bold <- lapply(parY, function(i) matrix(1, nrow = ncol(Y), ncol = ncol(gr$out[[i]])))
     names(bold) <- parY
   }
@@ -105,18 +105,18 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
         if("mu" %in% parY){
           efy <- mfy(Y,bnew,gr,fam)
           EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-          Sm <- lapply(1:p, function(r) bmsc(r,Y,bnew,gr,fam,EC))
-          Hm <- lapply(1:p, function(r) bmhe(r,Y,bnew,gr,fam,EC))
-          bnew$mu <- t(sapply(1:p, function(i) as.matrix(bnew$mu[i,]) - solve(Hm[[i]])%*%Sm[[i]]))
+          Sm <- lapply(1:p., function(r) bmsc(r,Y,bnew,gr,fam,EC))
+          Hm <- lapply(1:p., function(r) bmhe(r,Y,bnew,gr,fam,EC))
+          bnew$mu <- t(sapply(1:p., function(i) as.matrix(bnew$mu[i,]) - solve(Hm[[i]])%*%Sm[[i]]))
           bnew$mu <- bnew$mu*loadmt$mu
         }
         
         if("sigma" %in% parY){
           efy <- mfy(Y,bnew,gr,fam)
           EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-          Ss <- lapply(1:p, function(r) bssc(r,Y,bnew,gr,fam,EC))
-          Hs <- lapply(1:p, function(r) bshe(r,Y,bnew,gr,fam,EC))
-          bnew$sigma <- t(sapply(1:p, function(i) as.matrix(bnew$sigma[i,]) - solve(Hs[[i]])%*%Ss[[i]]))
+          Ss <- lapply(1:p., function(r) bssc(r,Y,bnew,gr,fam,EC))
+          Hs <- lapply(1:p., function(r) bshe(r,Y,bnew,gr,fam,EC))
+          bnew$sigma <- t(sapply(1:p., function(i) as.matrix(bnew$sigma[i,]) - solve(Hs[[i]])%*%Ss[[i]]))
           if(nrow(bnew$sigma) == 1) bnew$sigma <- t(bnew$sigma)
           bnew$sigma <- bnew$sigma*loadmt$sigma
         }
@@ -143,7 +143,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
         eps1 <- tol/2
       }
     }
-    
+
     Sco <- Hes <- NULL
     if(skipEM == F){
       if("mu" %in% parY) {Sco$mu <- Sm; Hes$mu <- Hm}

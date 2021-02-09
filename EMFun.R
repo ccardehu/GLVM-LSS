@@ -17,8 +17,6 @@ library(numDeriv)
 
 `%!in%` <- Negate(`%in%`)
 
-#setwd("C:/Users/carde/Dropbox/Camilo and Irini/Research/Simulation/Heteroscedastic Factor Model/WPJ-2020-10-26")
-
 source("ddFun.R")
 source("SimFA.R")
 source("GHFun.R")
@@ -32,7 +30,7 @@ nsim = 1000  # Number of simulations
 form <- list("mu" = "~ Z1", "sigma" = "~ Z1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("ZIpoisson",p)# c(rep("normal", p/2), rep("ZIpoisson", p/2))
+fam <- rep("normal",p)# c(rep("normal", p/2), rep("ZIpoisson", p/2))
 
 l1 <- NULL
 l1$mu <- matrix(1,ncol = 2, nrow = p)
@@ -56,13 +54,14 @@ l1$sigma <- matrix(1, ncol = 2, nrow = p)
 
 lc <- NULL
 lc$mu <- matrix(runif(length(l1$mu), min = 0.1, max = 0.5),nrow = p)
-#lc$mu[,1] <-  runif(p,0.3,1.5)
-#lc$mu[,2] <-  runif(p,-0.7,1.3)
-#lc$mu[,3] <-  runif(p,-0.7,1.3)
+#lc$mu[,1] <-  runif(p,1,2)
+#lc$mu[,2] <-  runif(p,-0.5,0.5)
+#lc$mu[,3] <-  runif(p,-0.5,0.5)
 lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.5), nrow = p)
-lc$sigma[,1] <- runif(p,-1,1)
-lc$sigma[,c(2)] <- runif(p,2,4)
-lc$sigma[,4] <- runif(p,-0.4,-0.1)
+#lc$sigma[,1] <- runif(p,-1,1)
+#lc$sigma[,2] <- runif(p,2,4)
+#lc$sigma[,3] <- runif(p,-0.5,-0.1)
+
 
 # lc when model misspecification
 # ______________________________
@@ -88,9 +87,10 @@ ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim =
 ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma
 
-plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = T,
-         plot.mean = T, plot.sd = F, quant = c(0.025,0.25,0.75,0.975),
-         sep.plots = F, plot.3D = F)
+
+plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
+         plot.mean = F, plot.sd = F, quant = c(0.025,0.25,0.75,0.975),
+         sep.plots = F, plot.3D = T, plot.dist = T, plot.addpoints = T)
 
 plot.score(ex1)
 
