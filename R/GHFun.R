@@ -14,7 +14,7 @@ gH <- function(n) {
   ## w(x) = (2*pi)^(1/2)*exp(-1/2*x^2)
   pts$weights <- pts$weights * (2*pi)^(-1/2)*exp(pts$nodes^2/2)
   
-  ## rename 'nodes' to comform with code below
+  ## rename 'nodes' to conform with code below
   pts$points <- pts$nodes
   pts$nodes <- NULL
   return(pts)

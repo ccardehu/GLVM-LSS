@@ -5,80 +5,115 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-
-NumericVector timesTwo(NumericVector x) {
-  NumericVector results = 2*x;
-  return results;
-}
-
-
-// [[Rcpp::export]]
-List f1 (NumericVector x) {
-  NumericVector a = timesTwo(x) + pow(x,0.5);
-  NumericVector b = timesTwo(x) - pow(x,0.5);
-  return List::create(Named("a") = a, Named("b") = b);
-}
-
-double f (double mu) {
-  double val = ((R::dnorm(-mu, 0, 1, false)) /
-                (1 - R::pnorm(-mu, 0, 1, true, false))
-  ) ;
-  return(val) ;
-}
-
-double g (double mu) {
-  double val = ((R::dnorm(-mu, 0, 1, false)) /
-                (R::pnorm(-mu, 0, 1, true, false))
-  ) ;
-  return(val) ;
+NumericVector prb (NumericVector x) {
+  
+  const double eps = pow(2.220446e-16,2) ; 
+  NumericVector res = Rcpp::plogis(x, 0.0, 1.0, true, false) ;
+  
+  for(int i = 0; i < x.size(); i++){
+   if(res[i] == 1) {
+    res[i] = 1 - eps;
+   }
+   if(res[i] == 0) {
+    res[i] = eps;
+   } 
+  }
+  return(res);
 }
 
 // [[Rcpp::export]]
-List em3 (const arma::mat y,
-          const arma::mat X,
-          const int maxit = 10
-) {
-  // inputs
-const int N = y.n_rows ;
-const int K = X.n_cols ;
-
-// containers
-arma::mat beta(K, 1) ;
-beta.fill(0.0) ; // initialize betas to 0
-arma::mat eystar(N, 1) ;
-eystar.fill(0) ;
-
-// algorithm
-for (int it = 0 ; it < maxit ; it++) {
-  arma::mat mu = X * beta ;
-  // augmentation step
-// #pragma omp parallel for // un-comment for paralleling 
-  for (int n = 0 ; n < N ; n++) {
-    if (y(n, 0) == 1) { // y = 1
-      eystar(n, 0) = mu(n, 0) + f(mu(n, 0)) ;
-    }
-    if (y(n, 0) == 0) { // y = 0
-      eystar(n, 0) = mu(n, 0) - g(mu(n, 0)) ;
+NumericVector dZIPo (NumericVector Y,
+                     NumericVector mu,
+                     NumericVector sg,
+                     bool rlog = true) {
+  
+  NumericVector u(Y.size());
+  NumericVector lf(Y.size()); 
+  
+  u.fill(0) ;
+  for(int i = 0; i < Y.size(); i++){
+    if(Y[i] == 0) {
+     u[i] = 1; 
     }
   }
-  // maximization step
-  beta = (X.t() * X).i() * X.t() * eystar ;
+  for(int j = 0; j < Y.size(); j++){
+    lf[j] = u[j]*std::log(sg[j] + (1-sg[j])*exp(-mu[j])) + (1-u[j])*(log(1-sg[j]) - mu[j] + Y[j]*log(mu[j]) - std::lgamma(Y[j] + 1)) ;
+  }
+  if(rlog == true) return lf ;
+  else  {
+   return exp(lf);
+  } 
+
 }
 
-// returns
-List ret ;
-ret["N"] = N ;
-ret["K"] = K ;
-ret["beta"] = beta ;
-ret["eystar"] = eystar ;
-return(ret) ;
+// [[Rcpp::export]]
+arma::mat Zreg(DataFrame df,
+               Formula formula) {
+   Rcpp::Environment stats_env("package:stats");
+   Rcpp::Function model_matrix = stats_env["model.matrix"];
+   arma::mat df_new = as<arma::mat>(model_matrix(Rcpp::_["object"] = formula, Rcpp::_["data"] = df));
+   return(df_new);
 }
 
+//// [[Rcpp::export]]
+ 
+// arma::mat dcF (arma::mat Y,
+//                Rcpp::List Z,
+//                Rcpp::List b,
+//                CharacterVector fam) {
+//    // Inputs:
+//    
+//    int n = Y.n_rows ;
+//    int p = Y.n_cols ;
+//    
+//    // Containers:
+//    
+//    arma::mat R(n,p) ; 
+//    R.fill(0)
+//      
+//    // Algorithm:
+//    
+//    for(int i = 0; n < p; i++){
+//    
+//    if(fam[i] == "normal"){
+//      arma::vec Zmu = as<arma::mat>(Z["mu"]) ;
+//      arma::vec Zsg = as<arma::mat>(Z["sigma"]) ;
+//      arma::vec bmu = as<arma::mat>(b["mu"]) ;
+//      arma::vec bsg = as<arma::mat>(b["sigma"]) ;
+//      arma::vec mu = Z * bmu.row(i) ;
+//      arma::vec sg = Z * bsg.row(i) ;
+//      R.col(i) = R::dnorm(Y.col(i), mu, sg, log = true) ;
+//    }
+//    
+//    if(fam[i] == "poisson"){
+//      arma::vec Zmu = as<arma::mat>(Z["mu"]) ;
+//      arma::vec bmu = as<arma::mat>(b["mu"]) ;
+//      arma::vec mu = exp(Z * bmu.row(i)) ;
+//      R.col(i) = R::dpois(Y.col(i), mu, log = true) ;
+//    }
+//    
+//    if(fam[i] == "gamma"){
+//      arma::vec Zmu = as<arma::mat>(Z["mu"]) ;
+//      arma::vec Zsg = as<arma::mat>(Z["sigma"]) ;
+//      arma::vec bmu = as<arma::mat>(b["mu"]) ;
+//      arma::vec bsg = as<arma::mat>(b["sigma"]) ;
+//      arma::vec mu = exp(Z * bmu.row(i)) ;
+//      arma::vec sg = exp(Z * bsg.row(i)) ;
+//      R.col(i) = R::dgamma(Y.col(i), shape = mu, scale = sg, log = true) ;
+//    }
+//    
+//    if(fam[i] == "binom"){
+//      arma::vec Zmu = as<arma::mat>(Z["mu"]) ;
+//      arma::vec bmu = as<arma::mat>(b["mu"]) ;
+//      arma::vec mu = prb(Z * bmu.row(i)) ;
+//      R.col(i) = R::dbinom(Y.col(i), 1, mu, log = true) ;
+//    }
+//      
+//    }
+//    
+//      
+//    // Returns:
+//    
+// } // Rcpp::sourceCpp("C:/Users/carde/Dropbox/Camilo and Irini/Research/GitHub/SPLVM/C")
 
-// You can include R code blocks in C++ files processed with sourceCpp
-// (useful for testing and development). The R code will be automatically 
-// run after the compilation.
 
-/*** R
-timesTwo(42)
-*/
