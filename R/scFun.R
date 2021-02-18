@@ -20,7 +20,7 @@ mfyz <- function(z,Y,Z,b,fam){ # should be evaluated at Y, fam, for i = 1:p; \fo
 
 # Vector function for f(Y_m) = integral f(Y_m|z_m)
 
-mfy <- function(Y,b,gr,fam){ # should be evaluated at Y = Y; Z = gr$out; b = borg
+mfy <- function(Y,b,gr,fam){
   
   # To evaluate:
   # Y = simR$Y; b = borg; fam = fam;

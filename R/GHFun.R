@@ -2,12 +2,14 @@
 # https://biostatmatt.com/archives/2754
 
 library('statmod')
+library('fastGHQuad')
 
 ## Calculate nodes and weights for Gauss-Hermite quadrature
 ## with weights corresponding to standard normal distribution
 gH <- function(n) {
   ## Compute Gauss-Hermite quadrature nodes and weights
-  pts <- gauss.quad(n, kind="hermite")
+  # pts <- gauss.quad(n, kind="hermite")
+  pts <- list("nodes" = gaussHermiteData(n)$x, "weights" = gaussHermiteData(n)$w)
   
   ## By default, the weight function for Hermite quadrature is 
   ## w(x) = exp(-x^2). Need to adjust weights so that 
@@ -30,7 +32,7 @@ gH <- function(n) {
 
 mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
   
-  # evaluated @ n = 10; mu = rep(0,q.); sigma = diag(q.); formula = form
+  # evaluated @ q. = 2; n = 10; mu = rep(0,q.); sigma = diag(q.); formula = form
   
   nl <- unique(unlist(lapply(1:length(formula), function(i) all.vars(as.formula(formula[[i]])))))
   nl <- nl[grep("Z", nl, fixed = T)]
@@ -46,14 +48,14 @@ mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
 
   gh  <- gH(n)
   
-  #idx grows exponentially in n and dm
+  # idx grows exponentially in n and dm
   
   idx <- as.matrix(expand.grid(rep(list(1:n),dm)))
   pts <- matrix(gh$points[idx],nrow(idx),dm)
   wts <- as.matrix(apply(matrix(gh$weights[idx],nrow(idx),dm), 1, prod))
   
-  # Prunning
-  # ~~~~~~~~
+  # Pruning
+  # ~~~~~~~
    
   if(!is.null(prune)) {
     qwt <- quantile(wts, probs=prune)
@@ -69,16 +71,11 @@ mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
   pts <- t(rot %*% t(pts) + mu)
   
   colnames(pts) <- nl
-  
-  Z. <- NULL
-  for(i in names(formula)){
-    Z.[[i]] <- as.data.frame(model.matrix(as.formula(formula[[i]]), as.data.frame(pts)))
-    colnames(Z.[[i]])[1] <- "Int"
-  }
-  
+
   out <- NULL
   for(i in names(formula)){
-    out[[i]] <- Z.[[i]]
+    out[[i]] <- as.data.frame(model.matrix(as.formula(formula[[i]]), as.data.frame(pts)))
+    colnames(out[[i]])[1] <- "Int"
   }
   
   return(list(points = pts, weights = wts, out = out, n = n))

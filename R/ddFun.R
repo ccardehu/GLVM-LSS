@@ -95,20 +95,6 @@ gFun <- function(Z,b,fam,i){
  return(gout)
 }
 
-# 
-# rbenchmark::benchmark(
-#   "for" = {
-#     r1 <- array(NA,dim= c(nrow(Y),ncol(Y),gr$n));
-#     for(r in 1:gr$n){r1[,,r] <- dFun2(as.matrix(Y),fam,gr$out,b,r)} },
-#   "lapply" = {r2 <- lapply(1:gr$n, function(r) dFun2(as.matrix(Y),fam,gr$out,b,r))},
-#   "mfyz" = {
-#     r3 <- array(NA,dim= c(nrow(Y),ncol(Y),gr$n));
-#     for(r in 1:gr$n){r3[,,r] <- sapply(1:ncol(Y), FUN = function(i) dFun(i,r, fam = fam[i], Y = Y[,i], Z = Z, b = b))}},
-#   replications = 100, columns = c("test", "replications", "elapsed",
-#                                   "relative", "user.self", "sys.self")
-# )
-
-
 dFun2 <- function(Y,fam,Z,b,j){
 dY <- Y
 for(i in 1:ncol(Y)){
@@ -349,7 +335,6 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
   if(rtF == T){ return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM, EY2M = EY2M))
   } else return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM))
 }
-
 
 f2Fun <- function(Y,fam,g,i){
   #For graphics: Y = mod$Y[,item]; fam = mod$fam[item]; g = gFun(mod$gr$out,mod$b,fam[[item]],item); i = cuts

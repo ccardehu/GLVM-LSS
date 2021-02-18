@@ -24,13 +24,14 @@ source("scFun.R")
 source("GLVMfit.R")
 source("graphFun.R")
 
-n = 1000     # Number of individuals
-p = 10       # Number of items
+n = 500     # Number of individuals
+p = 6       # Number of items
 nsim = 1000  # Number of simulations
 form <- list("mu" = "~ Z1", "sigma" = "~ Z1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("normal",p)# c(rep("normal", p/2), rep("ZIpoisson", p/2))
+fam <- rep("normal",p)
+# fam <- c(rep("normal", p/2), rep("poisson", p/2)) # rep("poisson",p)# 
 
 l1 <- NULL
 l1$mu <- matrix(1,ncol = 2, nrow = p)
@@ -43,6 +44,10 @@ l1$sigma <- matrix(1, ncol = 2, nrow = p)
 #l1$mu[1:5,3] <- 0
 #l1$mu[sample(length(l1$mu), 20)] <- 0
 #l1$sigma[sample(length(l1$sigma), 10)] <- 0
+
+# l0 <- NULL
+# l0$mu <- l1$mu * 0
+# l0$sigma <- l1$sigma * 0
 
 # l1 when model misspecification
 # ______________________________
@@ -78,11 +83,13 @@ Z <- simR$Z
 borg <- simR$borg
 
 #profvis({
-ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc1, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F, skipEM = F)
 #ex2 <- GLVM.fit(Y = Y, fam = fam2, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F)
 #ex3 <- GLVM.fit(Y = Y, fam = fam, form = form2, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l12, icoefs = lc2, useoptim = F)
 #})
+
+ex2 <- NRb(as.matrix(Y),form,fam,1, 50,maxit = 100)
 
 ex1$b$mu - borg$mu
 ex1$b$sigma - borg$sigma

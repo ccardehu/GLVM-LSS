@@ -6,7 +6,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
   # evaluate @ Y = simR$Y; fam = fam; form = form; silent = F; icoefs = lc; useoptim = T; ghp = 20; loadmt = l1; tol = 1e-7; iter.lim = 700; skipEM = T
   
   if(!is.matrix(Y)) Y <- as.matrix(Y)
-  parY <- unlist(unique(lapply(1:length(fam),function(i) pFun(fam[i]))))
+  parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
   for(i in parY){form[[i]] <- as.formula(form[[i]])}
   lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
   lvar <- lvar[grep("Z", lvar, fixed = T)]
