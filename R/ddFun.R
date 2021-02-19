@@ -1,5 +1,5 @@
 
-coefmod <- function(bet,beta,gr,loadmt){ # bet = unlist(borg); beta = borg; gr = gr
+coefmod <- function(bet,beta){ # bet = unlist(borg); beta = borg; gr = gr
   coefM <- NULL
   tmpl <- NULL
   for(i in 1:length(beta)){
@@ -7,8 +7,8 @@ coefmod <- function(bet,beta,gr,loadmt){ # bet = unlist(borg); beta = borg; gr =
     else tmpl[[i]] <- seq(from = (length(beta[[i-1]]) + 1), length.out = length(beta[[i]]))
   }
   for(i in 1:length(beta)){
-    coefM[[i]] <- matrix(bet[tmpl[[i]]],nrow = p, ncol = ncol(beta[[i]]))*loadmt[[i]]
-    colnames(coefM[[i]]) <- colnames(gr$out[[i]]); rownames(coefM[[i]]) <- colnames(Y)
+    coefM[[i]] <- matrix(bet[tmpl[[i]]],nrow = p, ncol = ncol(beta[[i]])) #*loadmt[[i]]
+    colnames(coefM[[i]]) <- colnames(beta[[i]]); rownames(coefM[[i]]) <- rownames(beta[[i]])
   }
   names(coefM) <- names(beta)
   return(coefM)

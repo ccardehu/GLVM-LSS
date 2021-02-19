@@ -212,8 +212,8 @@ if(plot.3D == F){
 } # function
 
 plot.score <- function(mod = ex1){
-num.score <- grad(func = loglik, x = unlist(mod$b), method = "Richardson",
-                  method.args=list(r = 8), ghQ = mod$gr, loadmt = mod$loadmt, beta = mod$b)
+num.score <- grad(func = loglikFun, x = unlist(mod$b), method = "Richardson",
+                  method.args=list(r = 8), Y = mod$Y, ghQ = mod$gr, fam = mod$fam, beta = mod$b)
 tmp.min <- min(num.score,unlist(mod$Score)) - 1e-5
 tmp.max <- max(num.score,unlist(mod$Score)) + 1e-5
 t <- seq_along(num.score)
