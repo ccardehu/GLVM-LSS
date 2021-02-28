@@ -35,43 +35,48 @@ Zm <- function(lv = c("Z1"), Z. = Z){
 } # Returns Z matrix for plotting marginals with all but "lv" = 0
 
 pFun <- function(fam){ # should be evaluated at i = 1:p; fam = fam[i]
-  if(fam == "normal") pars <- c("mu","sigma")
-  if(fam == "poisson") pars <- c("mu")
-  if(fam == "gamma") pars <- c("mu", "sigma")
-  if(fam == "binom") pars <- c("mu")
-  if(fam == "ZIpoisson") pars <- c("mu", "sigma")
-  # Add other parameters for other distributions
-  return(pars)
+ if(fam == "normal") pars <- c("mu","sigma")
+ if(fam == "lognormal") pars <- c("mu","sigma")
+ if(fam == "poisson") pars <- c("mu")
+ if(fam == "gamma") pars <- c("mu", "sigma")
+ if(fam == "binomial") pars <- c("mu")
+ if(fam == "ZIpoisson") pars <- c("mu", "sigma")
+ # Add other parameters for other distributions
+ return(pars)
 }
 
 rFun <- function(n,i,fam,Z,b){ #should be evaluated at i = 1:p; fam = fam[i]; Z = simR$Z; b = borg
   
-  if(fam == "normal"){
-    mu = as.matrix(Z$mu)%*%matrix(b$mu[i,])
-    sigma = exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
-    fyz <- rnorm(n, drop(mu), drop(sigma))
-  }
-  if(fam == "poisson"){
-    mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
-    fyz <- rpois(n, drop(mu)) 
-  }
-  if(fam == "gamma"){
-    mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
-    sigma = exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
-    fyz <- rgamma(n,shape = mu, scale = sigma)
-  }
-  if(fam == "binom"){
-    mu = probs(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
-    fyz <- rbinom(n,1,prob = mu)
-  }  
-  if(fam == "ZIpoisson"){
-    mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
-    sigma = probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
-    fyz <- ifelse(rbinom(n,1,1-sigma) == 0, 0, rpois(n,mu))
-  }
-  
-  # Add other distributions in SimFA::fod
-  return(fyz)
+ if(fam == "normal"){
+  mu = as.matrix(Z$mu)%*%matrix(b$mu[i,])
+  sigma = exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
+  fyz <- rnorm(n, drop(mu), drop(sigma))
+ }
+ if(fam == "lognormal"){
+  mu = as.matrix(Z$mu)%*%matrix(b$mu[i,])
+  sigma = exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
+  fyz <- rlnorm(n, drop(mu), drop(sigma))
+ }
+ if(fam == "poisson"){
+  mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
+  fyz <- rpois(n, drop(mu)) 
+ }
+ if(fam == "gamma"){
+  mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
+  sigma = exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
+  fyz <- rgamma(n,shape = mu, scale = sigma)
+ }
+ if(fam == "binomial"){
+  mu = probs(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
+  fyz <- rbinom(n,1,prob = mu)
+ }  
+ if(fam == "ZIpoisson"){
+  mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
+  sigma = probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
+  fyz <- ifelse(rbinom(n,1,1-sigma) == 0, 0, rpois(n,mu))
+ }
+ # Add other distributions in SimFA::fod
+ return(fyz)
 }
 
 gFun <- function(Z,b,fam,i){
@@ -79,15 +84,19 @@ gFun <- function(Z,b,fam,i){
   # Z <- gr$out; b <- borg; fam = fam[i]
   gout <- vector(mode = "list", length = length(pFun(fam))); names(gout) <- pFun(fam)
   if(fam == "normal"){
-    gout$mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
-    gout$sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
+   gout$mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
+   gout$sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
+  }
+  if(fam == "lognormal"){
+   gout$mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
+   gout$sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
   }
   if(fam == "poisson"){ gout$mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,])))) }
   if(fam == "gamma"){
     gout$mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
     gout$sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
   }
-  if(fam == "binom"){ gout$mu = drop(unname(probs(as.matrix(Z$mu)%*%matrix(b$mu[i,])))) }
+  if(fam == "binomial"){ gout$mu = drop(unname(probs(as.matrix(Z$mu)%*%matrix(b$mu[i,])))) }
   if(fam == "ZIpoisson"){
     gout$mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
     gout$sigma = drop(unname(probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
@@ -98,90 +107,107 @@ gFun <- function(Z,b,fam,i){
 dFun2 <- function(Y,fam,Z,b,j){
 dY <- Y
 for(i in 1:ncol(Y)){
-
-  if(fam[i] == "normal"){
-    dY[,i] <- dnorm(Y[,i], gFun(Z,b,fam[i],i)$mu[j], gFun(Z,b,fam[i],i)$sigma[j], log = T)
+ if(fam[i] == "normal"){
+   dY[,i] <- dnorm(Y[,i], gFun(Z,b,fam[i],i)$mu[j], gFun(Z,b,fam[i],i)$sigma[j], log = T)
   }
-  if(fam[i] == "poisson"){
-    dY[,i] <- dpois(Y[,i], gFun(Z,b,fam[i],i)$mu[j], log = T) 
+ if(fam[i] == "lognormal"){
+   dY[,i] <- dlnorm(Y[,i], gFun(Z,b,fam[i],i)$mu[j], gFun(Z,b,fam[i],i)$sigma[j], log = T)
   }
-  if(fam[i] == "gamma"){
-    dY[,i] <- dgamma(Y[,i], shape = gFun(Z,b,fam[i],i)$mu[j], scale = gFun(Z,b,fam[i],i)$sigma[j], log = T)
+ if(fam[i] == "poisson"){
+   dY[,i] <- dpois(Y[,i], gFun(Z,b,fam[i],i)$mu[j], log = T) 
   }
-  if(fam[i] == "binom"){
-    dY[,i] <- dbinom(Y[,i],size = 1,prob = gFun(Z,b,fam[i],i)$mu[j], log = T)
+ if(fam[i] == "gamma"){
+   dY[,i] <- dgamma(Y[,i], shape = gFun(Z,b,fam[i],i)$mu[j], scale = gFun(Z,b,fam[i],i)$sigma[j], log = T)
   }
-  if(fam[i] == "ZIpoisson"){
-    dZIpoisson <- function(Y,mu,sigma, log = T){
-      u <- as.numeric(Y == 0)
-      lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
-      if(log == T) return(lf) else return(exp(lf))
-    }
-    dY[,i] <- dZIpoisson(Y[,i], gFun(Z,b,fam[i],i)$mu[j], gFun(Z,b,fam[i],i)$sigma[j], log = T)
+ if(fam[i] == "binomial"){
+   dY[,i] <- dbinom(Y[,i],size = 1,prob = gFun(Z,b,fam[i],i)$mu[j], log = T)
   }
-  # Add other distributions
+ if(fam[i] == "ZIpoisson"){
+   dZIpoisson <- function(Y,mu,sigma, log = T){
+    u <- as.numeric(Y == 0)
+    lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+    if(log == T) return(lf) else return(exp(lf))
+   }
+   dY[,i] <- dZIpoisson(Y[,i], gFun(Z,b,fam[i],i)$mu[j], gFun(Z,b,fam[i],i)$sigma[j], log = T)
+  }
+ # Add other distributions
 }
 return(dY)
 }
 
 dFun <- function(i,z,fam,Y,Z,b){ #should be evaluated at i = 1:p; z = 10; fam = fam[i]; Y = simR$Y[,i]; Z = gr$out; b = borg
-  # if(!is.matrix(Z)) Z <- as.matrix(Z)
-  # if(ncol(Z) == 1) Z <- t(Z)
+ # if(!is.matrix(Z)) Z <- as.matrix(Z)
+ # if(ncol(Z) == 1) Z <- t(Z)
   
-  if(fam == "normal"){ # normalHT
-    mu = as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])
-    sigma = exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
-    fyz <- dnorm(Y, drop(mu), drop(sigma), log = T)
+ if(fam == "normal"){
+  mu = as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])
+  sigma = exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
+  fyz <- dnorm(Y, drop(mu), drop(sigma), log = T)
+ }
+ if(fam == "lognormal"){
+  mu = as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])
+  sigma = exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
+  fyz <- dlnorm(Y, drop(mu), drop(sigma), log = T)
+ }
+ if(fam == "poisson"){
+  mu = exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+  fyz <- dpois(Y, drop(mu), log = T) 
+ }
+ if(fam == "gamma"){
+  mu = exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+  sigma = exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
+  fyz <- dgamma(Y,shape = drop(mu), scale = drop(sigma), log = T)
+ }
+ if(fam == "binomial"){
+  mu = probs(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+  fyz <- dbinom(Y,size = 1,prob = drop(mu), log = T)
+ }
+ if(fam == "ZIpoisson"){
+  mu = exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+  sigma = probs(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
+  dZIpoisson <- function(Y,mu,sigma,log = T){
+   u <- as.numeric(Y == 0)
+   lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+   if(log == T) return(lf) else return(exp(lf))
   }
-  if(fam == "poisson"){
-    mu = exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
-    fyz <- dpois(Y, drop(mu), log = T) 
-  }
-  if(fam == "gamma"){
-    mu = exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
-    sigma = exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
-    fyz <- dgamma(Y,shape = drop(mu), scale = drop(sigma), log = T)
-  }
-  if(fam == "binom"){
-    mu = probs(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
-    fyz <- dbinom(Y,size = 1,prob = drop(mu), log = T)
-  }
-  if(fam == "ZIpoisson"){
-    mu = exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
-    sigma = probs(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,]))
-    dZIpoisson <- function(Y,mu,sigma,log = T){
-      u <- as.numeric(Y == 0)
-      lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
-      if(log == T) return(lf) else return(exp(lf))
-    }
-    fyz <- dZIpoisson(Y, drop(mu), drop(sigma))
-    #fyz <- gamlss.dist::dZIP(Y, drop(mu), drop(sigma), log = T)
-  }
-  # Add other distributions
-  return(fyz)
+  fyz <- dZIpoisson(Y, drop(mu), drop(sigma))
+  #fyz <- gamlss.dist::dZIP(Y, drop(mu), drop(sigma), log = T)
+ }
+ # Add other distributions
+ return(fyz)
 }
 
 dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i]; Z = gr$out; b = borg
-  # if(!is.matrix(Z)) Z <- as.matrix(Z)
-  # if(ncol(Z) == 1) Z <- t(Z)
+ # if(!is.matrix(Z)) Z <- as.matrix(Z)
+ # if(ncol(Z) == 1) Z <- t(Z)
   
-  if(fam == "normal"){
-    mu = drop(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
-    sigma = drop(exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
-    d1mu = (Y - mu)/(sigma^2)  * 1
-    d2mu = rep(-(1/sigma^2) * 1, length(Y))
-    d1sg = (((Y - mu)^2 - sigma^2)/(sigma^3)) * sigma
-    d2sg = rep(-(2/(sigma^2)) * sigma^2, length(Y))
-    dcms = rep(0, length(Y)) # the expected cross derivative mu and sigma
-    rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dc" = dcms)
-  }
-  if(fam == "poisson"){
+ if(fam == "normal"){ # structure(gamlss.dist::NO)
+  mu = drop(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+  sigma = drop(exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
+  d1mu = (Y - mu)/(sigma^2)  * 1
+  d2mu = rep(-(1/sigma^2) * 1, length(Y))
+  d1sg = (((Y - mu)^2 - sigma^2)/(sigma^3)) * sigma
+  d2sg = (-3*(Y-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 # rep(-(2/(sigma^2)) * sigma^2, length(Y)) # -3*(Y-mu)^2/sigma^4 + 1/sigma^2
+  dcms = rep(0, length(Y)) # the expected cross derivative mu and sigma
+  rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dc" = dcms)
+ }
+ if(fam == "lognormal"){ # structure(gamlss.dist::LOGNO)
+  mu = drop(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+  sigma = drop(exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
+  d1mu = (log(Y) - mu)/(sigma^2)  * 1
+  d2mu = rep(-(1/sigma^2) * 1, length(Y))
+  d1sg = (((log(Y) - mu)^2 - sigma^2)/(sigma^3)) * sigma
+  d2sg = (-3*(log(Y)-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 # rep(-(2/(sigma^2)) * sigma^2, length(Y)) # -3*(Y-mu)^2/sigma^4 + 1/sigma^2
+  dcms = rep(0, length(Y)) # the expected cross derivative mu and sigma
+  rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dc" = dcms)
+ }
+ if(fam == "poisson"){ # structure(gamlss.dist::PO)
     mu = exp(drop(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
     d1mu = ((Y - mu)/mu) * mu
     d2mu = rep((-1/mu) * mu^2, length(Y))
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu)
   }
-  if(fam == "gamma"){
+ if(fam == "gamma"){ # structure(gamlss.dist::GA)
     mu = drop(exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
     sigma = drop(exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
     d1mu = (log(Y) - digamma(mu) - log(sigma)) * mu
@@ -191,13 +217,13 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
     dcms = rep(0, length(Y)) # the expected cross derivative mu and sigma
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dc" = dcms)
   }
-  if(fam == "binom"){
+ if(fam == "binomial"){ # structure(gamlss.dist::BI)
     mu = probs(drop(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
     d1mu = (Y - mu)/(mu * (1 - mu)) * (mu*(1-mu))
     d2mu = rep(-(1/(mu * (1 - mu))) * (mu*(1-mu))^2, length(Y))
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu)
   }
-  if(fam == "ZIpoisson"){
+ if(fam == "ZIpoisson"){ # structure(gamlss.dist::ZIP)
     mu = exp(drop(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
     sigma = probs(drop(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
     u = ifelse(Y == 0, (1 + exp(-logit(sigma)-mu))^(-1),0) # as.numeric(Y == 0)
@@ -209,41 +235,62 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dc" = dcms)
   }
   
-  return(rL)
+ return(rL)
 }
 
 # Function to compute E(Y) and SD(Y) (or quantiles)
 
 fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
   #should be evaluated at i = 1:p; fam = fam[i]; Z = simR$Z; b = borg; qnt = c(0.2,0.4,0.6,0.8) forms = ex1$formula
-  if(missing(lvp)){ lvp = c(1); rtF = F } else rtF = T
-  if(missing(qnt)){ qnt = c(0.2,0.8)}
-  pars <- pFun(fam)
-  lvar <- unique(unlist(lapply(pars, function(i) all.vars(forms[[i]]))))
-  lvar <- lvar[grep("Z", lvar, fixed = T)]; qMM <- list()
+ if(missing(lvp)){ lvp = c(1); rtF = F } else rtF = T
+ if(missing(qnt)){ qnt = c(0.2,0.8)}
+ pars <- pFun(fam)
+ lvar <- unique(unlist(lapply(pars, function(i) all.vars(forms[[i]]))))
+ lvar <- lvar[grep("Z", lvar, fixed = T)]; qMM <- list()
 
-  if(fam == "normal"){
-    mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
-    sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
-    EY = mu
-    SY = sigma
-    qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
-    for(j in seq_along(qnt)){ qM[,j] <- qnorm(qnt[j],mu,sigma) }
-    eM <- sM <- matrix(nrow = length(mu), ncol = length(lvar)); colnames(eM) <- colnames(sM) <- lvar
-    for(k in lvar){
-     muM = drop(unname(as.matrix(Zm(k,Z$mu))%*%matrix(b$mu[i,])))
-     sgM = drop(unname(exp(as.matrix(Zm(k,Z$sigma))%*%matrix(b$sigma[i,]))))
-     eM[,k] <- muM
-     sM[,k] <- sgM
-     qMM[[k]] <- matrix(nrow = length(mu), ncol = length(qnt)); colnames(qMM[[k]]) <- paste0("q",qnt*100)
-     for(j in seq_along(qnt)){ qMM[[k]][,j] <- qnorm(qnt[j],muM,sgM) }
-    }
-    lvpl = paste0("Z",lvp)
-    mu2M = drop(unname(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,])))
-    sg2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$sigma))%*%matrix(b$sigma[i,]))))
-    EY2M = mu2M
+ if(fam == "normal"){
+  mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
+  sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
+  EY = mu
+  SY = sigma
+  qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
+  for(j in seq_along(qnt)){ qM[,j] <- qnorm(qnt[j],mu,sigma) }
+   eM <- sM <- matrix(nrow = length(mu), ncol = length(lvar)); colnames(eM) <- colnames(sM) <- lvar
+  for(k in lvar){
+   muM = drop(unname(as.matrix(Zm(k,Z$mu))%*%matrix(b$mu[i,])))
+   sgM = drop(unname(exp(as.matrix(Zm(k,Z$sigma))%*%matrix(b$sigma[i,]))))
+   eM[,k] <- muM
+   sM[,k] <- sgM
+   qMM[[k]] <- matrix(nrow = length(mu), ncol = length(qnt)); colnames(qMM[[k]]) <- paste0("q",qnt*100)
+   for(j in seq_along(qnt)){ qMM[[k]][,j] <- qnorm(qnt[j],muM,sgM) }
   }
-  if(fam == "poisson"){
+  lvpl = paste0("Z",lvp)
+  mu2M = drop(unname(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,])))
+  sg2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$sigma))%*%matrix(b$sigma[i,]))))
+  EY2M = mu2M
+ }
+ if(fam == "lognormal"){
+  mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))
+  sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
+  EY = exp(mu + 0.5*sigma^2)
+  SY = sqrt((exp(sigma^2)-1)*exp(2*mu+sigma^2))
+  qM = matrix(nrow = length(mu), ncol = length(qnt)); colnames(qM) <- paste0("q",qnt*100)
+  for(j in seq_along(qnt)){ qM[,j] <- qlnorm(qnt[j],mu,sigma) }
+  eM <- sM <- matrix(nrow = length(mu), ncol = length(lvar)); colnames(eM) <- colnames(sM) <- lvar
+  for(k in lvar){
+   muM = drop(unname(as.matrix(Zm(k,Z$mu))%*%matrix(b$mu[i,])))
+   sgM = drop(unname(exp(as.matrix(Zm(k,Z$sigma))%*%matrix(b$sigma[i,]))))
+   eM[,k] <- muM
+   sM[,k] <- sgM
+   qMM[[k]] <- matrix(nrow = length(mu), ncol = length(qnt)); colnames(qMM[[k]]) <- paste0("q",qnt*100)
+   for(j in seq_along(qnt)){ qMM[[k]][,j] <- qlnorm(qnt[j],muM,sgM) }
+  }
+  lvpl = paste0("Z",lvp)
+  mu2M = drop(unname(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,])))
+  sg2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$sigma))%*%matrix(b$sigma[i,]))))
+  EY2M = mu2M
+ }
+ if(fam == "poisson"){
     mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
     EY = mu
     SY = sqrt(mu)
@@ -261,7 +308,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
     mu2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,]))))
     EY2M = mu2M
   }
-  if(fam == "gamma"){
+ if(fam == "gamma"){
     mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
     sigma = drop(unname(exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
     EY = mu*sigma
@@ -282,7 +329,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
     sg2M = drop(unname(exp(as.matrix(Zm(lvpl,Z$sigma))%*%matrix(b$sigma[i,]))))
     EY2M = mu2M*sg2M
   }
-  if(fam == "binom"){
+ if(fam == "binomial"){
     mu = drop(unname(probs(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
     EY = mu
     SY = sqrt(mu*(1-mu))
@@ -300,7 +347,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
     mu2M = drop(unname(probs(as.matrix(Zm(lvpl,Z$mu))%*%matrix(b$mu[i,]))))
     EY2M = mu2M
   }
-  if(fam == "ZIpoisson"){
+ if(fam == "ZIpoisson"){
     mu = drop(unname(exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))))
     sigma = drop(unname(probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))))
     qZIpoisson <- function (p,mu,sigma){
@@ -331,34 +378,37 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
     sg2M = drop(unname(probs(as.matrix(Zm(lvpl,Z$sigma))%*%matrix(b$sigma[i,]))))
     EY2M = (1-sg2M)*mu2M
   }
-  # Add other distributions in SimFA::fod
-  if(rtF == T){ return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM, EY2M = EY2M))
-  } else return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM))
+ # Add other distributions in SimFA::fod
+ if(rtF == T){ return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM, EY2M = EY2M))
+ } else return(list(mean = EY,  sd = SY, quant = as.data.frame(qM), eM = eM, sM = sM, quantM = qMM))
 }
 
 f2Fun <- function(Y,fam,g,i){
   #For graphics: Y = mod$Y[,item]; fam = mod$fam[item]; g = gFun(mod$gr$out,mod$b,fam[[item]],item); i = cuts
   
-  if(fam == "normal"){
-    fyz <- dnorm(Y, g$mu[i], g$sigma[i])
-  }
-  if(fam == "poisson"){
-    fyz <- dpois(ceiling(Y), g$mu[i]) 
-  }
-  if(fam == "gamma"){
-    fyz <- dgamma(Y,shape = g$mu[i], scale = g$sigma[i])
-  }
-  if(fam == "binom"){
-    fyz <- dbinom(round(Y),1,prob = g$mu[i])
-  }  
-  if(fam == "ZIpoisson"){
-    dZIpoisson <- function(Y,mu,sigma,log=T){
-      u <- as.numeric(Y == 0)
-      lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
-      if(log == T) return(lf) else return(exp(lf))
-    }
-    fyz <- dZIpoisson(ceiling(Y), g$mu[i], g$sigma[i], log = F)
-  }
+ if(fam == "normal"){
+  fyz <- dnorm(Y, g$mu[i], g$sigma[i])
+ }
+ if(fam == "lognormal"){
+  fyz <- dlnorm(Y, g$mu[i], g$sigma[i])
+ }
+ if(fam == "poisson"){
+  fyz <- dpois(ceiling(Y), g$mu[i]) 
+ }
+ if(fam == "gamma"){
+  fyz <- dgamma(Y,shape = g$mu[i], scale = g$sigma[i])
+ }
+ if(fam == "binomial"){
+  fyz <- dbinom(round(Y),1,prob = g$mu[i])
+ }  
+ if(fam == "ZIpoisson"){
+  dZIpoisson <- function(Y,mu,sigma,log=T){
+   u <- as.numeric(Y == 0)
+   lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+   if(log == T) return(lf) else return(exp(lf))
+   }
+  fyz <- dZIpoisson(ceiling(Y), g$mu[i], g$sigma[i], log = F)
+ }
   
   # Add other distributions in SimFA::fod
   return(fyz)
@@ -366,9 +416,10 @@ f2Fun <- function(Y,fam,g,i){
 
 p2Fun <- function(fam){ # should be evaluated at i = 1:p; fam = fam[i]
   if(fam == "normal") lims <- c(-Inf,Inf)
+  if(fam == "lognormal") lims <- c(0  + .Machine$double.eps, Inf)
   if(fam == "poisson") lims <- c(0,Inf)
   if(fam == "gamma") lims <- c(0  + .Machine$double.eps, Inf)
-  if(fam == "binom") lims <- c(0,1)
+  if(fam == "binomial") lims <- c(0,1)
   if(fam == "ZIpoisson") lims <- c(0,Inf)
   # Add other parameters for other distributions
   return(lims)

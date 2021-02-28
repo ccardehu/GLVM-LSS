@@ -86,8 +86,6 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
    bold[[i]][-pC[[i]],] <- 0
   }
   
-
-  
   hist <- matrix(NA,nrow = iter.lim, ncol = length(unlist(bold)))
   
   # Estimation (EM algorithm)
@@ -103,10 +101,12 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
       if("mu" %in% parY){
        efy <- mfy(Y,bnew,gr,fam)
        EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-       Sm <- as.matrix(sapply(pC$mu, function(r) bmsc(r,Y,bnew,gr,fam,EC)))
+       Sm <- sapply(pC$mu, function(r) bmsc(r,Y,bnew,gr,fam,EC))
+       if(is.null(dim(Sm))) Sm <- t(Sm)
        Hm <- array(0,dim = c(ncol(gr$out$mu),ncol(gr$out$mu),length(pC$mu)))
        for(rz in pC$mu){ Hm[,,rz] <- bmhe(rz,Y,bnew,gr,fam,EC) }
        bnew$mu[pC$mu,] <- t(sapply(1:length(pC$mu), function(i) as.matrix(bnew$mu[pC$mu[i],]) - solve(Hm[,,i])%*%Sm[,i]))
+       if(nrow(bnew$mu) == 1) bnew$mu <- t(bnew$mu)
        bnew$mu <- bnew$mu*loadmt$mu
       }
         
@@ -124,15 +124,16 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
         
       # Computing epsilon  
       lln <- sum(log(mfy(Y,bnew,gr,fam)))
-      eps1 <- abs(lln - llo)
+      eps1 <- max((unlist(bnew) - unlist(bold))^2)
+      # eps1 <- abs(lln - llo) #/(0.1+abs(lln))
       iter = iter+1
       bold <- bnew
       hist[iter,] <- unlist(bnew)
       if(silent == F) cat("\r EM iteration: ", iter, ", LogLike. = ", round(lln,5), ", \U0394 LogLike. = ", lln-llo, sep = "")
       catmsg <- paste0("(after ", iter," EM iterations)")
-     } else{iter = 40} #skipEM
-      
-    if(useoptim == T & iter >= 40){
+     } else{iter = 100} #skipEM
+   
+    if(useoptim == T & iter >= 100){ #  
         if(skipEM == T) cat("\n Using `optim-BFGS` to find ML estimates") else cat(paste0("\n Using `optim-BFGS` to refine ML estimates ", catmsg))
         optmres <- optim(unlist(bnew), loglikFun, Y = Y, beta = bnew, ghQ = gr, fam = fam, method = "BFGS", control = list(maxit = iter.lim, fnscale = -1))
         bnew <- coefmod(bet = optmres$par, beta = bnew)
@@ -152,7 +153,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
    hist <- hist[1:iter,]
     
    return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, gr = gr, Score = Sco, Hessian = Hes, cvgRes = hist,
-               Y = as.data.frame(Y), fam = fam, formula = form))
+               Y = as.data.frame(Y), fam = fam, formula = form, eps = eps1))
     
   }, error = function(e){
     

@@ -15,6 +15,8 @@ gH <- function(n) {
   ## w(x) = exp(-x^2). Need to adjust weights so that 
   ## w(x) = (2*pi)^(1/2)*exp(-1/2*x^2)
   pts$weights <- pts$weights * (2*pi)^(-1/2)*exp(pts$nodes^2/2)
+  #pts$nodes <- pts$nodes * sqrt(2)
+  #pts$weights <- pts$weights * 1/(sqrt(pi))
   
   ## rename 'nodes' to conform with code below
   pts$points <- pts$nodes
@@ -36,20 +38,16 @@ mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
   
   nl <- unique(unlist(lapply(1:length(formula), function(i) all.vars(as.formula(formula[[i]])))))
   nl <- nl[grep("Z", nl, fixed = T)]
-  
   if(missing(mu) && missing(sigma)){
-    mu <- rep(0,length(nl))
-    sigma <- diag(length(nl))
+   mu <- rep(0,length(nl))
+   sigma <- diag(length(nl))
   }
   
   if(!all(dim(sigma) == length(mu))) stop("mu and sigma have nonconformable dimensions")
   if(length(mu) > 0) dm  <- length(mu) else dm <- 1
   if(missing(n)) n <- round(100^(1/dm))
-
   gh  <- gH(n)
-  
   # idx grows exponentially in n and dm
-  
   idx <- as.matrix(expand.grid(rep(list(1:n),dm)))
   pts <- matrix(gh$points[idx],nrow(idx),dm)
   wts <- as.matrix(apply(matrix(gh$weights[idx],nrow(idx),dm), 1, prod))
@@ -58,9 +56,9 @@ mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
   # ~~~~~~~
    
   if(!is.null(prune)) {
-    qwt <- quantile(wts, probs=prune)
-    pts <- pts[wts > qwt,]
-    wts <- wts[wts > qwt]
+   qwt <- quantile(wts, probs=prune)
+   pts <- pts[wts > qwt,]
+   wts <- wts[wts > qwt]
   }
   
   # Rotating, scaling, and translate points
