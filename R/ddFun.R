@@ -187,9 +187,9 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
   d1mu = (Y - mu)/(sigma^2)  * 1
   d2mu = rep(-(1/sigma^2) * 1, length(Y))
   d1sg = (((Y - mu)^2 - sigma^2)/(sigma^3)) * sigma
-  d2sg = (-3*(Y-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 # rep(-(2/(sigma^2)) * sigma^2, length(Y)) # -3*(Y-mu)^2/sigma^4 + 1/sigma^2
-  dcms = rep(0, length(Y)) # the expected cross derivative mu and sigma
-  rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dc" = dcms)
+  d2sg = (-3*(Y-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 # rep(-(2/(sigma^2)), length(Y))* sigma^2 # 
+  dcms = -2*(Y-mu)/sigma^3 * 1 * sigma # rep(0, length(Y)) # the expected cross derivative mu and sigma
+  rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dcms" = dcms)
  }
  if(fam == "lognormal"){ # structure(gamlss.dist::LOGNO)
   mu = drop(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
@@ -198,7 +198,7 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
   d2mu = rep(-(1/sigma^2) * 1, length(Y))
   d1sg = (((log(Y) - mu)^2 - sigma^2)/(sigma^3)) * sigma
   d2sg = (-3*(log(Y)-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 # rep(-(2/(sigma^2)) * sigma^2, length(Y)) # -3*(Y-mu)^2/sigma^4 + 1/sigma^2
-  dcms = rep(0, length(Y)) # the expected cross derivative mu and sigma
+  dcms = -2*(log(Y)-mu)/sigma^3 * 1 * sigma # rep(0, length(Y)) # the expected cross derivative mu and sigma
   rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dc" = dcms)
  }
  if(fam == "poisson"){ # structure(gamlss.dist::PO)

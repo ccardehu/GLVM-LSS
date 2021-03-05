@@ -73,11 +73,45 @@ mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
   out <- NULL
   for(i in names(formula)){
     out[[i]] <- as.data.frame(model.matrix(as.formula(formula[[i]]), as.data.frame(pts)))
-    colnames(out[[i]])[1] <- "Int"
+    #colnames(out[[i]])[1] <- "Int"
   }
   
   return(list(points = pts, weights = wts, out = out, n = n))
 }
-
-
-# gr <- mvgH(n = 50, mu = rep(0,q.), sigma = diag(q.), formula = form)
+# 
+# mvGH <- function (k, mu, sigma, prune = NULL, form) {
+#  
+#  factors <- unique(unlist(lapply(1:length(form), function(i) all.vars(as.formula(form[[i]])))))
+#  factors <- factors[grep("Z", factors, fixed = T)]
+#  if(missing(mu) && missing(sigma)){
+#   mu <- rep(0,length(factors))
+#   sigma <- diag(length(factors))
+#  }
+#   
+#  GH <- gaussHermiteData(k)
+#  grid.t <- expand.grid(lapply(1:length(factors), function (k, u) u$x, u = GH))
+#  names(grid.t) <- paste("Z", 1:length(factors), sep = "")
+#  
+#  out <- NULL
+#  for(i in names(form)){
+#   out[[i]] <- model.matrix(as.formula(form[[i]]), sqrt(2) * grid.t)
+#   attr(out[[i]], "assign") <- NULL
+#  }
+#  
+#  grid.w <- as.matrix(expand.grid(lapply(1:length(factors), function (k, u) u$w, u = GH)))
+#  grid.w <- (2^(length(factors)/2)) * apply(grid.w, 1, prod) * exp(rowSums(grid.t * grid.t))
+#  grid.w <- grid.w * exp(rowSums(dnorm(out[, seq(2, length(factors) + 1), drop = FALSE], log = TRUE)))
+#  names(grid.w) <- NULL
+#  
+#  
+#  out <- model.matrix(form., sqrt(2) * grid.t)
+#  colnams <- colnames(out)
+#  dimnames(out) <- attr(out, "assign") <- NULL
+#  grid.w <- as.matrix(expand.grid(lapply(1:factors, function (k, u) u$w, u = GH)))
+#  grid.w <- (2^(factors/2)) * apply(grid.w, 1, prod) * exp(rowSums(grid.t * grid.t))
+#  grid.w <- grid.w * exp(rowSums(dnorm(out[, seq(2, factors + 1), drop = FALSE], log = TRUE)))
+#  names(grid.w) <- NULL
+#  list(x = out, w = grid.w, colnams = colnams)
+# }
+# 
+# # gr <- mvgH(n = 50, mu = rep(0,q.), sigma = diag(q.), formula = form)

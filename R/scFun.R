@@ -41,7 +41,7 @@ loglikFun <- function(B, Y, beta, ghQ, fam){
 # Score function (to numerically compare outputs)
 
 ScoreFun <- function(B, Y, beta, ghQ, fam){
- # To evaluate: B = unlist(borg); ghQ = gr; beta = borg; loadmt = loadmt
+ # To evaluate: B = unlist(ex1$b); ghQ = ex1$gr; beta = ex1$b; loadmt = ex1$loadmt
  if(!is.matrix(Y)) Y <- as.matrix(Y)
  B <- coefmod(bet = B, beta = beta)
  efy <- mfy(Y,B,ghQ,fam)
@@ -51,12 +51,54 @@ ScoreFun <- function(B, Y, beta, ghQ, fam){
  pC <- vector(mode = "list", length = length(parY)); names(pC) <- parY
  for(i in parY){
   for(j in 1:ncol(Y)){ if(i %in% pFun(fam[j])) { pC[[i]] <- append(pC[[i]],j) } }
-  if(i == "mu") Sm[[i]] <- c(sapply(pC[[i]], function(r) bmsc(r,Y,B,ghQ,fam,EC)))
-  if(i == "sigma") Sm[[i]] <- c(sapply(pC[[i]], function(r) bssc(r,Y,B,ghQ,fam,EC)))
-  if(i == "tau") Sm[[i]] <- c(sapply(pC[[i]], function(r) btsc(r,Y,B,ghQ,fam,EC)))
-  if(i == "nu") Sm[[i]] <- c(sapply(pC[[i]], function(r) bnsc(r,Y,B,ghQ,fam,EC)))
+  if(i == "mu") Sm[[i]] <- c(t(sapply(pC[[i]], function(r) bmsc(r,Y,B,ghQ,fam,EC))))
+  if(i == "sigma") Sm[[i]] <- c(t(sapply(pC[[i]], function(r) bssc(r,Y,B,ghQ,fam,EC))))
+  if(i == "tau") Sm[[i]] <- c(t(sapply(pC[[i]], function(r) btsc(r,Y,B,ghQ,fam,EC))))
+  if(i == "nu") Sm[[i]] <- c(t(sapply(pC[[i]], function(r) bnsc(r,Y,B,ghQ,fam,EC))))
  }
  return(unname(unlist(Sm)))
+}
+
+# Hessian function (to numerically compare outputs)
+
+HessFun <- function(B, Y, beta, ghQ, fam){
+ # To evaluate: B = unlist(ex1$b); ghQ = ex1$gr; beta = ex1$b; loadmt = ex1$loadmt
+ if(!is.matrix(Y)) Y <- as.matrix(Y)
+ B <- coefmod(bet = B, beta = beta)
+ efy <- mfy(Y,B,ghQ,fam)
+ EC <- sapply(1:nrow(ghQ$points), function(z) mfyz(z,Y,ghQ$out,B,fam))/efy
+ Hm <- matrix()
+ idxmu <- 1:ncol(ghQ$out$mu)
+
+ for(ii in 1:ncol(Y)){
+  HH <- bmhe(ii,Y,B,ghQ,fam,EC)
+  if("sigma" %in% pFun(fam[ii])){
+   HH <- as.matrix(Matrix::bdiag(HH, bshe(ii,Y,B,ghQ,fam,EC)))
+   idxsg <- c(1:ncol(HH))[1:ncol(HH) %!in% idxmu]
+   HH[idxmu,idxsg] <- mshe(ii,Y,B,ghQ,fam,EC)
+   HH[idxsg,idxmu] <- t(mshe(ii,Y,B,ghQ,fam,EC))
+  }
+  if("tau" %in% pFun(fam[ii])){
+   HH <- as.matrix(Matrix::bdiag(HH, bthe(ii,Y,B,ghQ,fam,EC)))
+   idxta <- c(1:ncol(HH))[1:ncol(HH) %!in% c(idxmu,idxsg)]
+   HH[idxmu,idxta] <- mthe(ii,Y,B,ghQ,fam,EC)
+   HH[idxta,idxmu] <- t(mthe(ii,Y,B,ghQ,fam,EC))
+   HH[idxsg,idxta] <- sthe(ii,Y,B,ghQ,fam,EC)
+   HH[idxta,idxsg] <- t(sthe(ii,Y,B,ghQ,fam,EC))
+  }
+  if("nu" %in% pFun(fam[ii])){
+   HH <- as.matrix(Matrix::bdiag(HH, bnhe(ii,Y,B,ghQ,fam,EC)))
+   idxnu <- c(1:ncol(HH))[1:ncol(HH) %!in% c(idxmu,idxsg,idxta)]
+   HH[idxmu,idxnu] <- mnhe(ii,Y,B,ghQ,fam,EC)
+   HH[idxnu,idxmu] <- t(mnhe(ii,Y,B,ghQ,fam,EC))
+   HH[idxsg,idxnu] <- snhe(ii,Y,B,ghQ,fam,EC)
+   HH[idxnu,idxsg] <- t(snhe(ii,Y,B,ghQ,fam,EC))
+   HH[idxta,idxnu] <- tnhe(ii,Y,B,ghQ,fam,EC)
+   HH[idxnu,idxta] <- t(tnhe(ii,Y,B,ghQ,fam,EC))
+  }
+  Hm <- Matrix::bdiag(Hm,HH)
+}
+ return(as.matrix(Hm)[-1,-1])
 }
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -74,7 +116,7 @@ bmsc <- function(i,Y,b,gr,fam,ec){
   
   if(!is.matrix(Y)) Y <- as.matrix(Y)
   ed <- sapply(1:nrow(gr$points), function(z) dvFun(i,z,fam[i],Y[,i],gr$out,b)$d1mu)
-  bmsc <- colSums(gr$out$mu*(diag(crossprod(ec,ed))*drop(gr$weights)))
+  bmsc <- colSums(gr$out$mu*(colSums(ec*ed)*drop(gr$weights)))
   return(as.matrix(bmsc))
 }
 
@@ -85,7 +127,7 @@ bssc <- function(i,Y,b,gr,fam,ec){
   
   if(!is.matrix(Y)) Y <- as.matrix(Y)
   ed <- sapply(1:nrow(gr$points), function(z) dvFun(i,z,fam[i],Y[,i],gr$out,b)$d1sg)
-  bssc <- colSums(gr$out$sigma*(diag(crossprod(ec,ed))*drop(gr$weights)))
+  bssc <- colSums(gr$out$sigma*(colSums(ec*ed)*drop(gr$weights)))
   return(as.matrix(bssc))
 }
 
@@ -96,7 +138,7 @@ bmhe <- function(i,Y,b,gr,fam,ec){
   
   if(!is.matrix(Y)) Y <- as.matrix(Y)
   ed <- sapply(1:nrow(gr$points), function(z) dvFun(i,z,fam[i],Y[,i],gr$out,b)$d2mu)
-  t1 <- diag(crossprod(ec,ed))*drop(gr$weights)
+  t1 <- colSums(ec*ed)*drop(gr$weights)
   hm <- array(0,dim = c(ncol(gr$out$mu),ncol(gr$out$mu),length(gr$weights)))
   for(z in 1:nrow(gr$points)){ hm[,,z] <- crossprod(as.matrix(gr$out$mu[z,]))*t1[z] }
   hm <- rowSums(hm, dims = 2)
@@ -110,10 +152,32 @@ bshe <- function(i,Y,b,gr,fam,ec){
   
   if(!is.matrix(Y)) Y <- as.matrix(Y)
   ed <- sapply(1:nrow(gr$points), function(z) dvFun(i,z,fam[i],Y[,i],gr$out,b)$d2sg)
-  t1 <- diag(crossprod(ec,ed))*drop(gr$weights)
+  t1 <- colSums(ec*ed)*drop(gr$weights)
   hm <- array(0,dim = c(ncol(gr$out$sigma),ncol(gr$out$sigma),length(gr$weights)))
   for(z in 1:nrow(gr$points)){ hm[,,z] <- crossprod(as.matrix(gr$out$sigma[z,]))*t1[z] }
   hm <- rowSums(hm, dims = 2)
   return(as.matrix(hm))
 }
 
+mshe <- function(i,Y,b,gr,fam,ec){
+
+  # To evaluate:
+  # i = 1; Y = simR$Y; b = bold; fam = fam; ec = EC
+  
+  if(!is.matrix(Y)) Y <- as.matrix(Y)
+  ed <- sapply(1:nrow(gr$points), function(z) dvFun(i,z,fam[i],Y[,i],gr$out,b)$dcms)
+  t1 <- colSums(ec*ed)*drop(gr$weights)
+  hm <- array(0,dim = c(ncol(gr$out$mu),ncol(gr$out$sigma),length(gr$weights)))
+  for(z in 1:nrow(gr$points)){ hm[,,z] <- crossprod(as.matrix(gr$out$mu[z,]), t(as.matrix(gr$out$sigma[z,])))*t1[z] }
+  hm <- rowSums(hm, dims = 2)
+  return(as.matrix(hm))  
+}
+
+ 
+# rbenchmark::benchmark(
+#   "diag" = {diag(crossprod(ec,ed))},
+#   "mat" = {colSums(ec*ed)},
+#   replications = 10000,
+#   columns = c("test", "replications", "elapsed",
+#               "relative", "user.self", "sys.self")
+# )
