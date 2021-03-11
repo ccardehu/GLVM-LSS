@@ -138,6 +138,7 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
          HH[idxta,idxnu] <- tnhe(ii,Y,bnew,gr,fam,EC)
          HH[idxnu,idxta] <- t(tnhe(ii,Y,bnew,gr,fam,EC))
         }
+        HH <- HH + h1he(ii,Y,bnew,gr,fam,EC)# - h2he(ii,Y,bnew,gr,fam,EC)# tcrossprod(bb)
         bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))
         bnew$mu[ii,] <- bn[idxmu]
         if("sigma" %in% pFun(fam[ii])) bnew$sigma[ii,] <- bn[idxsg]

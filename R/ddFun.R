@@ -14,6 +14,24 @@ coefmod <- function(bet,beta){ # bet = unlist(borg); beta = borg; gr = gr
   return(coefM)
 }
 
+coefmod2 <- function(bet,beta){ # bet = unlist(borg); beta = borg; gr = gr
+ 
+ tmpl <- NULL
+ for(i in 1:length(beta)){
+  if(i == 1) tmpl[[i]] <- 1:ncol(beta[[i]])
+  else tmpl[[i]] <- seq(from = tail(tmpl[[i-1]],1)+1, to = tail(tmpl[[i-1]],1) + ncol(beta[[i]]))
+ }
+ 
+ bet <- matrix(bet,byrow = T,nrow = nrow(beta[[1]]))
+ coefM <- NULL
+ for(i in 1:length(beta)){
+  coefM[[i]] <- bet[,tmpl[[i]],drop=F]
+  colnames(coefM[[i]]) <- colnames(beta[[i]]); rownames(coefM[[i]]) <- rownames(beta[[i]])
+ }
+ names(coefM) <- names(beta)
+ return(coefM)
+}
+
 probs <- function(x){
   pr <- plogis(x)
   if (any(ind <- pr == 1)) pr[ind] <- 1 - sqrt(.Machine$double.eps)
@@ -50,7 +68,7 @@ rFun <- function(n,i,fam,Z,b){ #should be evaluated at i = 1:p; fam = fam[i]; Z 
  if(fam == "normal"){
   mu = as.matrix(Z$mu)%*%matrix(b$mu[i,])
   sigma = exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
-  fyz <- rnorm(n, drop(mu), drop(sigma))
+  fyz <- rnorm(n, c(mu), c(sigma))
  }
  if(fam == "lognormal"){
   mu = as.matrix(Z$mu)%*%matrix(b$mu[i,])
