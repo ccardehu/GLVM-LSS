@@ -24,7 +24,7 @@ source("EMFun.R")
 n = 1000     # Number of individuals
 p = 5       # Number of items
 nsim = 1000  # Number of simulations
-form <- list("mu" = "~ Z1", "sigma" = "~ 1")
+form <- list("mu" = "~ Z1", "sigma" = "~ Z1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 fam <- rep("normal",p)
@@ -33,7 +33,7 @@ fam <- rep("normal",p)
 
 l1 <- NULL
 l1$mu <- matrix(1,ncol = 2, nrow = p)
-l1$sigma <- matrix(1, ncol = 1, nrow = p)
+l1$sigma <- matrix(1, ncol = 2, nrow = p)
 
 # Restrictions
 # ____________
@@ -86,8 +86,8 @@ Z <- simR$Z
 borg <- simR$borg
 
 #profvis({
-ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 20, iter.lim = 1000, tol = .Machine$double.eps, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
-ex2 <- GLVM.fit2(Y = Y, fam = fam, form = form , silent = F, ghp = 20, iter.lim = 1000, tol = .Machine$double.eps, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 10, iter.lim = 1000, tol = sqrt(.Machine$double.eps), loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+ex2 <- GLVM.fit2(Y = Y, fam = fam, form = form , silent = F, ghp = 10, iter.lim = 1000, tol = sqrt(.Machine$double.eps), loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
 #ex10 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 30, iter.lim = 1000, tol = .Machine$double.eps, loadmt = l1, icoefs = lc, useoptim = T, skipEM = F)
 #ex11 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 10, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
 #ex10 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
@@ -110,8 +110,8 @@ plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
          sep.plots = F, plot.3D = T, plot.dist = T, plot.addpoints = T)
 
 # plot.score(ex1)
-pairs(Y)
-round(Matrix::tril(var(Y)),2)
+#pairs(Y)
+#round(Matrix::tril(var(Y)),2)
 
 cbind(ex1$b$mu, ex2$b$mu, borg$mu)
 cbind(ex1$b$sigma, ex2$b$sigma, borg$sigma)
@@ -129,9 +129,9 @@ for(i in 1:ncol(Y)){
 }
 
 # testB1 <- unname(unlist(modt$b))
-testH1 <- c(t(cbind(modt$b$mu,modt$b$sigma)))
+testH1 <- decoefmod(modt$b)
 # testB2 <- unname(unlist(borg))
-testH2 <- c(t(cbind(borg$mu,borg$sigma)))
+testH2 <- decoefmod(borg)
 testB3 <- unname(rep(1,length(unlist(borg))))
 #testB4 <- unname(rep(15,length(unlist(borg))))
 
@@ -158,7 +158,7 @@ num.jac2 <- jacobian(func = ScoreFun, x = testH2, method = "Richardson", method.
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
 num.jac3 <- jacobian(func = ScoreFun, x = testB3, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
-plot.jac = F
+plot.jac = T
 
 
 ana.score1 <- ScoreFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)
@@ -235,47 +235,52 @@ abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)
                by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
 points(c(num.hess1)[int], col = "red", pch = 16, cex = 0.5)
 segments(x0 = seq_along(ana.hess1[int]), y0 = unlist(ana.hess1)[int], y1 = num.hess1[int], col = "blue", lty = 3, lwd = 1)
-legend("topright",legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6), pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
+legend("bottomright",legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6), pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
 if(plot.jac == T){ points(c(num.jac1)[int], col = scales::alpha("blue",0.6), pch = 16, cex = 0.5) 
   legend("bottomright",legend=c("Analytical", "Numerical (Hessian)", "Numerical (Jacobian)"),
          col=c("gray50",scales::alpha("red",0.6), scales::alpha("blue",0.6)), pch = c(16,16,16),
          cex=1, inset = 0.02, box.col = "white")}
 
-# plot(c(num.hess1 - num.jac1), main = "Differences in Numerical 2nd deriv.: Hessian vs. Jacobian (@ MLE)",xlab ="Hessian entry Index", ylab = "Value", pch = 16, col = "gray50")
+# plot(c(num.hess1 - ana.hess1), main = "Differences in Hessian Analytical vs. Numerical (@ MLE)",xlab ="Hessian entry Index", ylab = "Value", pch = 16, col = "gray50")
 # abline(h = 0, col = "forestgreen", lty = 2)
+# abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y),length.out = ncol(Y)-1,
+#               by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
 
 plot(c(ana.hess2)[int], main = "Hessian (2nd deriv. of log-likelihood) @ Original Parameters",
      xlab = "Hessian entry Index", ylab = "value", cex = 0.5, pch = 16, col = "gray50")
 abline(h = 0, col = "forestgreen", lty = 2);
 abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y),length.out = ncol(Y)-1,
                by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
-points(c(num.hess2)[int], col = scales::alpha("red",0.6), pch = 16, cex = 0.5)
+points(c(num.hess2)[int], col = "red", pch = 16, cex = 0.5)
 segments(x0 = seq_along(ana.hess2[int]), y0 = unlist(ana.hess2)[int], y1 = num.hess2[int], col = "blue", lty = 3, lwd = 1)
-legend("bottomright",legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", scales::alpha("red",0.6)), pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
+legend("bottomright",legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red"), pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
 if(plot.jac == T){ points(c(num.jac2)[int], col = scales::alpha("blue",0.6), pch = 16, cex = 0.5) 
   legend("bottomright",legend=c("Analytical", "Numerical (Hessian)", "Numerical (Jacobian)"),
          col=c("gray50",scales::alpha("red",0.6), scales::alpha("blue",0.6)), pch = c(16,16,16),
          cex=1, inset = 0.02, box.col = "white")}
 
-# plot(c(num.hess2 - num.jac2),main = "Differences in Numerical 2nd deriv.: Hessian vs. Jacobian (@ Original)",xlab ="Hessian entry Index", ylab = "Value", pch = 16, col = "gray50")
+# plot(c(num.hess2 - ana.hess2),main = "Differences in Hessian Analytical vs. Numerical (@ Original)",xlab ="Hessian entry Index", ylab = "Value", pch = 16, col = "gray50")
 # abline(h = 0, col = "forestgreen", lty = 2)
+# abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y),length.out = ncol(Y)-1,
+#               by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
 
 plot(c(ana.hess3)[int], main = "Hessian (2nd deriv. of log-likelihood) @ Vector of 1s",
-     xlab = "Hessian entry Index", ylab = "value", cex = 0.5, pch = 16, col = "gray50")
+     xlab = "Hessian entry Index", ylab = "value", cex = 0.5, pch = 16, col = "gray50", ylim = c(min(ana.hess3,num.hess3),max(ana.hess3,num.hess3)))
 abline(h = 0, col = "forestgreen", lty = 2);
 abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y),length.out = ncol(Y)-1,
                by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
-points(c(num.hess3)[int], col = scales::alpha("red",0.6), pch = 16, cex = 0.5)
+points(c(num.hess3)[int], col = "red", pch = 16, cex = 0.5)
 segments(x0 = seq_along(ana.hess3[int]), y0 = unlist(ana.hess3)[int], y1 = num.hess3[int], col = "blue", lty = 3, lwd = 1)
-legend("bottomleft",legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", scales::alpha("red",0.6)), pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
+legend(1550,-1500,legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6), pch = c(16,16), cex=0.75, inset = 0.02, box.col = "white")
 if(plot.jac == T){ points(c(num.jac3)[int], col = scales::alpha("blue",0.6), pch = 16, cex = 0.5) 
   legend("bottomleft",legend=c("Analytical", "Numerical (Hessian)", "Numerical (Jacobian)"),
          col=c("gray50",scales::alpha("red",0.6), scales::alpha("blue",0.6)), pch = c(16,16,16),
          cex=1, inset = 0.02, box.col = "white")}
 
-# plot(c(num.hess3 - num.jac3),main = "Differences in Numerical 2nd deriv.: Hessian vs. Jacobian (@ 1s)",xlab ="Hessian entry Index", ylab = "Value", pch = 16, col = "gray50")
+# plot(c(num.hess3 - ana.hess3),main = "Differences in Analytical Hessian vs. Numerical Hessian (@ 1s)",xlab ="Hessian entry Index", ylab = "Value", pch = 16, col = "gray50")
 # abline(h = 0, col = "forestgreen", lty = 2)
-
+# abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y),length.out = ncol(Y)-1,
+#               by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
 
 # Think of a) Change loglikFun to have as input the parameters that we actually use. or 
 #          b) Change ScoreFun to return scores for non existent parameters (e.g. sigma in Poisson RV)

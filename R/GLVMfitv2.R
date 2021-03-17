@@ -2,29 +2,29 @@
 
 GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
                      tol = 1e-3, silent = F, icoefs = icoefs, useoptim = T, skipEM = T){
+
+ # evaluate @ Y = simR$Y; fam = fam; form = form; silent = F; icoefs = lc; useoptim = T; ghp = 10; loadmt = l1; tol = 1e-7; iter.lim = 700; skipEM = T
+ 
+ if(!is.matrix(Y)) Y <- as.matrix(Y)
+ parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
+ for(i in parY){form[[i]] <- as.formula(form[[i]])}
+ lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
+ lvar <- lvar[grep("Z", lvar, fixed = T)]
+ if(length(lvar) == 0) stop("Latent variables in formula should be represented by letter Z (capital)")
+ q. <- length(lvar)
+ p. <- ncol(Y)
+ pC <- vector(mode = "list", length = length(parY)); names(pC) <- parY
+ for(i in parY){ for(j in 1:p.){ if(i %in% pFun(fam[j])) {pC[[i]] <- append(pC[[i]],j)} } }
   
-  # evaluate @ Y = simR$Y; fam = fam; form = form; silent = F; icoefs = lc; useoptim = T; ghp = 10; loadmt = l1; tol = 1e-7; iter.lim = 700; skipEM = T
+ # Latent variables (Z. for each mu, sigma, etc.)
+ # ______________________________________________
+ if(missing(ghp)) ghp <- 6
+ gr <- mvgH(n = ghp, formula = form)
+ 
+ # Restriction matrices (for each mu, sigma, etc.)
+ # ______________________________________________
   
-  if(!is.matrix(Y)) Y <- as.matrix(Y)
-  parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
-  for(i in parY){form[[i]] <- as.formula(form[[i]])}
-  lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
-  lvar <- lvar[grep("Z", lvar, fixed = T)]
-  if(length(lvar) == 0) stop("Latent variables in formula should be represented by letter Z (capital)")
-  q. <- length(lvar)
-  p. <- ncol(Y)
-  pC <- vector(mode = "list", length = length(parY)); names(pC) <- parY
-  for(i in parY){ for(j in 1:p.){ if(i %in% pFun(fam[j])) {pC[[i]] <- append(pC[[i]],j)} } }
-  
-  # Latent variables (Z. for each mu, sigma, etc.)
-  # ______________________________________________
-  if(missing(ghp)) ghp <- 6
-  gr <- mvgH(n = ghp, formula = form)
-  
-  # Restriction matrices (for each mu, sigma, etc.)
-  # ______________________________________________
-  
-  if(!missing(loadmt)){
+ if(!missing(loadmt)){
     if(!is.list(loadmt)) stop("Provided `loadmt` should be a list with dim p*(q+intercept) restriction matrices for mu, sigma, tau, nu")
     if(length(loadmt) != length(parY)) stop("Number of matrices in `loadmt` should match number of parameters mu, sigma, tau, nu")
     names(loadmt) <- parY 
@@ -60,12 +60,12 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     }
   }
   
-  # Starting values
-  # _______________
-  iter <- 0
-  if(missing(tol)) tol <- 1e-3
-  eps1 <- tol + 1
-  if(!missing(icoefs)){
+ # Starting values
+ # _______________
+ iter <- 0
+ if(missing(tol)) tol <- 1e-3
+ eps1 <- tol + 1
+ if(!missing(icoefs)){
     if(!is.list(icoefs)) stop("Provided initial `icoefs` should be a list with dim p*(q+intercept) loading matrices for mu, sigma, tau, nu")
     if(length(icoefs) != length(parY)) stop("Number of matrices in `icoefs` should match number of parameters mu, sigma, tau, nu")
     names(icoefs) <- parY 
@@ -81,109 +81,123 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     bold <- lapply(parY, function(i) matrix(1, nrow = ncol(Y), ncol = ncol(gr$out[[i]])))
     names(bold) <- parY
   }
-  for(i in parY){
+ for(i in parY){
     bold[[i]] <- bold[[i]]*loadmt[[i]]
     bold[[i]][-pC[[i]],] <- 0
   }
   
-  hist <- matrix(NA,nrow = iter.lim, ncol = length(unlist(bold)))
+ hist <- matrix(NA,nrow = iter.lim, ncol = length(unlist(bold)))
   
-  # Estimation (EM algorithm)
-  # ~~~~~~~~~~~~~~~~~~~~~~~~~
+ # Estimation (EM algorithm)
+ # ~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  tryCatch({
-    while(eps1 > tol & iter < iter.lim){
+ tryCatch({
+   
+  while(eps1 > tol & iter < iter.lim){
+  
+   llo <- sum(log(mfy(Y,bold,gr,fam)))
+   bnew <- bold
+   # efy <- mfy(Y,bnew,gr,fam)
+   # EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
+   Sco <- Hes <- NULL
       
-      llo <- sum(log(mfy(Y,bold,gr,fam)))
-      bnew <- bold
-      # efy <- mfy(Y,bnew,gr,fam)
-      # EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-      Sco <- Hes <- NULL
-      
-      if(skipEM == F){
-       for(ii in 1:ncol(Y)){
-        efy <- mfy(Y,bnew,gr,fam)
-        EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy 
-        bo <- unname(bnew$mu[ii,])
-        bb <- c(bmsc(ii,Y,bnew,gr,fam,EC))
-        HH <- bmhe(ii,Y,bnew,gr,fam,EC)
-        idxmu <- seq_along(bb)
-        if("sigma" %in% pFun(fam[ii])){
-         bo <- append(bo, bnew$sigma[ii,])
-         bb <- append(bb, bssc(ii,Y,bnew,gr,fam,EC))
-         HH <- as.matrix(Matrix::bdiag(HH, bshe(ii,Y,bnew,gr,fam,EC)))
-         idxsg <- seq_along(bb)[seq_along(bb) %!in% idxmu]
-         HH[idxmu,idxsg] <- mshe(ii,Y,bnew,gr,fam,EC)
-         HH[idxsg,idxmu] <- t(mshe(ii,Y,bnew,gr,fam,EC))
-        }
-        if("tau" %in% pFun(fam[ii])){
-         bo <- append(bo, bnew$tau[ii,])
-         bb <- append(bb, btsc(ii,Y,bnew,gr,fam,EC))
-         HH <- as.matrix(Matrix::bdiag(HH, bthe(ii,Y,bnew,gr,fam,EC)))
-         idxta <- seq_along(bb)[seq_along(bb) %!in% c(idxmu,idxsg)]
-         HH[idxmu,idxta] <- mthe(ii,Y,bnew,gr,fam,EC)
-         HH[idxta,idxmu] <- t(mthe(ii,Y,bnew,gr,fam,EC))
-         HH[idxsg,idxta] <- sthe(ii,Y,bnew,gr,fam,EC)
-         HH[idxta,idxsg] <- t(sthe(ii,Y,bnew,gr,fam,EC))
-        }
-        if("nu" %in% pFun(fam[ii])){
-         bo <- append(bo, bnew$nu[ii,])
-         bb <- append(bb, bnsc(ii,Y,bnew,gr,fam,EC))
-         HH <- as.matrix(Matrix::bdiag(HH, bnhe(ii,Y,bnew,gr,fam,EC)))
-         idxnu <- seq_along(bb)[seq_along(bb) %!in% c(idxmu,idxsg,idxta)]
-         HH[idxmu,idxnu] <- mnhe(ii,Y,bnew,gr,fam,EC)
-         HH[idxnu,idxmu] <- t(mnhe(ii,Y,bnew,gr,fam,EC))
-         HH[idxsg,idxnu] <- snhe(ii,Y,bnew,gr,fam,EC)
-         HH[idxnu,idxsg] <- t(snhe(ii,Y,bnew,gr,fam,EC))
-         HH[idxta,idxnu] <- tnhe(ii,Y,bnew,gr,fam,EC)
-         HH[idxnu,idxta] <- t(tnhe(ii,Y,bnew,gr,fam,EC))
-        }
-        HH <- HH + h1he(ii,Y,bnew,gr,fam,EC)# - h2he(ii,Y,bnew,gr,fam,EC)# tcrossprod(bb)
-        bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))
-        bnew$mu[ii,] <- bn[idxmu]
-        if("sigma" %in% pFun(fam[ii])) bnew$sigma[ii,] <- bn[idxsg]
-        if("tau" %in% pFun(fam[ii])) bnew$tau[ii,] <- bn[idxta]
-        if("nu" %in% pFun(fam[ii])) bnew$nu[ii,] <- bn[idxnu]
-        Sco <- rbind(Sco,bb)
-        Hes <- rbind(Hes,c(HH))
-       }
-       
-       # Computing epsilon  
-        lln <- sum(log(mfy(Y,bnew,gr,fam)))
-        eps1 <- max((unlist(bnew) - unlist(bold))^2)
-        # eps1 <- abs(lln - llo) #/(0.1+abs(lln))
-        iter = iter+1
-        bold <- bnew
-        hist[iter,] <- unlist(bnew)
-        if(silent == F) cat("\r EM iteration: ", iter, ", LogLike. = ", round(lln,5), ", \U0394 LogLike. = ", lln-llo, sep = "")
-        catmsg <- paste0("(after ", iter," EM iterations)")
-      } else{iter = 100} #skipEM
-      
-      if(useoptim == T & iter >= 100){ #  
-        if(skipEM == T) cat("\n Using `optim-BFGS` to find ML estimates") else cat(paste0("\n Using `optim-BFGS` to refine ML estimates ", catmsg))
-        optmres <- optim(unlist(bnew), loglikFun, Y = Y, beta = bnew, ghQ = gr, fam = fam, method = "BFGS", control = list(maxit = iter.lim, fnscale = -1))
-        bnew <- coefmod(bet = optmres$par, beta = bnew)
-        lln <- sum(log(mfy(Y,bnew,gr,fam)))
-        iter <- optmres$convergence
-        if(optmres$convergence != 0) warning("Maximization did not converge")
-        eps1 <- tol/2
+   if(skipEM == F){
+    # for(ii in 1:ncol(Y)){
+     efy <- mfy(Y,bnew,gr,fam)
+     EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy 
+     
+     bo <- decoefmod(bnew)
+     bb <- HH <- NULL
+     for(i in 1:ncol(Y)){
+      bb <- c(bb,bsc(i,Y,bnew,gr,fam,EC))
+      Hr <- NULL
+      for(j in 1:ncol(Y)){
+       Hr <- rbind(Hr,bhe(i,j,Y,bnew,gr,fam,EC))
       }
+      HH <- cbind(HH,Hr)
+     }
+     
+     bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))
+     bnew <- coefmod2(bn,bold)
+     
+     # bo <- unname(bnew$mu[ii,])
+     # bb <- c(bmsc(ii,Y,bnew,gr,fam,EC))
+     # HH <- bmhe(ii,Y,bnew,gr,fam,EC)
+     # idxmu <- seq_along(bb)
+     # if("sigma" %in% pFun(fam[ii])){
+     #  bo <- append(bo, bnew$sigma[ii,])
+     #  bb <- append(bb, bssc(ii,Y,bnew,gr,fam,EC))
+     #  HH <- as.matrix(Matrix::bdiag(HH, bshe(ii,Y,bnew,gr,fam,EC)))
+     #  idxsg <- seq_along(bb)[seq_along(bb) %!in% idxmu]
+     #  HH[idxmu,idxsg] <- mshe(ii,Y,bnew,gr,fam,EC)
+     #  HH[idxsg,idxmu] <- t(mshe(ii,Y,bnew,gr,fam,EC))
+     # }
+     # if("tau" %in% pFun(fam[ii])){
+     #  bo <- append(bo, bnew$tau[ii,])
+     #  bb <- append(bb, btsc(ii,Y,bnew,gr,fam,EC))
+     #  HH <- as.matrix(Matrix::bdiag(HH, bthe(ii,Y,bnew,gr,fam,EC)))
+     #  idxta <- seq_along(bb)[seq_along(bb) %!in% c(idxmu,idxsg)]
+     #  HH[idxmu,idxta] <- mthe(ii,Y,bnew,gr,fam,EC)
+     #  HH[idxta,idxmu] <- t(mthe(ii,Y,bnew,gr,fam,EC))
+     #  HH[idxsg,idxta] <- sthe(ii,Y,bnew,gr,fam,EC)
+     #  HH[idxta,idxsg] <- t(sthe(ii,Y,bnew,gr,fam,EC))
+     # }
+     # if("nu" %in% pFun(fam[ii])){
+     #  bo <- append(bo, bnew$nu[ii,])
+     #  bb <- append(bb, bnsc(ii,Y,bnew,gr,fam,EC))
+     #  HH <- as.matrix(Matrix::bdiag(HH, bnhe(ii,Y,bnew,gr,fam,EC)))
+     #  idxnu <- seq_along(bb)[seq_along(bb) %!in% c(idxmu,idxsg,idxta)]
+     #  HH[idxmu,idxnu] <- mnhe(ii,Y,bnew,gr,fam,EC)
+     #  HH[idxnu,idxmu] <- t(mnhe(ii,Y,bnew,gr,fam,EC))
+     #  HH[idxsg,idxnu] <- snhe(ii,Y,bnew,gr,fam,EC)
+     #  HH[idxnu,idxsg] <- t(snhe(ii,Y,bnew,gr,fam,EC))
+     #  HH[idxta,idxnu] <- tnhe(ii,Y,bnew,gr,fam,EC)
+     #  HH[idxnu,idxta] <- t(tnhe(ii,Y,bnew,gr,fam,EC))
+     # }
+     # HH <- HH + h1he(ii,Y,bnew,gr,fam,EC) - h2he(ii,Y,bnew,gr,fam,EC)# tcrossprod(bb)
+     # bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))
+     # bnew$mu[ii,] <- bn[idxmu]
+     # if("sigma" %in% pFun(fam[ii])) bnew$sigma[ii,] <- bn[idxsg]
+     # if("tau" %in% pFun(fam[ii])) bnew$tau[ii,] <- bn[idxta]
+     # if("nu" %in% pFun(fam[ii])) bnew$nu[ii,] <- bn[idxnu]
+     # Sco <- rbind(Sco,bb)
+     # Hes <- rbind(Hes,c(HH))
+    # }
+       
+    # Computing epsilon  
+    lln <- sum(log(mfy(Y,bnew,gr,fam)))
+    eps1 <- max((unlist(bnew) - unlist(bold))^2)
+    # eps1 <- abs(lln - llo) #/(0.1+abs(lln))
+    iter = iter+1
+    bold <- bnew
+    hist[iter,] <- unlist(bnew)
+    if(silent == F) cat("\r EM iteration: ", iter, ", LogLike. = ", round(lln,5), ", \U0394 LogLike. = ", lln-llo, sep = "")
+     catmsg <- paste0("(after ", iter," EM iterations)")
+    } else{iter = 40} #skipEM
       
+    if(useoptim == T & iter >= 40){ #  
+     if(skipEM == T) cat("\n Using `optim-BFGS` to find ML estimates") else cat(paste0("\n Using `optim-BFGS` to refine ML estimates ", catmsg))
+     optmres <- optim(unlist(bnew), loglikFun, Y = Y, beta = bnew, ghQ = gr, fam = fam, method = "BFGS", control = list(maxit = iter.lim, fnscale = -1))
+     bnew <- coefmod(bet = optmres$par, beta = bnew)
+     lln <- sum(log(mfy(Y,bnew,gr,fam)))
+     iter <- optmres$convergence
+     if(optmres$convergence != 0) warning("Maximization did not converge")
+     eps1 <- tol/2
     }
+   }
 
-    hist <- hist[1:iter,]
+  hist <- hist[1:iter,]
     
-    return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, gr = gr, Score = Sco, Hessian = Hes, cvgRes = hist,
-                Y = as.data.frame(Y), fam = fam, formula = form, eps = eps1))
+  return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, gr = gr, Score = Sco, Hessian = Hes, cvgRes = hist,
+              Y = as.data.frame(Y), fam = fam, formula = form, eps = eps1))
     
-  }, error = function(e){
+ }, error = function(e){
     
-    print(paste("\n Error in Estimation, proceeded with next simulation \n Error:",e))
-    berr <- lapply(parY, function(i) matrix(-999, nrow = ncol(Y), ncol = ncol(gr$out[[i]])))
-    names(berr) <- parY; for(i in parY){ berr[[i]] <- berr[[i]]*loadmt[[i]] ; loadmt[[i]] <- loadmt[[i]]*-999}
+ print(paste("\n Error in Estimation, proceeded with next simulation \n Error:",e))
+ berr <- lapply(parY, function(i) matrix(-999, nrow = ncol(Y), ncol = ncol(gr$out[[i]])))
+ names(berr) <- parY; for(i in parY){ berr[[i]] <- berr[[i]]*loadmt[[i]] ; loadmt[[i]] <- loadmt[[i]]*-999}
+ return(list(b = berr, loglik = -999, loadmt = loadmt,iter = -999))
     
-    return(list(b = berr, loglik = -999, loadmt = loadmt,iter = -999))
-    
-  })
+ })
   
 }
