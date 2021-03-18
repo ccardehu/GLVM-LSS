@@ -22,12 +22,12 @@ source("graphFun.R")
 source("EMFun.R")
 
 n = 1000     # Number of individuals
-p = 5       # Number of items
+p = 10       # Number of items
 nsim = 1000  # Number of simulations
-form <- list("mu" = "~ Z1", "sigma" = "~ Z1")
+form <- list("mu" = "~ Z1")# + I(Z1^2)", "sigma" = "~ Z1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("normal",p)
+fam <- rep("binomial",p)
 # fam <- c(rep("normal", p/2), rep("poisson", p/2)) # rep("poisson",p)#
 # sample(c("normal","poisson","binom"),size = 10,replace = T)
 
@@ -105,7 +105,7 @@ round(ex2$b$mu - borg$mu,4)
 round(ex2$b$sigma - borg$sigma,4)
 
 
-plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
+plotGLVM(item = 6, mod = ex1, morg = simR, plot.org = F,
          plot.mean = T, plot.sd = T, quant = c(0.025,0.25,0.75,0.975),
          sep.plots = F, plot.3D = T, plot.dist = T, plot.addpoints = T)
 
@@ -132,14 +132,14 @@ for(i in 1:ncol(Y)){
 testH1 <- decoefmod(modt$b)
 # testB2 <- unname(unlist(borg))
 testH2 <- decoefmod(borg)
-testB3 <- unname(rep(1,length(unlist(borg))))
+testH3 <- unname(rep(1,length(unlist(borg))))
 #testB4 <- unname(rep(15,length(unlist(borg))))
 
 num.score1 <- grad(func = loglikFun, x = testH1, method = "Richardson", method.args=list(r = 6, v = 2),
                    Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
 num.score2 <- grad(func = loglikFun, x = testH2, method = "Richardson", method.args=list(r = 6, v = 2),
                    Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
-num.score3 <- grad(func = loglikFun, x = testB3, method = "Richardson", method.args=list(r = 6, v = 2),
+num.score3 <- grad(func = loglikFun, x = testH3, method = "Richardson", method.args=list(r = 6, v = 2),
                    Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
 # num.score4 <- grad(func = loglikFun, x = testB4, method = "Richardson",
                    # method.args=list(r = 10), Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
@@ -148,27 +148,34 @@ num.hess1 <- hessian(func = loglikFun, x = testH1, method = "Richardson", method
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b);
 num.hess2 <- hessian(func = loglikFun, x = testH2, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b);
-num.hess3 <- hessian(func = loglikFun, x = testB3, method = "Richardson", method.args=list(r = 6, v = 2),
+num.hess3 <- hessian(func = loglikFun, x = testH3, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b);
 #num.hess1 <- diag(num.hess1);  num.hess2 <- diag(num.hess2);  num.hess3 <- diag(num.hess3)
 
+plot.jac = F
+if(plot.jac == T){
 num.jac1 <- jacobian(func = ScoreFun, x = testH1, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
 num.jac2 <- jacobian(func = ScoreFun, x = testH2, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
-num.jac3 <- jacobian(func = ScoreFun, x = testB3, method = "Richardson", method.args=list(r = 6, v = 2),
+num.jac3 <- jacobian(func = ScoreFun, x = testH3, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
-plot.jac = T
+}
 
+ana1 <- ScHesFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)
+ana2 <- ScHesFun(testH2, modt$Y, modt$b, modt$gr, modt$fam)
+ana3 <- ScHesFun(testH3, modt$Y, modt$b, modt$gr, modt$fam)
 
-ana.score1 <- ScoreFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)
-ana.score2 <- ScoreFun(testH2, modt$Y, modt$b, modt$gr, modt$fam)
-ana.score3 <- ScoreFun(testB3, modt$Y, modt$b, modt$gr, modt$fam)
+profvis::profvis({t1 <- ScHesFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)})
+
+ana.score1 <- ana1$score
+ana.score2 <- ana2$score
+ana.score3 <- ana3$score
 # ana.score4 <- ScoreFun(testB4, modt$Y, modt$b, modt$gr, modt$fam)
 
-ana.hess1 <- HessFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)
-ana.hess2 <- HessFun(testH2, modt$Y, modt$b, modt$gr, modt$fam)
-ana.hess3 <- HessFun(testB3, modt$Y, modt$b, modt$gr, modt$fam)
+ana.hess1 <- ana1$hess
+ana.hess2 <- ana2$hess
+ana.hess3 <- ana3$hess
 
 
 par("mar" = c(6, 4, 4, 2) + 0.1)
@@ -181,7 +188,8 @@ abline(v = seq(from = ((sum(length(modt$b$mu), length(modt$b$sigma)) %/% ncol(Y)
                by = ((sum(length(modt$b$mu), length(modt$b$sigma)) %/% ncol(Y)))) + 0.5, lty = 3, col = "gray80")
 points(num.score1[1:length(ana.score1)], col = "red", pch = 10)
 segments(x0 = seq_along(ana.score1), y0 = unlist(ana.score1), y1 = num.score1, col = "blue", lty = 3, lwd = 1)
-legend("bottomright",legend=c("Analytical", "Numerical"), col=c("gray50", "red"), pch = c(16,10), cex=1, inset = 0.02, box.col = "white")
+legend("topleft",legend=c("Analytical", "Numerical"), col=c("gray50", "red"),
+       pch = c(16,10), cex=1, inset = 0.02, box.col = "white")
 
 # plot(ana.score1 - num.score1,main = "Differences in Score values: Analytical vs. Numerical (@ MLE)",xlab ="", ylab = "Value", pch = 16, col = "gray50", xaxt = "n")
 # mtext(side = 1, text = "Parameter index", line = 4)
@@ -235,7 +243,8 @@ abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)
                by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
 points(c(num.hess1)[int], col = "red", pch = 16, cex = 0.5)
 segments(x0 = seq_along(ana.hess1[int]), y0 = unlist(ana.hess1)[int], y1 = num.hess1[int], col = "blue", lty = 3, lwd = 1)
-legend("bottomright",legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6), pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
+legend(0,-2500,legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6),
+       pch = c(16,16), cex=0.8, inset = 0.02, box.col = "white")
 if(plot.jac == T){ points(c(num.jac1)[int], col = scales::alpha("blue",0.6), pch = 16, cex = 0.5) 
   legend("bottomright",legend=c("Analytical", "Numerical (Hessian)", "Numerical (Jacobian)"),
          col=c("gray50",scales::alpha("red",0.6), scales::alpha("blue",0.6)), pch = c(16,16,16),
@@ -253,7 +262,8 @@ abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)
                by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
 points(c(num.hess2)[int], col = "red", pch = 16, cex = 0.5)
 segments(x0 = seq_along(ana.hess2[int]), y0 = unlist(ana.hess2)[int], y1 = num.hess2[int], col = "blue", lty = 3, lwd = 1)
-legend("bottomright",legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red"), pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
+legend(0,-3000,legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red"),
+       pch = c(16,16), cex=1, inset = 0.02, box.col = "white")
 if(plot.jac == T){ points(c(num.jac2)[int], col = scales::alpha("blue",0.6), pch = 16, cex = 0.5) 
   legend("bottomright",legend=c("Analytical", "Numerical (Hessian)", "Numerical (Jacobian)"),
          col=c("gray50",scales::alpha("red",0.6), scales::alpha("blue",0.6)), pch = c(16,16,16),
@@ -271,7 +281,8 @@ abline(v = seq(from = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)
                by = sum(length(modt$b$mu), length(modt$b$sigma))^2 %/% ncol(Y)) + 0.5, lty = 3, col = "gray80")
 points(c(num.hess3)[int], col = "red", pch = 16, cex = 0.5)
 segments(x0 = seq_along(ana.hess3[int]), y0 = unlist(ana.hess3)[int], y1 = num.hess3[int], col = "blue", lty = 3, lwd = 1)
-legend(1550,-1500,legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6), pch = c(16,16), cex=0.75, inset = 0.02, box.col = "white")
+legend(2000,-850,legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6),
+       pch = c(16,16), cex=0.8, inset = 0.02, box.col = "white")
 if(plot.jac == T){ points(c(num.jac3)[int], col = scales::alpha("blue",0.6), pch = 16, cex = 0.5) 
   legend("bottomleft",legend=c("Analytical", "Numerical (Hessian)", "Numerical (Jacobian)"),
          col=c("gray50",scales::alpha("red",0.6), scales::alpha("blue",0.6)), pch = c(16,16,16),

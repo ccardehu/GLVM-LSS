@@ -40,8 +40,31 @@ loglikFun <- function(B, Y, beta, ghQ, fam){
 
 # Score function (to numerically compare outputs)
 
+ScHesFun <- function(B, Y, beta, ghQ, fam){
+ # To evaluate: B = decoefmod(ex1$b); ghQ = ex1$gr; beta = ex1$b; loadmt = ex1$loadmt
+ if(!is.matrix(Y)) Y <- as.matrix(Y)
+ di <- length(B)
+ B <- coefmod2(bet = B, beta = beta)
+ efy <- mfy(Y,B,ghQ,fam)
+ EC <- sapply(1:nrow(ghQ$points), function(z) mfyz(z,Y,ghQ$out,B,fam))/efy
+ Sm <- NULL
+ idx <- idp <- rep(0,ncol(Y))
+ Hm <- matrix(0,di,di)
+ for(i in 1:ncol(Y)){
+  tmpx <- bsc(i,Y,B,ghQ,fam,EC); idx[i] <- length(tmpx)
+  Sm <- c(Sm,tmpx); idp[i] <- length(Sm)
+  Hr <- NULL
+  for(j in i:ncol(Y)){
+   Hr <- rbind(Hr,bhe(i,j,Y,B,ghQ,fam,EC))
+  }
+  Hm[(idp[i]-idx[i]+1):nrow(Hm),(idp[i]-idx[i]+1):idp[i]] <- Hr
+  Hm[(idp[i]-idx[i]+1):idp[i],(idp[i]-idx[i]+1):ncol(Hm)] <- t(Hr)
+ }
+ return(list("score" = Sm, "hessian" = Hm))
+}
+
 ScoreFun <- function(B, Y, beta, ghQ, fam){
- # To evaluate: B = unlist(ex1$b); ghQ = ex1$gr; beta = ex1$b; loadmt = ex1$loadmt
+ # To evaluate: B = decoefmod(ex1$b); ghQ = ex1$gr; beta = ex1$b; loadmt = ex1$loadmt
  if(!is.matrix(Y)) Y <- as.matrix(Y)
  B <- coefmod2(bet = B, beta = beta)
  efy <- mfy(Y,B,ghQ,fam)
@@ -56,7 +79,7 @@ ScoreFun <- function(B, Y, beta, ghQ, fam){
 # Hessian function (to numerically compare outputs)
 
 HessFun <- function(B, Y, beta, ghQ, fam){
- # To evaluate: B = unlist(ex1$b); ghQ = ex1$gr; beta = ex1$b; loadmt = ex1$loadmt
+ # To evaluate: B = decoefmod(ex1$b); ghQ = ex1$gr; beta = ex1$b; loadmt = ex1$loadmt
  if(!is.matrix(Y)) Y <- as.matrix(Y)
  B <- coefmod2(bet = B, beta = beta)
  efy <- mfy(Y,B,ghQ,fam)
@@ -69,43 +92,7 @@ HessFun <- function(B, Y, beta, ghQ, fam){
   }
   Hm <- cbind(Hm,Hr)
  }
- 
-
- # for(ii in 1:ncol(Y)){
- #  HH <- bmhe(ii,Y,B,ghQ,fam,EC)
- #  bo <- B$mu
- #  if("sigma" %in% pFun(fam[ii])){
- #   HH <- as.matrix(Matrix::bdiag(HH, bshe(ii,Y,B,ghQ,fam,EC)))
- #   bo <- cbind(bo,B$sigma)
- #   idxsg <- c(1:ncol(HH))[1:ncol(HH) %!in% idxmu]
- #   HH[idxmu,idxsg] <- mshe(ii,Y,B,ghQ,fam,EC)
- #   HH[idxsg,idxmu] <- t(mshe(ii,Y,B,ghQ,fam,EC))
- #  }
- #  if("tau" %in% pFun(fam[ii])){
- #   HH <- as.matrix(Matrix::bdiag(HH, bthe(ii,Y,B,ghQ,fam,EC)))
- #   bo <- cbind(bo,B$tau)
- #   idxta <- c(1:ncol(HH))[1:ncol(HH) %!in% c(idxmu,idxsg)]
- #   HH[idxmu,idxta] <- mthe(ii,Y,B,ghQ,fam,EC)
- #   HH[idxta,idxmu] <- t(mthe(ii,Y,B,ghQ,fam,EC))
- #   HH[idxsg,idxta] <- sthe(ii,Y,B,ghQ,fam,EC)
- #   HH[idxta,idxsg] <- t(sthe(ii,Y,B,ghQ,fam,EC))
- #  }
- #  if("nu" %in% pFun(fam[ii])){
- #   HH <- as.matrix(Matrix::bdiag(HH, bnhe(ii,Y,B,ghQ,fam,EC)))
- #   bo <- cbind(bo,B$nu)
- #   idxnu <- c(1:ncol(HH))[1:ncol(HH) %!in% c(idxmu,idxsg,idxta)]
- #   HH[idxmu,idxnu] <- mnhe(ii,Y,B,ghQ,fam,EC)
- #   HH[idxnu,idxmu] <- t(mnhe(ii,Y,B,ghQ,fam,EC))
- #   HH[idxsg,idxnu] <- snhe(ii,Y,B,ghQ,fam,EC)
- #   HH[idxnu,idxsg] <- t(snhe(ii,Y,B,ghQ,fam,EC))
- #   HH[idxta,idxnu] <- tnhe(ii,Y,B,ghQ,fam,EC)
- #   HH[idxnu,idxta] <- t(tnhe(ii,Y,B,ghQ,fam,EC))
- #  }
- #  indx <- seq(from = (ii-1)*ncol(HH)+1, length.out = ncol(HH))
- #  HH <- HH + h1he(ii,Y,B,ghQ,fam,EC) - h2he(ii,Y,B,ghQ,fam,EC) # tcrossprod(ScoreFun(c(t(bo)), Y, B, ghQ, fam)[indx])
- #  Hm <- Matrix::bdiag(Hm,HH)
- # }
- return(as.matrix(Hm)) # return(as.matrix(Hm)[-1,-1])
+ return(as.matrix(Hm))
 }
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
@@ -152,8 +139,6 @@ bssc <- function(i,Y,b,gr,fam,ec){
   bssc <- colSums(gr$out$sigma*(colSums(ec*ed)*drop(gr$weights)))
   return(as.matrix(bssc))
 }
-
-
 
 bmhe <- function(i,Y,b,gr,fam,ec){
   
@@ -357,6 +342,7 @@ bhe3 <- function(i,j,Y,b,gr,fam,ec){
 
 bhe <- function(i,j,Y,b,gr,fam,ec){
   return(bhe1(i,j,Y,b,gr,fam,ec) + bhe2(i,j,Y,b,gr,fam,ec) - bhe3(i,j,Y,b,gr,fam,ec))
+  #return(bhe1(i,j,Y,b,gr,fam,ec) + bhe2(i,j,Y,b,gr,fam,ec) - tcrossprod(bsc(i,Y,b,gr,fam,ec),bsc(j,Y,b,gr,fam,ec)))
 }
 
 

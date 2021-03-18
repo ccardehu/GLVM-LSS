@@ -211,7 +211,7 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
   d1mu = (Y - mu)/(sigma^2)  * 1
   d2mu = rep(-(1/sigma^2) * 1, length(Y))# + 0
   d1sg = (((Y - mu)^2 - sigma^2)/(sigma^3)) * sigma
-  d2sg = (-3*(Y-mu)^2/sigma^4 + 1/sigma^2) * sigma^2  # rep(-(2/(sigma^2)), length(Y))* sigma^2 # 
+  d2sg = (-3*(Y-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 + d1sg # rep(-(2/(sigma^2)), length(Y))* sigma^2 # 
   dcms = -2*(Y-mu)/sigma^3 * 1 * sigma # rep(0, length(Y)) # the expected cross derivative mu and sigma
   rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dcms" = dcms)
  }
@@ -221,30 +221,30 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
   d1mu = (log(Y) - mu)/(sigma^2)  * 1
   d2mu = rep(-(1/sigma^2) * 1, length(Y))
   d1sg = (((log(Y) - mu)^2 - sigma^2)/(sigma^3)) * sigma
-  d2sg = (-3*(log(Y)-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 # rep(-(2/(sigma^2)) * sigma^2, length(Y)) # -3*(Y-mu)^2/sigma^4 + 1/sigma^2
+  d2sg = (-3*(log(Y)-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 + d1sg # rep(-(2/(sigma^2)) * sigma^2, length(Y)) # -3*(Y-mu)^2/sigma^4 + 1/sigma^2
   dcms = -2*(log(Y)-mu)/sigma^3 * 1 * sigma # rep(0, length(Y)) # the expected cross derivative mu and sigma
   rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dcms" = dcms)
  }
  if(fam == "poisson"){ # structure(gamlss.dist::PO)
     mu = exp(c(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
     d1mu = ((Y - mu)/mu) * mu
-    d2mu = -Y/mu^2 * mu^2 # rep((-1/mu) * mu^2, length(Y))
+    d2mu = -Y/mu^2 * mu^2 + d1mu # rep((-1/mu) * mu^2, length(Y))
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu)
   }
  if(fam == "gamma"){ # structure(gamlss.dist::GA)
     mu = c(exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
     sigma = c(exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
     d1mu = (log(Y) - digamma(mu) - log(sigma)) * mu
-    d2mu = rep(-trigamma(mu) * mu^2, length(Y))
+    d2mu = rep(-trigamma(mu) * mu^2, length(Y)) + d1mu
     d1sg = (Y/(sigma^2) - mu/sigma) * sigma
-    d2sg = ((-2*Y+mu*sigma)/sigma^3) * sigma^2 # rep((-mu/(sigma)) * sigma^2, length(Y)) # 
+    d2sg = ((-2*Y+mu*sigma)/sigma^3) * sigma^2 + d1sg # rep((-mu/(sigma)) * sigma^2, length(Y)) # 
     dcms = rep(-1/sigma*mu*sigma,length(Y)) # rep(0, length(Y))  # the expected cross derivative mu and sigma
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dcms" = dcms)
   }
  if(fam == "binomial"){ # structure(gamlss.dist::BI)
     mu = probs(c(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
     d1mu = (Y - mu)/(mu * (1 - mu)) * (mu*(1-mu))
-    d2mu = -(mu^2 - 2*Y*mu + Y)/((mu-1)*mu)^2 * (mu*(1-mu))^2 # rep(-(1/(mu * (1 - mu))) * (mu*(1-mu))^2, length(Y))
+    d2mu = -(mu^2 - 2*Y*mu + Y)/((mu-1)*mu)^2 * (mu*(1-mu))^2 + (1-2*mu)*d1mu# rep(-(1/(mu * (1 - mu))) * (mu*(1-mu))^2, length(Y))
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu)
   }
  if(fam == "ZIpoisson"){ # structure(gamlss.dist::ZIP)
@@ -252,9 +252,9 @@ dvFun <- function(i,z,fam,Y,Z,b){ # i = 1; z = 10; fam = fam[i]; Y = simR$Y[,i];
     sigma = probs(c(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
     u = ifelse(Y == 0, (1 + exp(-logit(sigma)-mu))^(-1),0) # as.numeric(Y == 0)
     d1mu = (1-u)*(Y/mu-1) * mu
-    d2mu = (1-u)*(-Y/mu^2) * mu^2 # expected value is -1/mu; original is (-Y/mu^2)
+    d2mu = (1-u)*(-Y/mu^2) * mu^2 + d1mu # expected value is -1/mu; original is (-Y/mu^2)
     d1sg = (u-sigma)/(sigma*(1-sigma)) * (sigma*(1-sigma))
-    d2sg = -(sigma^2 - 2*u*sigma + u)/((sigma-1)*sigma)^2 * (sigma*(1-sigma))^2 # -(u/(sigma^2) + (1-u)/((1-sigma)^2)) * (sigma*(1-sigma))^2
+    d2sg = -(sigma^2 - 2*u*sigma + u)/((sigma-1)*sigma)^2 * (sigma*(1-sigma))^2 + (1-2*sigma)*d1sg # -(u/(sigma^2) + (1-u)/((1-sigma)^2)) * (sigma*(1-sigma))^2
     dcms = rep(0, length(Y))
     rL <- list("d1mu" = d1mu, "d2mu" = d2mu, "d1sg" = d1sg, "d2sg" = d2sg, "dcms" = dcms)
   }

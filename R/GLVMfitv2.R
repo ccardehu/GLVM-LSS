@@ -107,15 +107,17 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
      EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy 
      
      bo <- decoefmod(bnew)
-     bb <- HH <- NULL
-     for(i in 1:ncol(Y)){
-      bb <- c(bb,bsc(i,Y,bnew,gr,fam,EC))
-      Hr <- NULL
-      for(j in 1:ncol(Y)){
-       Hr <- rbind(Hr,bhe(i,j,Y,bnew,gr,fam,EC))
-      }
-      HH <- cbind(HH,Hr)
-     }
+     tmp1 <- ScHesFun(bo, Y, bnew, gr, fam)
+     bb <- tmp1$score
+     HH <- tmp1$hessian
+     # for(i in 1:ncol(Y)){
+     #  bb <- c(bb,bsc(i,Y,bnew,gr,fam,EC))
+     #  Hr <- NULL
+     #  for(j in 1:ncol(Y)){
+     #   Hr <- rbind(Hr,bhe(i,j,Y,bnew,gr,fam,EC))
+     #  }
+     #  HH <- cbind(HH,Hr)
+     # }
      
      bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))
      bnew <- coefmod2(bn,bold)
