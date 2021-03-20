@@ -62,6 +62,7 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
   
  # Starting values
  # _______________
+ 
  iter <- 0
  if(missing(tol)) tol <- 1e-3
  eps1 <- tol + 1
@@ -97,79 +98,24 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
   
    llo <- sum(log(mfy(Y,bold,gr,fam)))
    bnew <- bold
-   # efy <- mfy(Y,bnew,gr,fam)
-   # EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
    Sco <- Hes <- NULL
       
    if(skipEM == F){
-    # for(ii in 1:ncol(Y)){
-     efy <- mfy(Y,bnew,gr,fam)
-     EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy 
+    efy <- mfy(Y,bnew,gr,fam)
+    EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy 
      
-     bo <- decoefmod(bnew)
-     tmp1 <- ScHesFun(bo, Y, bnew, gr, fam)
-     bb <- tmp1$score
-     HH <- tmp1$hessian
-     # for(i in 1:ncol(Y)){
-     #  bb <- c(bb,bsc(i,Y,bnew,gr,fam,EC))
-     #  Hr <- NULL
-     #  for(j in 1:ncol(Y)){
-     #   Hr <- rbind(Hr,bhe(i,j,Y,bnew,gr,fam,EC))
-     #  }
-     #  HH <- cbind(HH,Hr)
-     # }
+    bo <- decoefmod(bnew)
+    tmp1 <- ScHesFun(bo, Y, bnew, gr, fam)
+    bb <- tmp1$score
+    HH <- tmp1$hessian
+
+    bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))*decoefmod(loadmt)
+    bnew <- coefmod2(bn,bold)
      
-     bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))
-     bnew <- coefmod2(bn,bold)
-     
-     # bo <- unname(bnew$mu[ii,])
-     # bb <- c(bmsc(ii,Y,bnew,gr,fam,EC))
-     # HH <- bmhe(ii,Y,bnew,gr,fam,EC)
-     # idxmu <- seq_along(bb)
-     # if("sigma" %in% pFun(fam[ii])){
-     #  bo <- append(bo, bnew$sigma[ii,])
-     #  bb <- append(bb, bssc(ii,Y,bnew,gr,fam,EC))
-     #  HH <- as.matrix(Matrix::bdiag(HH, bshe(ii,Y,bnew,gr,fam,EC)))
-     #  idxsg <- seq_along(bb)[seq_along(bb) %!in% idxmu]
-     #  HH[idxmu,idxsg] <- mshe(ii,Y,bnew,gr,fam,EC)
-     #  HH[idxsg,idxmu] <- t(mshe(ii,Y,bnew,gr,fam,EC))
-     # }
-     # if("tau" %in% pFun(fam[ii])){
-     #  bo <- append(bo, bnew$tau[ii,])
-     #  bb <- append(bb, btsc(ii,Y,bnew,gr,fam,EC))
-     #  HH <- as.matrix(Matrix::bdiag(HH, bthe(ii,Y,bnew,gr,fam,EC)))
-     #  idxta <- seq_along(bb)[seq_along(bb) %!in% c(idxmu,idxsg)]
-     #  HH[idxmu,idxta] <- mthe(ii,Y,bnew,gr,fam,EC)
-     #  HH[idxta,idxmu] <- t(mthe(ii,Y,bnew,gr,fam,EC))
-     #  HH[idxsg,idxta] <- sthe(ii,Y,bnew,gr,fam,EC)
-     #  HH[idxta,idxsg] <- t(sthe(ii,Y,bnew,gr,fam,EC))
-     # }
-     # if("nu" %in% pFun(fam[ii])){
-     #  bo <- append(bo, bnew$nu[ii,])
-     #  bb <- append(bb, bnsc(ii,Y,bnew,gr,fam,EC))
-     #  HH <- as.matrix(Matrix::bdiag(HH, bnhe(ii,Y,bnew,gr,fam,EC)))
-     #  idxnu <- seq_along(bb)[seq_along(bb) %!in% c(idxmu,idxsg,idxta)]
-     #  HH[idxmu,idxnu] <- mnhe(ii,Y,bnew,gr,fam,EC)
-     #  HH[idxnu,idxmu] <- t(mnhe(ii,Y,bnew,gr,fam,EC))
-     #  HH[idxsg,idxnu] <- snhe(ii,Y,bnew,gr,fam,EC)
-     #  HH[idxnu,idxsg] <- t(snhe(ii,Y,bnew,gr,fam,EC))
-     #  HH[idxta,idxnu] <- tnhe(ii,Y,bnew,gr,fam,EC)
-     #  HH[idxnu,idxta] <- t(tnhe(ii,Y,bnew,gr,fam,EC))
-     # }
-     # HH <- HH + h1he(ii,Y,bnew,gr,fam,EC) - h2he(ii,Y,bnew,gr,fam,EC)# tcrossprod(bb)
-     # bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))
-     # bnew$mu[ii,] <- bn[idxmu]
-     # if("sigma" %in% pFun(fam[ii])) bnew$sigma[ii,] <- bn[idxsg]
-     # if("tau" %in% pFun(fam[ii])) bnew$tau[ii,] <- bn[idxta]
-     # if("nu" %in% pFun(fam[ii])) bnew$nu[ii,] <- bn[idxnu]
-     # Sco <- rbind(Sco,bb)
-     # Hes <- rbind(Hes,c(HH))
-    # }
-       
     # Computing epsilon  
     lln <- sum(log(mfy(Y,bnew,gr,fam)))
-    eps1 <- max((unlist(bnew) - unlist(bold))^2)
-    # eps1 <- abs(lln - llo) #/(0.1+abs(lln))
+    # eps1 <- max((unlist(bnew) - unlist(bold))^2)
+    eps1 <- abs(lln - llo) #/(0.1+abs(lln))
     iter = iter+1
     bold <- bnew
     hist[iter,] <- unlist(bnew)

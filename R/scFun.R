@@ -184,7 +184,8 @@ mshe <- function(i,Y,b,gr,fam,ec){
 
 bhe1 <- function(i,j,Y,b,gr,fam,ec){
 # To evaluate:
-# i = 1; Y = simR$Y; b = bold; gr = gr; fam = fam; ec = EC; z = 10
+# i = 1; Y = simR$Y; b = ex1$b; gr = ex1$gr; fam = fam; z = 1
+# ec <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,b,fam))/mfy(Y,b,gr,fam)
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 if(i == j){
  wmu <- colSums(sapply(1:nrow(gr$points), function(z) dvFun(i,z,fam[i],Y[,i],gr$out,b)$d2mu)*ec)*c(gr$weights)
@@ -288,7 +289,7 @@ bhe2 <- function(i,j,Y,b,gr,fam,ec){
    assign(paste0("n",k), sapply(1:nrow(gr$points), function(z) dvFun(get(k),z,fam[get(k)],Y[,get(k)],gr$out,b)$d1nu))
    assign(paste0("list",k), append(get(paste0("list",k)), paste0("n",k)))
    assign(paste0("r",k), cbind(get(paste0("r",k)),unname(as.matrix(gr$out$nu))))
-   assign(paste0("it",k), c(1:ncol(get(paste0("r",k))))[c(1:ncol(get(paste0("r",k)))) %!in% c(get(paste0("im",k)),get(paste0("is",k)), get(paste0("it",k)))])
+   assign(paste0("in",k), c(1:ncol(get(paste0("r",k))))[c(1:ncol(get(paste0("r",k)))) %!in% c(get(paste0("im",k)),get(paste0("is",k)), get(paste0("it",k)))])
    assign(paste0("idx",k), append(get(paste0("idx",k)), paste0("in",k)))
   }
  }
@@ -340,19 +341,54 @@ bhe3 <- function(i,j,Y,b,gr,fam,ec){
  return(t(rowSums(hm, dims = 2)))
 }
 
-bhe <- function(i,j,Y,b,gr,fam,ec){
-  return(bhe1(i,j,Y,b,gr,fam,ec) + bhe2(i,j,Y,b,gr,fam,ec) - bhe3(i,j,Y,b,gr,fam,ec))
-  #return(bhe1(i,j,Y,b,gr,fam,ec) + bhe2(i,j,Y,b,gr,fam,ec) - tcrossprod(bsc(i,Y,b,gr,fam,ec),bsc(j,Y,b,gr,fam,ec)))
+bhe3a <- function(i,j,Y,b,gr,fam,ec){
+# To evaluate:
+# i = 1; Y = Y; b = ex1$b; gr = ex1$gr; fam = fam
+# ec <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,b,fam))/mfy(Y,b,gr,fam)
+  
+if(!is.matrix(Y)) Y <- as.matrix(Y) 
+mi <- t(t(sapply(1:nrow(gr$points), function(z) dvFun(i,z,fam[i],Y[,i],gr$out,b)$d1mu)*ec)*c(gr$weights))
+mj <- t(t(sapply(1:nrow(gr$points), function(z) dvFun(j,z,fam[j],Y[,j],gr$out,b)$d1mu)*ec)*c(gr$weights))
+ri<- rj <- unname(as.matrix(gr$out$mu))
+imi <- imj <- 1:ncol(ri)
+for(k in c("i","j")){
+ if("sigma" %in% pFun(fam[get(k)])){
+  assign(paste0("s",k), t(t(sapply(1:nrow(gr$points), function(z) dvFun(get(k),z,fam[get(k)],Y[,get(k)],gr$out,b)$d1sg)*ec)*c(gr$weights)))
+  assign(paste0("r",k), cbind(get(paste0("r",k)),unname(as.matrix(gr$out$sigma))))
+  assign(paste0("is",k), c(1:ncol(get(paste0("r",k))))[c(1:ncol(get(paste0("r",k)))) %!in% get(paste0("im",k))])
+ }
+ if("tau" %in% pFun(fam[get(k)])){
+  assign(paste0("t",k), t(t(sapply(1:nrow(gr$points), function(z) dvFun(get(k),z,fam[get(k)],Y[,get(k)],gr$out,b)$d1ta)*ec)*c(gr$weights)))
+  assign(paste0("r",k), cbind(get(paste0("r",k)),unname(as.matrix(gr$out$tau))))
+  assign(paste0("it",k), c(1:ncol(get(paste0("r",k))))[c(1:ncol(get(paste0("r",k)))) %!in% c(get(paste0("im",k)),get(paste0("is",k)))])
+ }
+ if("nu" %in% pFun(fam[get(k)])){
+  assign(paste0("n",k), t(t(sapply(1:nrow(gr$points), function(z) dvFun(get(k),z,fam[get(k)],Y[,get(k)],gr$out,b)$d1nu)*ec)*c(gr$weights)))
+  assign(paste0("r",k), cbind(get(paste0("r",k)),unname(as.matrix(gr$out$nu))))
+  assign(paste0("in",k), c(1:ncol(get(paste0("r",k))))[c(1:ncol(get(paste0("r",k)))) %!in% c(get(paste0("im",k)),get(paste0("is",k)), get(paste0("it",k)))])
+ }
+}
+wi <- wj <- array(0,dim = c(nrow(gr$points),ncol(ri),nrow(Y)))
+for(m in 1:nrow(Y)){
+ wi[,imi,m] <- matrix(rep(mi[m,],length(imi)),nrow = ncol(mi))
+ if("sigma" %in% pFun(fam[i])) wi[,isi,m] <- matrix(rep(si[m,],length(isi)),nrow = ncol(si))
+ if("tau" %in% pFun(fam[i])) wi[,iti,m] <- matrix(rep(ti[m,],length(iti)),nrow = ncol(ti))
+ if("nu" %in% pFun(fam[i])) wi[,ini,m] <- matrix(rep(ni[m,],length(ini)),nrow = ncol(ni))
+ wj[,imj,m] <- matrix(rep(mj[m,],length(imj)),nrow = ncol(mj))
+ if("sigma" %in% pFun(fam[j])) wj[,isj,m] <- matrix(rep(sj[m,],length(isj)),nrow = ncol(sj))
+ if("tau" %in% pFun(fam[j])) wj[,itj,m] <- matrix(rep(tj[m,],length(itj)),nrow = ncol(tj))
+ if("nu" %in% pFun(fam[j])) wj[,inj,m] <- matrix(rep(nj[m,],length(inj)),nrow = ncol(nj))
+}
+zs <- array(sapply(1:nrow(Y), function(m) tcrossprod(colSums(ri*wi[,,m]),colSums(rj*wj[,,m]))),
+            dim = c(ncol(ri),ncol(rj),nrow(Y)))
+return(t(rowSums(zs,dim = 2)))
 }
 
+bhe <- function(i,j,Y,b,gr,fam,ec){
+  return(bhe1(i,j,Y,b,gr,fam,ec) + bhe2(i,j,Y,b,gr,fam,ec) - bhe3a(i,j,Y,b,gr,fam,ec))
+}
 
 # ec <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,b,fam))/mfy(Y,b,gr,fam)
-
-# 
-# 
-# round(ana.hess1[1:3,1:3],3)
-# round(num.hess1[1:9,1:9],3)
-# round(bhe(1,1,Y,b,gr,fam,ec),3)
 
 h1he <- function(i,Y,b,gr,fam,ec){
   
@@ -422,9 +458,9 @@ h2he <- function(i,Y,b,gr,fam,ec){
 }
 
 # rbenchmark::benchmark(
-#   "diag" = {diag(crossprod(ec,ed))},
-#   "mat" = {colSums(ec*ed)},
-#   replications = 10000,
+#   "bhe3" = {bhe3(1,1,Y,b,gr,fam,ec)},
+#   "bhe3a" = {bhe3a(1,1,Y,b,gr,fam,ec)},
+#   replications = 10,
 #   columns = c("test", "replications", "elapsed",
 #               "relative", "user.self", "sys.self")
 # )

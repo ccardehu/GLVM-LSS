@@ -124,8 +124,8 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
         
       # Computing epsilon  
       lln <- sum(log(mfy(Y,bnew,gr,fam)))
-      eps1 <- max((unlist(bnew) - unlist(bold))^2)
-      # eps1 <- abs(lln - llo) #/(0.1+abs(lln))
+      # eps1 <- max((unlist(bnew) - unlist(bold))^2)
+      eps1 <- abs(lln - llo) #/(0.1+abs(lln))
       iter = iter+1
       bold <- bnew
       hist[iter,] <- unlist(bnew)

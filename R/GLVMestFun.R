@@ -22,9 +22,9 @@ source("graphFun.R")
 source("EMFun.R")
 
 n = 1000     # Number of individuals
-p = 10       # Number of items
+p = 15       # Number of items
 nsim = 1000  # Number of simulations
-form <- list("mu" = "~ Z1")# + I(Z1^2)", "sigma" = "~ Z1")
+form <- list("mu" = "~ Z1*Z2")#, "sigma" = "~ 1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 fam <- rep("binomial",p)
@@ -32,16 +32,16 @@ fam <- rep("binomial",p)
 # sample(c("normal","poisson","binom"),size = 10,replace = T)
 
 l1 <- NULL
-l1$mu <- matrix(1,ncol = 2, nrow = p)
-l1$sigma <- matrix(1, ncol = 2, nrow = p)
+l1$mu <- matrix(1,ncol = 4, nrow = p)
+l1$sigma <- matrix(1, ncol = 1, nrow = p)
 
 # Restrictions
 # ____________
 #
-#l1$mu[6:10,2] <- 0
-#l1$mu[1:5,3] <- 0
-#l1$mu[sample(length(l1$mu), 20)] <- 0
-#l1$sigma[sample(length(l1$sigma), 10)] <- 0
+#l1$mu[1,c(3,4)] <- 0
+#l1$mu[2,c(2,4)] <- 0
+#l1$mu[3,4] <- 0
+#l1$sigma[c(2,4,9),2] <- 0
 
 # l0 <- NULL
 # l0$mu <- l1$mu * 0
@@ -58,7 +58,7 @@ l1$sigma <- matrix(1, ncol = 2, nrow = p)
 lc <- NULL
 lc$mu <- matrix(runif(length(l1$mu), min = -0.5, max = 0.5),nrow = p)
 #lc$mu[,1] <- runif(p,1,2)
-#lc$mu[,2] <- runif(p,0.5,1.5)
+#lc$mu[,c(2,3)] <- runif(p,1.0,2.5)
 #lc$mu[,3] <- runif(p,-0.7,-0.2)
 #lc$mu[,c(4)] <- runif(p,-0.5,-0.1)
 lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.3), nrow = p)
@@ -86,14 +86,15 @@ Z <- simR$Z
 borg <- simR$borg
 
 #profvis({
+
+# rbenchmark::benchmark(
+# "ex1" = {
 ex1 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 10, iter.lim = 1000, tol = sqrt(.Machine$double.eps), loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
+# },
+# "ex2" = {
 ex2 <- GLVM.fit2(Y = Y, fam = fam, form = form , silent = F, ghp = 10, iter.lim = 1000, tol = sqrt(.Machine$double.eps), loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
-#ex10 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 30, iter.lim = 1000, tol = .Machine$double.eps, loadmt = l1, icoefs = lc, useoptim = T, skipEM = F)
-#ex11 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 10, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
-#ex10 <- GLVM.fit(Y = Y, fam = fam, form = form , silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l1, icoefs = lc, useoptim = F, skipEM = F)
-#ex2 <- GLVM.fit(Y = Y, fam = fam, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F, skipEM = F)
-#ex2 <- GLVM.fit(Y = Y, fam = fam2, form = form1, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l11, icoefs = lc1, useoptim = F)
-#ex3 <- GLVM.fit(Y = Y, fam = fam, form = form2, silent = F, ghp = 50, iter.lim = 700, tol = 1e-7, loadmt = l12, icoefs = lc2, useoptim = F)
+# }, replications = 1, columns = c("test", "replications", "elapsed","relative", "user.self", "sys.self") )
+
 #})
 
 # sourceCpp("C:/Users/carde/Dropbox/Camilo and Irini/Research/GitHub/SPLVM/C/ddFun.cpp")
@@ -105,7 +106,7 @@ round(ex2$b$mu - borg$mu,4)
 round(ex2$b$sigma - borg$sigma,4)
 
 
-plotGLVM(item = 6, mod = ex1, morg = simR, plot.org = F,
+plotGLVM(item = 1, mod = ex1, morg = simR, plot.org = F,
          plot.mean = T, plot.sd = T, quant = c(0.025,0.25,0.75,0.975),
          sep.plots = F, plot.3D = T, plot.dist = T, plot.addpoints = T)
 
@@ -128,12 +129,9 @@ for(i in 1:ncol(Y)){
   if("nu" %in% pFun(modt$fam[i])) xlabn <- append(xlabn, paste0("nu[",i,",",1:ncol(modt$b$nu),"]"))
 }
 
-# testB1 <- unname(unlist(modt$b))
 testH1 <- decoefmod(modt$b)
-# testB2 <- unname(unlist(borg))
 testH2 <- decoefmod(borg)
 testH3 <- unname(rep(1,length(unlist(borg))))
-#testB4 <- unname(rep(15,length(unlist(borg))))
 
 num.score1 <- grad(func = loglikFun, x = testH1, method = "Richardson", method.args=list(r = 6, v = 2),
                    Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
@@ -141,8 +139,6 @@ num.score2 <- grad(func = loglikFun, x = testH2, method = "Richardson", method.a
                    Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
 num.score3 <- grad(func = loglikFun, x = testH3, method = "Richardson", method.args=list(r = 6, v = 2),
                    Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
-# num.score4 <- grad(func = loglikFun, x = testB4, method = "Richardson",
-                   # method.args=list(r = 10), Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b)
 
 num.hess1 <- hessian(func = loglikFun, x = testH1, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b);
@@ -150,7 +146,6 @@ num.hess2 <- hessian(func = loglikFun, x = testH2, method = "Richardson", method
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b);
 num.hess3 <- hessian(func = loglikFun, x = testH3, method = "Richardson", method.args=list(r = 6, v = 2),
                      Y = modt$Y, ghQ = modt$gr, fam = modt$fam, beta = modt$b);
-#num.hess1 <- diag(num.hess1);  num.hess2 <- diag(num.hess2);  num.hess3 <- diag(num.hess3)
 
 plot.jac = F
 if(plot.jac == T){
@@ -166,17 +161,15 @@ ana1 <- ScHesFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)
 ana2 <- ScHesFun(testH2, modt$Y, modt$b, modt$gr, modt$fam)
 ana3 <- ScHesFun(testH3, modt$Y, modt$b, modt$gr, modt$fam)
 
-profvis::profvis({t1 <- ScHesFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)})
+# profvis::profvis({t1 <- ScHesFun(testH1, modt$Y, modt$b, modt$gr, modt$fam)})
 
 ana.score1 <- ana1$score
 ana.score2 <- ana2$score
 ana.score3 <- ana3$score
-# ana.score4 <- ScoreFun(testB4, modt$Y, modt$b, modt$gr, modt$fam)
 
 ana.hess1 <- ana1$hess
 ana.hess2 <- ana2$hess
 ana.hess3 <- ana3$hess
-
 
 par("mar" = c(6, 4, 4, 2) + 0.1)
 plot(ana.score1, main = "Score (first deriv. of log-likelihood) @ MLE", xlab = "", ylab = "Value", pch = 16,
