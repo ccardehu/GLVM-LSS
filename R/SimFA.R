@@ -4,10 +4,10 @@
 simGLVM <- function(n,p,form,dist,loadmt,coefs){
 
 # To evaluate 
-# n = 500; p = 10; form = form; dist = fam; 
+# n = 500; p = 6; form = form; dist = fam; 
 # loadmt = l1; coefs = lc;
 # _________________________________________________________
-parY <- unlist(unique(lapply(1:length(dist),function(i) pFun(dist[i]))))
+parY <- unique(unlist(lapply(1:length(dist),function(i) pFun(dist[i]))))
 
 if(!is.list(form)) stop("Argument `form` should be a list with elements mu, sigma, tau or nu")
 if(!all(names(form) == parY)) stop("Error in formula, check for mu, sigma, tau or nu")
@@ -27,8 +27,8 @@ Z. <- t. <- f. <- NULL
 for(i in parY){
  Z.[[i]] <- as.data.frame(model.matrix(form[[i]],Z))
  t.[[i]] <- ncol(Z.[[i]]) # q. + 1 if intercept = T, or q. if intercept = F
- f.[[i]] <- nrow(attributes(terms(form[[i]]))$factors) # Number of LVs in form[[i]]
- if(t.[[i]] != q. || sum(Z.[[i]][,1]) == n) colnames(Z.[[i]])[1] <- "Int"
+# f.[[i]] <- nrow(attributes(terms(form[[i]]))$factors) # Number of LVs in form[[i]]
+# if(t.[[i]] != q. || sum(Z.[[i]][,1]) == n) colnames(Z.[[i]])[1] <- "Int"
 }
 
 
@@ -86,8 +86,6 @@ if(!missing(loadmt)){
   }
  }
 }
-
-# borg <- coefmod(bmu = coefs$mu, bsg = 0.5*coefs$sigma, loadmt = loadmt) # bsg = coefs$sigma
 
 borg <- NULL
 for(i in parY){borg[[i]] <- coefs[[i]]*loadmt[[i]]}

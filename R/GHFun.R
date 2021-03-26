@@ -2,17 +2,21 @@
 # https://biostatmatt.com/archives/2754
 
 library('statmod')
+library('fastGHQuad')
 
 ## Calculate nodes and weights for Gauss-Hermite quadrature
 ## with weights corresponding to standard normal distribution
 gH <- function(n) {
   ## Compute Gauss-Hermite quadrature nodes and weights
-  pts <- gauss.quad(n, kind="hermite")
+  # pts <- gauss.quad(n, kind="hermite")
+  pts <- list("nodes" = gaussHermiteData(n)$x, "weights" = gaussHermiteData(n)$w)
   
   ## By default, the weight function for Hermite quadrature is 
   ## w(x) = exp(-x^2). Need to adjust weights so that 
   ## w(x) = (2*pi)^(1/2)*exp(-1/2*x^2)
   pts$weights <- pts$weights * (2*pi)^(-1/2)*exp(pts$nodes^2/2)
+  #pts$nodes <- pts$nodes * sqrt(2)
+  #pts$weights <- pts$weights * 1/(sqrt(pi))
   
   ## rename 'nodes' to conform with code below
   pts$points <- pts$nodes
@@ -30,35 +34,31 @@ gH <- function(n) {
 
 mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
   
-  # evaluated @ n = 10; mu = rep(0,q.); sigma = diag(q.); formula = form
+  # evaluated @ q. = 2; n = 10; mu = rep(0,q.); sigma = diag(q.); formula = form
   
   nl <- unique(unlist(lapply(1:length(formula), function(i) all.vars(as.formula(formula[[i]])))))
   nl <- nl[grep("Z", nl, fixed = T)]
-  
   if(missing(mu) && missing(sigma)){
-    mu <- rep(0,length(nl))
-    sigma <- diag(length(nl))
+   mu <- rep(0,length(nl))
+   sigma <- diag(length(nl))
   }
   
   if(!all(dim(sigma) == length(mu))) stop("mu and sigma have nonconformable dimensions")
   if(length(mu) > 0) dm  <- length(mu) else dm <- 1
   if(missing(n)) n <- round(100^(1/dm))
-
   gh  <- gH(n)
-  
-  #idx grows exponentially in n and dm
-  
+  # idx grows exponentially in n and dm
   idx <- as.matrix(expand.grid(rep(list(1:n),dm)))
   pts <- matrix(gh$points[idx],nrow(idx),dm)
   wts <- as.matrix(apply(matrix(gh$weights[idx],nrow(idx),dm), 1, prod))
   
-  # Prunning
-  # ~~~~~~~~
+  # Pruning
+  # ~~~~~~~
    
   if(!is.null(prune)) {
-    qwt <- quantile(wts, probs=prune)
-    pts <- pts[wts > qwt,]
-    wts <- wts[wts > qwt]
+   qwt <- quantile(wts, probs=prune)
+   pts <- pts[wts > qwt,]
+   wts <- wts[wts > qwt]
   }
   
   # Rotating, scaling, and translate points
@@ -69,20 +69,49 @@ mvgH <- function(n, mu, sigma, prune = NULL, formula = "~ Z1 + Z2") {
   pts <- t(rot %*% t(pts) + mu)
   
   colnames(pts) <- nl
-  
-  Z. <- NULL
-  for(i in names(formula)){
-    Z.[[i]] <- as.data.frame(model.matrix(as.formula(formula[[i]]), as.data.frame(pts)))
-    colnames(Z.[[i]])[1] <- "Int"
-  }
-  
+
   out <- NULL
   for(i in names(formula)){
-    out[[i]] <- Z.[[i]]
+    out[[i]] <- as.data.frame(model.matrix(as.formula(formula[[i]]), as.data.frame(pts)))
+    #colnames(out[[i]])[1] <- "Int"
   }
   
   return(list(points = pts, weights = wts, out = out, n = n))
 }
-
-
-# gr <- mvgH(n = 50, mu = rep(0,q.), sigma = diag(q.), formula = form)
+# 
+# mvGH <- function (k, mu, sigma, prune = NULL, form) {
+#  
+#  factors <- unique(unlist(lapply(1:length(form), function(i) all.vars(as.formula(form[[i]])))))
+#  factors <- factors[grep("Z", factors, fixed = T)]
+#  if(missing(mu) && missing(sigma)){
+#   mu <- rep(0,length(factors))
+#   sigma <- diag(length(factors))
+#  }
+#   
+#  GH <- gaussHermiteData(k)
+#  grid.t <- expand.grid(lapply(1:length(factors), function (k, u) u$x, u = GH))
+#  names(grid.t) <- paste("Z", 1:length(factors), sep = "")
+#  
+#  out <- NULL
+#  for(i in names(form)){
+#   out[[i]] <- model.matrix(as.formula(form[[i]]), sqrt(2) * grid.t)
+#   attr(out[[i]], "assign") <- NULL
+#  }
+#  
+#  grid.w <- as.matrix(expand.grid(lapply(1:length(factors), function (k, u) u$w, u = GH)))
+#  grid.w <- (2^(length(factors)/2)) * apply(grid.w, 1, prod) * exp(rowSums(grid.t * grid.t))
+#  grid.w <- grid.w * exp(rowSums(dnorm(out[, seq(2, length(factors) + 1), drop = FALSE], log = TRUE)))
+#  names(grid.w) <- NULL
+#  
+#  
+#  out <- model.matrix(form., sqrt(2) * grid.t)
+#  colnams <- colnames(out)
+#  dimnames(out) <- attr(out, "assign") <- NULL
+#  grid.w <- as.matrix(expand.grid(lapply(1:factors, function (k, u) u$w, u = GH)))
+#  grid.w <- (2^(factors/2)) * apply(grid.w, 1, prod) * exp(rowSums(grid.t * grid.t))
+#  grid.w <- grid.w * exp(rowSums(dnorm(out[, seq(2, factors + 1), drop = FALSE], log = TRUE)))
+#  names(grid.w) <- NULL
+#  list(x = out, w = grid.w, colnams = colnams)
+# }
+# 
+# # gr <- mvgH(n = 50, mu = rep(0,q.), sigma = diag(q.), formula = form)
