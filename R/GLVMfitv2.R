@@ -105,11 +105,14 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy 
      
     bo <- decoefmod(bnew)
+    bNOT0 <- which(bo != 0)
     tmp1 <- ScHesFun(bo, Y, bnew, gr, fam)
     bb <- tmp1$score
     HH <- tmp1$hessian
 
-    bn <- c(as.matrix(bo) - solve(HH)%*%as.matrix(bb))*decoefmod(loadmt)
+    bn <- c(as.matrix(bo[bNOT0]) - solve(HH)%*%as.matrix(bb))
+    bo[bNOT0] <- bn
+    bn <- bo*decoefmod(loadmt)
     bnew <- coefmod2(bn,bold)
      
     # Computing epsilon  
@@ -119,11 +122,11 @@ GLVM.fit2 <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     iter = iter+1
     bold <- bnew
     hist[iter,] <- unlist(bnew)
-    if(silent == F) cat("\r EM iteration: ", iter, ", LogLike. = ", round(lln,5), ", \U0394 LogLike. = ", lln-llo, sep = "")
+    if(silent == F) cat("\r EM iteration: ", iter, ", LogLike. = ", round(lln,5), ", \U0394 LogLike. = ", lln-llo, sep = "") # \n EM iteration:
      catmsg <- paste0("(after ", iter," EM iterations)")
-    } else{iter = 40} #skipEM
+    } else{iter = 20} #skipEM
       
-    if(useoptim == T & iter >= 40){ #  
+    if(useoptim == T & iter >= 20){ #  
      if(skipEM == T) cat("\n Using `optim-BFGS` to find ML estimates") else cat(paste0("\n Using `optim-BFGS` to refine ML estimates ", catmsg))
      optmres <- optim(unlist(bnew), loglikFun, Y = Y, beta = bnew, ghQ = gr, fam = fam, method = "BFGS", control = list(maxit = iter.lim, fnscale = -1))
      bnew <- coefmod(bet = optmres$par, beta = bnew)

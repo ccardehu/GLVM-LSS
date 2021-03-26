@@ -32,6 +32,12 @@ coefmod2 <- function(bet,beta){ # bet = unlist(borg); beta = borg; gr = gr
  return(coefM)
 }
 
+coefmod3 <- function(beta){ # bet = unlist(borg); beta = borg; gr = gr
+r <- NULL
+for(i in 1:length(beta)){ r <- cbind(r,beta[[i]]) }
+return(unname(r))
+}
+
 decoefmod <- function(beta){
  tmp <- NULL
  for(i in names(beta)){tmp <- cbind(tmp,beta[[i]])}

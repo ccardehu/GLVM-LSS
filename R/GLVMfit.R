@@ -3,7 +3,8 @@
 GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
                      tol = 1e-3, silent = F, icoefs = icoefs, useoptim = T, skipEM = T){
   
-  # evaluate @ Y = simR$Y; fam = fam; form = form; silent = F; icoefs = lc; useoptim = T; ghp = 10; loadmt = l1; tol = 1e-7; iter.lim = 700; skipEM = T
+  # evaluate @ Y = simR$Y; fam = fam; form = form; silent = F; icoefs = lc; useoptim = T;
+  # ghp = 10; loadmt = l1; tol = 1e-7; iter.lim = 700; skipEM = F
   
   if(!is.matrix(Y)) Y <- as.matrix(Y)
   parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
@@ -63,7 +64,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
   # Starting values
   # _______________
   iter <- 0
-  if(missing(tol)) tol <- 1e-3
+  if(missing(tol)) tol <- sqrt(.Machine$double.eps)
   eps1 <- tol + 1
   if(!missing(icoefs)){
     if(!is.list(icoefs)) stop("Provided initial `icoefs` should be a list with dim p*(q+intercept) loading matrices for mu, sigma, tau, nu")
@@ -98,29 +99,49 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     bnew <- bold
     
      if(skipEM == F){
-      if("mu" %in% parY){
-       efy <- mfy(Y,bnew,gr,fam)
-       EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-       Sm <- sapply(pC$mu, function(r) bmsc(r,Y,bnew,gr,fam,EC))
-       if(is.null(dim(Sm))) Sm <- t(Sm)
-       Hm <- array(0,dim = c(ncol(gr$out$mu),ncol(gr$out$mu),length(pC$mu)))
-       for(rz in pC$mu){ Hm[,,rz] <- bmhe(rz,Y,bnew,gr,fam,EC) }
-       bnew$mu[pC$mu,] <- t(sapply(1:length(pC$mu), function(i) as.matrix(bnew$mu[pC$mu[i],]) - solve(Hm[,,i])%*%Sm[,i]))
-       if(nrow(bnew$mu) == 1) bnew$mu <- t(bnew$mu)
-       bnew$mu <- bnew$mu*loadmt$mu
-      }
-        
-      if("sigma" %in% parY){
-       efy <- mfy(Y,bnew,gr,fam)
-       EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-       Ss <- sapply(pC$sigma, function(r) bssc(r,Y,bnew,gr,fam,EC))
-       if(is.null(dim(Ss))) Ss <- t(Ss)
-       Hs <- array(0,dim = c(ncol(gr$out$sigma),ncol(gr$out$sigma), length(pC$sigma)))
-       for(rz in pC$sigma){ Hs[,,rz] <- bshe(rz,Y,bnew,gr,fam,EC) }
-       bnew$sigma[pC$sigma,] <- t(sapply(1:length(pC$sigma), function(i) as.matrix(bnew$sigma[pC$sigma[i],]) - solve(Hs[,,i])%*%Ss[,i]))
-       if(nrow(bnew$sigma) == 1) bnew$sigma <- t(bnew$sigma)
-       bnew$sigma <- bnew$sigma*loadmt$sigma
-      }
+      # if("mu" %in% parY){
+      #  efy <- mfy(Y,bnew,gr,fam)
+      #  EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
+      #  Sm <- sapply(pC$mu, function(r) bmsc(r,Y,bnew,gr,fam,EC))
+      #  if(is.null(dim(Sm))) Sm <- t(Sm)
+      #  Hm <- array(0,dim = c(ncol(gr$out$mu),ncol(gr$out$mu),length(pC$mu)))
+      #  for(rz in pC$mu){ Hm[,,rz] <- bmhe(rz,Y,bnew,gr,fam,EC) }
+      #  bnew$mu[pC$mu,] <- t(sapply(1:length(pC$mu), function(i) as.matrix(bnew$mu[pC$mu[i],]) - solve(Hm[,,i])%*%Sm[,i]))
+      #  if(nrow(bnew$mu) == 1) bnew$mu <- t(bnew$mu)
+      #  bnew$mu <- bnew$mu*loadmt$mu
+      # }
+      #   
+      # if("sigma" %in% parY){
+      #  efy <- mfy(Y,bnew,gr,fam)
+      #  EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
+      #  Ss <- sapply(pC$sigma, function(r) bssc(r,Y,bnew,gr,fam,EC))
+      #  if(is.null(dim(Ss))) Ss <- t(Ss)
+      #  Hs <- array(0,dim = c(ncol(gr$out$sigma),ncol(gr$out$sigma), length(pC$sigma)))
+      #  for(rz in pC$sigma){ Hs[,,rz] <- bshe(rz,Y,bnew,gr,fam,EC) }
+      #  bnew$sigma[pC$sigma,] <- t(sapply(1:length(pC$sigma), function(i) as.matrix(bnew$sigma[pC$sigma[i],]) - solve(Hs[,,i])%*%Ss[,i]))
+      #  if(nrow(bnew$sigma) == 1) bnew$sigma <- t(bnew$sigma)
+      #  bnew$sigma <- bnew$sigma*loadmt$sigma
+      # }
+      
+      # bn <- NULL
+      # HH <- NULL
+      # bnn <- coefmod3(bnew)
+      # bo1 <- decoefmod(bnew)
+      # for(i in 1:ncol(Y)){
+      # bo2 <- bnn[i,]
+      # bNOT0 <- which(bo2 != 0)
+      # tmp1 <- iScHesFun(i, bo1, Y, bnew, gr, fam)
+      # Sm <- tmp1$score
+      # Hm <- tmp1$hessian
+      # bni <- c(as.matrix(bo2[bNOT0]) - solve(Hm)%*%as.matrix(Sm))
+      # bn <- c(bn,bni)
+      # }
+      
+      opttrst <- trust::trust(objfun = llkFun, parinit = decoefmod(bnew), rinit = 1, rmax = 10,
+                              iterlim = 10, minimize = F, Y = Y, beta = bnew, ghQ = gr, fam = fam)
+      
+      bn <- opttrst$argument*decoefmod(loadmt)
+      bnew <- coefmod2(bn,bold)
         
       # Computing epsilon  
       lln <- sum(log(mfy(Y,bnew,gr,fam)))
@@ -129,14 +150,17 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
       iter = iter+1
       bold <- bnew
       hist[iter,] <- unlist(bnew)
-      if(silent == F) cat("\r EM iteration: ", iter, ", LogLike. = ", round(lln,5), ", \U0394 LogLike. = ", lln-llo, sep = "")
+      if(silent == F) cat("\n EM iteration: ", iter, ", LogLike. = ", round(lln,5), ", \U0394 LogLike. = ", lln-llo, sep = "")
       catmsg <- paste0("(after ", iter," EM iterations)")
      } else{iter = 100} #skipEM
    
     if(useoptim == T & iter >= 100){ #  
         if(skipEM == T) cat("\n Using `optim-BFGS` to find ML estimates") else cat(paste0("\n Using `optim-BFGS` to refine ML estimates ", catmsg))
-        optmres <- optim(unlist(bnew), loglikFun, Y = Y, beta = bnew, ghQ = gr, fam = fam, method = "BFGS", control = list(maxit = iter.lim, fnscale = -1))
-        bnew <- coefmod(bet = optmres$par, beta = bnew)
+        optmres <- optim(decoefmod(bnew), loglikFun, Y = Y, beta = bnew, ghQ = gr, fam = fam, method = "BFGS",
+                         control = list(maxit = iter.lim, fnscale = -1))
+        # opttrst <- trust::trust(objfun = llkFun, parinit = decoefmod(borg), rinit = 1, rmax = 10,
+        #                         iterlim = 10, minimize = F, Y = Y, beta = bnew, ghQ = gr, fam = fam)
+        bnew <- coefmod2(bet = optmres$par, beta = bnew)
         lln <- sum(log(mfy(Y,bnew,gr,fam)))
         iter <- optmres$convergence
         if(optmres$convergence != 0) warning("Maximization did not converge")
@@ -146,10 +170,10 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
    }
 
    Sco <- Hes <- NULL
-   if(skipEM == F){
-    if("mu" %in% parY) {Sco$mu <- Sm; Hes$mu <- Hm}
-    if("sigma" %in% parY) {Sco$sigma <- Ss; Hes$sigma <- Hs}
-   }
+   # if(skipEM == F){
+   #  if("mu" %in% parY) {Sco$mu <- Sm; Hes$mu <- Hm}
+   #  if("sigma" %in% parY) {Sco$sigma <- Ss; Hes$sigma <- Hs}
+   # }
    hist <- hist[1:iter,]
     
    return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, gr = gr, Score = Sco, Hessian = Hes, cvgRes = hist,
