@@ -99,30 +99,7 @@ GLVM.fit <- function(Y, fam, form, loadmt, ghp = 10, iter.lim = 500,
     bnew <- bold
     
      if(skipEM == F){
-      # if("mu" %in% parY){
-      #  efy <- mfy(Y,bnew,gr,fam)
-      #  EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-      #  Sm <- sapply(pC$mu, function(r) bmsc(r,Y,bnew,gr,fam,EC))
-      #  if(is.null(dim(Sm))) Sm <- t(Sm)
-      #  Hm <- array(0,dim = c(ncol(gr$out$mu),ncol(gr$out$mu),length(pC$mu)))
-      #  for(rz in pC$mu){ Hm[,,rz] <- bmhe(rz,Y,bnew,gr,fam,EC) }
-      #  bnew$mu[pC$mu,] <- t(sapply(1:length(pC$mu), function(i) as.matrix(bnew$mu[pC$mu[i],]) - solve(Hm[,,i])%*%Sm[,i]))
-      #  if(nrow(bnew$mu) == 1) bnew$mu <- t(bnew$mu)
-      #  bnew$mu <- bnew$mu*loadmt$mu
-      # }
-      #   
-      # if("sigma" %in% parY){
-      #  efy <- mfy(Y,bnew,gr,fam)
-      #  EC <- sapply(1:nrow(gr$points), function(z) mfyz(z,Y,gr$out,bnew,fam))/efy
-      #  Ss <- sapply(pC$sigma, function(r) bssc(r,Y,bnew,gr,fam,EC))
-      #  if(is.null(dim(Ss))) Ss <- t(Ss)
-      #  Hs <- array(0,dim = c(ncol(gr$out$sigma),ncol(gr$out$sigma), length(pC$sigma)))
-      #  for(rz in pC$sigma){ Hs[,,rz] <- bshe(rz,Y,bnew,gr,fam,EC) }
-      #  bnew$sigma[pC$sigma,] <- t(sapply(1:length(pC$sigma), function(i) as.matrix(bnew$sigma[pC$sigma[i],]) - solve(Hs[,,i])%*%Ss[,i]))
-      #  if(nrow(bnew$sigma) == 1) bnew$sigma <- t(bnew$sigma)
-      #  bnew$sigma <- bnew$sigma*loadmt$sigma
-      # }
-      
+
       # bn <- NULL
       # HH <- NULL
       # bnn <- coefmod3(bnew)

@@ -22,19 +22,19 @@ source("GLVMfitv3.R")
 source("graphFun.R")
 source("EMFun.R")
 
-n = 1000     # Number of individuals
+n = 100     # Number of individuals
 p = 10       # Number of items
 nsim = 1000  # Number of simulations
-form <- list("mu" = "~ Z1")#, "sigma" = "~ Z1 + I(Z1^2)")
+form <- list("mu" = "~ Z1", "sigma" = "~ 1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
 #form2 <- list("mu" = "~ Z1", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
-fam <- rep("binomial",p)
+fam <- rep("normal",p)
 # fam <- c(rep("normal", p/2), rep("ZIpoisson", p/2)) # rep("poisson",p)#
 # sample(c("normal","poisson","binom"),size = 10,replace = T)
 
 l1 <- NULL
 l1$mu <- matrix(1,ncol = 2, nrow = p)
-l1$sigma <- matrix(1, ncol = 3, nrow = p)
+l1$sigma <- matrix(1, ncol = 1, nrow = p)
 
 # Restrictions
 # ____________

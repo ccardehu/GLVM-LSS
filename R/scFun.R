@@ -14,7 +14,7 @@ mfyz <- function(z,Y,Z,b,fam){ # should be evaluated at Y, fam, for i = 1:p; \fo
  if(!is.matrix(Y)) Y <- as.matrix(Y)
  fyz <- sapply(1:ncol(Y), FUN = function(i) dFun(i,z, fam = fam[i], Y = Y[,i], Z = Z, b = b))
  fyz <- exp(rowSums(fyz))
- return(drop(fyz))
+ return(c(fyz))
 }
 
 # Vector function for f(Y_m) = integral f(Y_m|z_m)
@@ -25,7 +25,7 @@ mfy <- function(Y,b,gr,fam){
  # Y = simR$Y; b = borg; fam = fam;
  if(!is.matrix(Y)) Y <- as.matrix(Y)
  fy <- sapply(1:nrow(gr$points), function(z){mfyz(z,Y,gr$out,b,fam)})%*%gr$weights
- return(drop(fy))
+ return(c(fy))
 }
 
 # Log-likelihood function (to be used with optim)
@@ -494,9 +494,9 @@ h2he <- function(i,Y,b,gr,fam,ec){
 }
 
 # rbenchmark::benchmark(
-#   "bhe3" = {bhe3(1,1,Y,b,gr,fam,ec)},
-#   "bhe3a" = {bhe3a(1,1,Y,b,gr,fam,ec)},
-#   replications = 10,
+#   "bhe" = {bhe(1,2,Y,b,gr,fam,ec)},
+#   "hess" = {hess(1,2,ghQ,b,fam,dvL,pD)},
+#   replications = 100,
 #   columns = c("test", "replications", "elapsed",
 #               "relative", "user.self", "sys.self")
 # )
