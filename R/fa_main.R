@@ -131,7 +131,7 @@ sco <- function(i,ghQ,b,fam,dvL,pD){
 #         fam (distributions), dvL (list of derivatives),
 #         pD (posterior density, to be compute with joint with weights)
 # Output: vector of length (total # of parameters for item i)
-# Testing: i = 1; Y = simR$Y; ghQ = gr; b = borg; fam = fam; 
+# Testing: i = 1; Y = simR$Y; ghQ = ghQ; b = borg; fam = fam; 
 #          dvL = dvY(Y,ghQ,b,fam)
 #          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
 #          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
@@ -416,10 +416,10 @@ upB <- function(bold,ghQ,fam,dvL,pD,full.hess = T){
 #         dvL (list of derivatives), pD (posterior density)
 #         full.hess (whether to update item by item or using full hessian)
 # Output: bnew (new loadings)
-# Testing: bold = borg; ghQ = gr; fam = fam; dvL = dvY(Y,ghQ,bold,fam)
+# Testing: bold = borg; ghQ = ghQ; fam = fam; dvL = dvY(Y,ghQ,bold,fam)
 #          pD = exp(rowSums(dY(Y,ghQ,bold,fam),dim = 2)) /
 #          c(exp(rowSums(dY(Y,ghQ,bold,fam),dim = 2))%*%ghQ$weights)  
-#          full.hess = T
+#          full.hess = T;
 
 b = lb2mb(bold)
 if(full.hess == T){
@@ -449,9 +449,9 @@ for(i in 1:length(fam)){
  A <- sco(i,ghQ,bold,fam,dvL,pD)
  B <- hess(i,i,ghQ,bold,fam,dvL,pD)
  b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$hessian)%*%(A$score))
-}
-bnew <- mb2lb(b,bold)
-}
+ # b[i, A$pos] <- c(b[i,A$pos]) + c(0.005*(A$score))
+} 
+bnew <- mb2lb(b,bold) }
 return(bnew)
 }
 

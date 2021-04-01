@@ -136,3 +136,52 @@ fyz <- ifelse(rbinom(n,1,1-sigma) == 0, 0, rpois(n,mu))
 # Add other distributions in SimFA::fod
 return(fyz)
 }
+
+fscore <- function(mod){
+   
+# Goal: To compute Expected a-posterior Scores for model 'mod'
+# Input : mod (splvm model)
+# Output: Matrix of factor scores
+# Testing: mod = testa
+
+A1 <- dY(mod$Y,mod$ghQ,mod$b,mod$fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%mod$ghQ$weights) 
+pD <- exp(rowSums(A1,dim = 2))/A2 # posterior density
+# Check for conditional scoring when q > 1   
+zscore <- pD%*%mod$ghQ$points[,,drop=F]
+zscore <- as.data.frame(zscore); names(zscore) <- colnames(mod$ghQ$points)
+return(zscore)
+}
+
+llkf <- function(cb,Y,ghQ,bg,fam){
+
+# Goal: To compute log-likelihood function
+# Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
+#         bg (guide matrix), fam (distributions)
+# Output: List with log-likelihood, gradient & full Hessian
+# Testing: cb = lb2cb(borg); Y = simR$Y; ghQ = gr; bg = borg; fam = fam; 
+
+b1 <- lb2cb(bg)
+b1[lb2cb(bg) != 0] <- cb # complete with cb including zeros
+b1 <- cb2lb(b1,bg)
+A1 <- dY(Y,ghQ,b1,fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+ll <- sum(log(A2)) # log-likelihood
+return(ll)
+}
+
+sche.test <- function(cb,mod){
+
+# Goal: To compute scores & hessian from estimated model
+# Input : vector of betas (cb), mod (splvm.fit object)
+# Output: List with gradient (score) & full Hessian computed @ cb2lb(cb)
+# Testing: cb = lb2cb(borg); mod = testa
+
+b <- cb2lb(cb,mod$b)
+A1 <- dY(mod$Y,mod$ghQ,b,mod$fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%mod$ghQ$weights) # this is efy
+mod.pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+mod.dvL <- dvY(mod$Y,mod$ghQ,b,mod$fam) # List with all the necessary derivatives
+res <- sche(ghQ = mod$ghQ, b = b, fam = mod$fam, dvL = mod.dvL, pD = mod.pD)    
+return(res)
+}

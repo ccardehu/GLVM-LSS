@@ -23,7 +23,7 @@ source("graphFun.R")
 source("EMFun.R")
 
 n = 100     # Number of individuals
-p = 10       # Number of items
+p = 15       # Number of items
 nsim = 1000  # Number of simulations
 form <- list("mu" = "~ Z1", "sigma" = "~ 1")
 #form1 <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ 1") #  , "sigma" = "~ Z1"
@@ -62,7 +62,7 @@ lc <- NULL
 lc$mu <- matrix(runif(length(l1$mu), min = -0.5, max = 0.5),nrow = p)
 lc$mu[,1] <- runif(p,1,2)
 lc$mu[,c(2)] <- runif(p,1.0,3.0)
-# lc$mu[,3] <- runif(p,-0.4,-0.2)
+# lc$mu[,3] <- runif(p,-1,-0.5)
 # lc$mu[,4] <- runif(p,-0.7,-0.2)
 lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.3), nrow = p)
 #lc$sigma[,1] <- runif(p,-1,1)
