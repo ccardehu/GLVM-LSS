@@ -60,7 +60,7 @@ dvY <- function(Y,ghQ,b,fam){
 # Goal: To compute first and second derivatives of log-likelihood Y
 # Input : Y (item matrix), ghQ (GHQ object), b (loadings matrix), fam (distributions)
 # Output: List of arrays of dims n x qp x p with d-logf(y_p|z_qp) / d-eta_p,phi
-# Testing: Y = simR$Y; ghQ = gr; b = borg; fam = fam
+# Testing: Y = simR$Y; ghQ = ghQ; b = borg; fam = fam
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 Z <- ghQ$out
@@ -163,7 +163,7 @@ hess <- function(i,j,ghQ,b,fam,dvL,pD){
 #         fam (distributions), dvL (list of derivatives),
 #         pD (part of posterior density, to be jointly computed with weights)
 # Output: vector of length (total # of parameters for item i)
-# Testing: i = 1; Y = simR$Y; ghQ = gr; b = borg; fam = fam; 
+# Testing: i = 1; Y = simR$Y; ghQ = ghQ; b = borg; fam = fam; 
 #          dvL = dvY(Y,ghQ,b,fam)
 #          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
 #          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
@@ -410,6 +410,7 @@ return(list("hessian" = hess, "posi" = iN0, "posj" = jN0))
 }
 
 upB <- function(bold,ghQ,fam,dvL,pD,full.hess = T){
+                # ,spd.hess = T
 
 # Goal: To update factor loadings
 # Input : bold (loadings), ghQ (GHQ object), fam (distributions),
@@ -440,6 +441,10 @@ for(i in 1:length(fam)){
 Hm[(i2[i]-i1[i]+1):nrow(Hm),(i2[i]-i1[i]+1):i2[i]] <- Hr
 Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr) 
 }
+# Check PD
+# ~~~~~~~~
+# Hm <- m2pdm(-Hm)
+# cb[cb != 0] <- cb[cb != 0] + c(Hm$inv.mat%*%matrix(Sm))
 cb[cb != 0] <- cb[cb != 0] - c(solve(Hm)%*%matrix(Sm))
 bnew <- cb2lb(cb,bold)
 } else {
@@ -448,9 +453,82 @@ bnew <- cb2lb(cb,bold)
 for(i in 1:length(fam)){
  A <- sco(i,ghQ,bold,fam,dvL,pD)
  B <- hess(i,i,ghQ,bold,fam,dvL,pD)
- b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$hessian)%*%(A$score))
- # b[i, A$pos] <- c(b[i,A$pos]) + c(0.005*(A$score))
-} 
+ # Check PD
+ # ~~~~~~~~
+ # B <- m2pdm(-B$hessian)
+ # b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(A$score)) #} else {
+ b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$hess)%*%(A$score)) #} else {
+ } 
+bnew <- mb2lb(b,bold) }
+return(bnew)
+}
+
+upB.pen <- function(bold,ghQ,fam,dvL,pD,full.hess = T,pen.idx,
+                    pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
+                                         gamma = 1, a = 3.7)){
+                
+# Goal: To update factor loadings (when Penalised EM)
+# Input : bold (loadings), ghQ (GHQ object), fam (distributions),
+#         dvL (list of derivatives), pD (posterior density)
+#         full.hess (whether to update item by item or using full hessian)
+# Output: bnew (new loadings)
+# Testing: bold = borg; ghQ = ghQ; fam = fam; dvL = dvY(Y,ghQ,bold,fam)
+#          pD = exp(rowSums(dY(Y,ghQ,bold,fam),dim = 2)) /
+#          c(exp(rowSums(dY(Y,ghQ,bold,fam),dim = 2))%*%ghQ$weights)  
+#          full.hess = T;
+#          pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
+
+b = lb2mb(bold)
+if(full.hess == T){
+# Update using Full Hessian
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+cb <- lb2cb(bold)
+Sm <- NULL
+i1 <- i2 <- rep(0,length(fam))
+Hm <- matrix(0,sum(b != 0),sum(b != 0))
+for(i in 1:length(fam)){
+ A <- sco(i,ghQ,bold,fam,dvL,pD) ; i1[i] <- length(A$score)
+ Sm <- c(Sm,A$score); i2[i]<- length(Sm) 
+ Hr <- NULL
+ for(j in i:length(fam)){
+  B <- hess(i,j,ghQ,bold,fam,dvL,pD)
+  Hr <- rbind(Hr,B$hessian)
+ }
+Hm[(i2[i]-i1[i]+1):nrow(Hm),(i2[i]-i1[i]+1):i2[i]] <- Hr
+Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr) 
+}
+pS <- nrow(pD)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, #  == (b != 0)
+                    w.alasso = pml.control$w.alasso,gamma = pml.control$gamma, a = pml.control$a)
+pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
+pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; 
+Sm <- Sm - pS%*%cb[cb != 0]
+Hm <- Hm - pS
+# Check PD
+# ~~~~~~~~
+Hm <- m2pdm(-Hm)
+cb[cb != 0] <- cb[cb != 0] + c(Hm$inv.mat%*%matrix(Sm))
+# cb[cb != 0] <- cb[cb != 0] - c(solve(Hm)%*%matrix(Sm))
+cb[abs(cb) < 1*sqrt(.Machine$double.eps)] <- 0
+bnew <- cb2lb(cb,bold)
+} else {
+# Update by item
+# ~~~~~~~~~~~~~~
+for(i in 1:length(fam)){
+ pS <- nrow(pD)*penM(c(b[i,pen.idx[i,]]),type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,
+           gamma = pml.control$gamma, a = pml.control$a);
+ if(length(pS) != 1) pS <- diag(pS)
+ pS. <- diag(rep(0,length(c(b[i,])))); diag(pS.)[c(t(pen.idx[i,]))] <- pS
+ pS <- pS.; pS <- pS[b[i,] != 0, b[i,] != 0]; 
+ A <- sco(i,ghQ,bold,fam,dvL,pD)
+ As <- A$score - pS%*%b[i,b[i,] != 0]
+ B <- hess(i,i,ghQ,bold,fam,dvL,pD)$hessian - pS
+ # Check PD
+ # ~~~~~~~~
+ B <- m2pdm(-B)
+ b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(As)) #} else {
+ # b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B)%*%(As)) #} else {
+ b[i, abs(b[i,]) < 1*sqrt(.Machine$double.eps)] <- 0
+ }
 bnew <- mb2lb(b,bold) }
 return(bnew)
 }
@@ -482,4 +560,44 @@ Hm[(i2[i]-i1[i]+1):nrow(Hm),(i2[i]-i1[i]+1):i2[i]] <- Hr
 Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr) 
 }
 return(list(gradient = Sm, hessian = Hm))
+}
+
+penM <- function(params, type = "lasso", lambda = 1, w.alasso = NULL,
+                 gamma = 1, a = 3.7){ 
+
+# Goal: To produce a Penalty matrix of parameters (params)
+# Input : model parameters (params)
+# Output: Penalty matrix
+# Testing: params = lb2cb(borg); lambda = 1; gamma = 1; a = 3.7;
+
+eps = sqrt(.Machine$double.eps) # protective tolerance level
+if(type == "ridge"){
+ # S <- lambda * diag( rep(1, length(params) ) )
+ A1 <-  lambda*rep(1, length(params))
+}
+if(type == "lasso"){
+ # S <- lambda * diag( 1/sqrt(params^2 + eps) )#*as.integer(params != 0)
+ A1 <- lambda*1/sqrt(params^2 + eps) 
+}
+if(type == "alasso"){
+ if( is.null(w.alasso) ) w.alasso <- 1
+ if( w.alasso == "par") w.alasso <- params
+ w.al <- 1/abs(w.alasso)^gamma
+ # S <- lambda * diag( w.al/sqrt(params^2 + eps) )#*as.integer(params != 0)
+ A1 <- lambda*w.al/sqrt(params^2 + eps)
+}
+if(type == "scad"){
+ theta <- abs(params) 
+ f1 <- sapply(theta, function(theta) { max(a*lambda - theta, 0)/((a-1)*lambda) })
+ f.d <- ((theta <= lambda) + f1 * (theta > lambda)) # * lambda
+ # S <- diag( f.d / ( sqrt(params^2 + eps) + 1e-06 ) )
+ A1 <- lambda* f.d / ( sqrt(params^2 + eps) ) #+ 1e-06
+}
+if(type == "mcp"){
+ theta <- abs(params) 
+ f.d <- (lambda-theta/a)*(theta < lambda*a)
+ A1 <- f.d / ( sqrt(params^2 + eps) )
+}
+if(length(A1) == 1) S <- A1 else S <- diag(A1)
+return(S)
 }

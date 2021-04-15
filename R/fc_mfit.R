@@ -1,9 +1,11 @@
 
 splvm.fit <- function(Y, fam, form,
-                      control = list(method = c("ML","EM","hybrid"), 
+                      control = list(method = c("ML","EM","hybrid","PML","PEM"), 
                                      start.val = NULL, constraint = NULL,
                                      ghQqp = 15, iter.lim = 150, full.hess = F, EM.iter.lim = 20,
-                                     tol = sqrt(.Machine$double.eps), silent = F) )
+                                     tol = sqrt(.Machine$double.eps), silent = F,
+                                     pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
+                                         gamma = 1, a = 3.7)) )
                       {
 
 # Goal: Fits semi-parametric LVM
@@ -12,8 +14,9 @@ splvm.fit <- function(Y, fam, form,
 #         control (list of controls)
 # Output: Estimated semi-parametric LVM
 # Testing: Y = simR$Y; fam = fam; form = e.form;
-#          control = list(method = "EM", start.val = lc, constraint = l1,
+#          control = list(method = "PEM", start.val = lc, constraint = l1,
 #          ghQqp = 15, iter.lim = 150, tol = sqrt(.Machine$double.eps), silent = F, full.hess = F)
+#          control$pml.control = list(type = "alasso", lambda = 1, w.alasso = "par", gamma = 1, a = 3.7)
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
@@ -102,16 +105,20 @@ for(i in parY){
 # ~~~~~~~~~~
 if(sum(lb2cb(loadmt)) > p.*(p.-1)/2) message("\n Warning: # of parameters < p(p-1)/2. Model might be under-indentified.")
 method <- control$method
-tryCatch({
-while(eps > tol & iter < control$iter.lim){
+pml.control <- control$pml.control
 
+tryCatch({
+while(eps > tol && iter < control$iter.lim){
+
+pen.idx <- pidx(bold)
+  
 if(method == "EM"){
 A1 <- dY(Y,ghQ,bold,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 llo <- sum(log(A2)) # log-likelihood old
 pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 dvL <- dvY(Y,ghQ,bold,fam) # List with all the necessary derivatives
-bnew <- upB(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess) #updated betas
+bnew <- upB(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess) # , spd.hess = F) #updated betas
 # Compute log-likelihood for comparison, etc.
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
@@ -120,6 +127,26 @@ eps <- abs(lln-llo)
 iter <- iter + 1
 bold <- bnew
 if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
+}
+  
+if(method == "PEM"){
+A1 <- dY(Y,ghQ,bold,fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+llo <- c(sum(log(A2)) - lb2pM(bold,Y,pen.idx,pml.control)) # penalized log-likelihood old
+pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+dvL <- dvY(Y,ghQ,bold,fam) # List with all the necessary derivatives
+bnew <- upB.pen(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess,pen.idx,
+                pml.control = pml.control) # updated betas
+# Compute log-likelihood for comparison, etc.
+pen.idx <- pidx(bnew)
+A1 <- dY(Y,ghQ,bnew,fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+lln <- c(sum(log(A2)) - lb2pM(bnew,Y,pen.idx,pml.control)) # penalized log-likelihood new
+dlln <- round(lln,3) # penalized log-likelihood new (printing)
+eps <- abs(lln-llo)
+iter <- iter + 1
+bold <- bnew
+if(control$silent == F) cat("\r (Penalised) EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 }
 
 if(method == "ML"){
@@ -131,6 +158,23 @@ if(control$silent == F){
 r1 <- trust::trust(objfun = loglkf, parinit = btr, rinit = 1, rmax = 10,
                    iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam)
 b2r[lb2cb(bold) != 0] <- r1$argument
+bnew <- cb2lb(b2r,bold)
+lln <- r1$value
+iter <- control$iter.lim + 1; eps <- 0
+if(control$silent == F) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
+}
+  
+if(method == "PML"){
+b2r <- lb2cb(bold)
+btr <- b2r[lb2cb(bold) != 0]
+if(control$silent == F){
+  if(exists("catmsg")) cat(paste0("\n Using trust-region algorithm to refine Penalised ML estimates ", catmsg))
+  else cat("\n Using trust-region algorithm to find Penalised ML estimates") }
+r1 <- trust::trust(objfun = penloglkf, parinit = btr, rinit = 1, rmax = 10,
+                   iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam,
+                   pml.control = pml.control, pen.idx = pen.idx)
+rep <- r1$argument; rep[abs(rep) < 1*sqrt(.Machine$double.eps)] <- 0
+b2r[lb2cb(bold) != 0] <- rep; rm(rep)
 bnew <- cb2lb(b2r,bold)
 lln <- r1$value
 iter <- control$iter.lim + 1; eps <- 0
@@ -153,7 +197,29 @@ iter <- iter + 1
 bold <- bnew
 if(iter >= control$EM.iter.lim){ method <- "ML"; catmsg <- paste0("(after ", iter," Hybrid-EM iterations)") }
 if(control$silent == F) cat("\r Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
-} }
+}
+
+if(method == "P-hybrid"){
+A1 <- dY(Y,ghQ,bold,fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+llo <- c(sum(log(A2)) - lb2pM(bold,Y,pen.idx,pml.control)) # log-likelihood old
+pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+dvL <- dvY(Y,ghQ,bold,fam) # List with all the necessary derivatives
+bnew <- upB.pen(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess,pen.idx,
+                pml.control = pml.control) #updated betas
+# Compute log-likelihood for comparison, etc.
+pen.idx <- pidx(bnew)
+A1 <- dY(Y,ghQ,bnew,fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+lln <- c(sum(log(A2)) - lb2pM(bnew,Y,pen.idx,pml.control)) ; dlln <- round(lln,3) # log-likelihood new
+eps <- abs(lln-llo)
+iter <- iter + 1
+bold <- bnew
+if(iter >= control$EM.iter.lim){ method <- "PML"; catmsg <- paste0("(after ", iter," (Penalised) Hybrid-EM iterations)") }
+if(control$silent == F) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
+}
+    
+}
 return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps))
 },

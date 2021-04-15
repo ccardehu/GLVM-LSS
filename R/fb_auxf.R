@@ -104,6 +104,33 @@ res <- sche(ghQ,b1,fam,dvL1,pD1)
 return(list(value = ll, gradient = res$gradient, hessian = res$hessian))
 }
 
+penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,
+                      pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
+                                         gamma = 1, a = 3.7)) {
+
+# Goal: To compute penalised log-likelihood function (to be used in trust function)
+# Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
+#         bg (guide matrix), fam (distributions), pen.idx (penalty index / T if penalty)
+# Output: List with log-likelihood, gradient & full Hessian
+# Testing: cb = lb2cb(borg); Y = simR$Y; ghQ = ghQ; bg = borg; fam = fam; 
+#          pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
+
+b1 <- lb2cb(bg)
+b1[lb2cb(bg) != 0] <- cb # complete with cb including zeros
+b1 <- cb2lb(b1,bg)
+A1 <- dY(Y,ghQ,b1,fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+pD1 <- exp(rowSums(A1,dim = 2))/A2
+pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,
+           gamma = pml.control$gamma, a = pml.control$a)
+pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
+pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; 
+ll <- sum(log(A2)) - 0.5*crossprod(cb,pS)%*%cb # penalised log-likelihood
+dvL1 <- dvY(Y,ghQ,b1,fam)
+res <- sche(ghQ,b1,fam,dvL1,pD1)
+return(list(value = c(ll), gradient = res$gradient - c(tcrossprod(cb,pS)), hessian = res$hessian - pS))
+}
+
 rFun <- function(n,i,fam,Z,b){ #
 if(fam == "normal"){
 mu = as.matrix(Z$mu)%*%matrix(b$mu[i,])
@@ -184,4 +211,71 @@ mod.pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 mod.dvL <- dvY(mod$Y,mod$ghQ,b,mod$fam) # List with all the necessary derivatives
 res <- sche(ghQ = mod$ghQ, b = b, fam = mod$fam, dvL = mod.dvL, pD = mod.pD)    
 return(res)
+}
+
+m2pdm <- function(mat){
+   
+# Goal: checks & corrects if matrix object (mat) is Positive Definite
+# Input : matrix (mat)
+# Output: corrected (if necessary) positive definite matrix
+# Testing: i = 1; ghQ = ghQ; b = l1; fam = fam; dvL = dvY(Y,ghQ,b,fam);
+#          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
+#          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
+#          mat = hess(i,i,ghQ,b,fam,dvL,pD)$hessian
+
+eS    <- eigen(mat, symmetric = TRUE)                
+e.val <- eS$values
+e.vec <- eS$vectors
+check.eigen <- any(e.val <= 0)
+if(check.eigen == TRUE){
+n.e.val <- e.val[e.val <= 0]
+s <- sum(e.val[n.e.val])*2  
+t <- s^2*100 + 1
+p <- min(e.val[(e.val <= 0) == FALSE])
+e.val[e.val <= 0] <- p*(s - n.e.val)^2/t
+D <- diag(e.val)
+D.inv <- diag(1/e.val)
+res <- e.vec %*% D %*% t(e.vec) 
+res.inv <- e.vec %*% D.inv %*% t(e.vec)
+} else { res <- mat; res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) } 
+res.inv <- (res.inv + t(res.inv) ) / 2 
+return(list(mat = res, inv.mat = res.inv,check.eigen = check.eigen))
+}
+
+lb2pM <- function(lb,Y,pen.idx,
+                  pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
+                                         gamma = 1, a = 3.7)){
+
+# Goal: To compute the penalty part for the log-likelihood
+# Input : lb (list betas), Y (matrix of items), pml.control (options for Penalty)
+# Output: penalty for log-likelihood
+# Testing: lb = borg; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
+   
+b <- lb2mb(lb)[pen.idx]
+P <- nrow(Y)*penM(b,type = pml.control$type, lambda = pml.control$lambda,
+                  w.alasso = pml.control$w.alasso, gamma = pml.control$gamma,
+                  a = pml.control$a)
+return(0.5*crossprod(b,P)%*%b)
+}
+
+pidx <- function(lb){
+
+# Goal: Index of penalised columns of betas 
+# Input : lb (loadings list)
+# Output: Vector of indices (for colums to be used in lb2mb)
+# Testing: lb = borg
+
+idx <- NULL
+for(i in names(lb)){
+ if(i == "mu"){
+  tmp <- array(T,dim = dim(lb[[i]]), dimnames = list(NULL,colnames(lb[[i]])))
+  tmp[,!c(colnames(tmp) %in% c("(Intercept)","Z1","Z2","Z3"))] <- F
+  idx <- cbind(idx, tmp);  
+ } else {
+  tmp <- array(T,dim = dim(lb[[i]]), dimnames = list(NULL,colnames(lb[[i]])))
+  tmp[,!c(colnames(tmp) %in% "(Intercept)")] <- F
+  idx <- cbind(idx, tmp); }
+}
+idx <- idx == (lb2mb(lb) != 0)
+return(unname(!idx))
 }
