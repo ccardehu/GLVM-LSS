@@ -5,7 +5,7 @@ splvm.fit <- function(Y, fam, form,
                                      ghQqp = 15, iter.lim = 150, full.hess = F, EM.iter.lim = 20,
                                      tol = sqrt(.Machine$double.eps), silent = F,
                                      pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
-                                         gamma = 1, a = 3.7)) )
+                                         gamma = 1, a = 3.7, pen.load = F)) )
                       {
 
 # Goal: Fits semi-parametric LVM
@@ -15,8 +15,8 @@ splvm.fit <- function(Y, fam, form,
 # Output: Estimated semi-parametric LVM
 # Testing: Y = simR$Y; fam = fam; form = e.form;
 #          control = list(method = "PEM", start.val = lc, constraint = l1,
-#          ghQqp = 15, iter.lim = 150, tol = sqrt(.Machine$double.eps), silent = F, full.hess = F)
-#          control$pml.control = list(type = "alasso", lambda = 1, w.alasso = "par", gamma = 1, a = 3.7)
+#          ghQqp = 15, iter.lim = 150, tol = sqrt(.Machine$double.eps), silent = F, full.hess = T)
+#          control$pml.control = list(type = "alasso", lambda = 0.01, w.alasso = 1, gamma = 1, a = 3.7, pen.load = F)
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
@@ -24,7 +24,7 @@ for(i in parY){form[[i]] <- as.formula(form[[i]])}
 lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
 lvar <- lvar[grep("Z", lvar, fixed = T)]
 if(length(lvar) == 0) stop("\n Latent variables in formula should be represented by letter Z (capital)")
-# q. <- length(lvar)
+q. <- length(lvar)
 p. <- ncol(Y)
 pC <- vector(mode = "list", length = length(parY)); names(pC) <- parY
 for(i in parY){ for(j in 1:p.){ if(i %in% pFun(fam[j])) {pC[[i]] <- append(pC[[i]],j)} } }
@@ -92,10 +92,11 @@ if(!is.null(icoefs)){
   }
   bold <- icoefs
 } else {
- message("\n Starting values not supplied, set to 0.5")
- bold <- lapply(parY, function(i) matrix(0.5, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
- names(bold) <- parY
-}
+ message("\n Starting values not supplied; setting optimal starting values.")
+ # bold <- lapply(parY, function(i) matrix(1, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
+ # names(bold) <- parY
+ bold <- ini.par(Y,fam,form,pC,q.)
+ }
 for(i in parY){
  bold[[i]] <- bold[[i]]*loadmt[[i]]
  bold[[i]][-pC[[i]],] <- 0
@@ -106,19 +107,20 @@ for(i in parY){
 if(sum(lb2cb(loadmt)) > p.*(p.-1)/2) message("\n Warning: # of parameters < p(p-1)/2. Model might be under-indentified.")
 method <- control$method
 pml.control <- control$pml.control
+if(is.null(pml.control$pen.load)) pen.load <- F else pen.load <- pml.control$pen.load
 
 tryCatch({
 while(eps > tol && iter < control$iter.lim){
 
-pen.idx <- pidx(bold)
-  
+pen.idx <- pidx(bold,pen.load)
+
 if(method == "EM"){
 A1 <- dY(Y,ghQ,bold,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 llo <- sum(log(A2)) # log-likelihood old
 pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 dvL <- dvY(Y,ghQ,bold,fam) # List with all the necessary derivatives
-bnew <- upB(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess) # , spd.hess = F) #updated betas
+bnew <- upB(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess) # updated betas
 # Compute log-likelihood for comparison, etc.
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
@@ -138,7 +140,7 @@ dvL <- dvY(Y,ghQ,bold,fam) # List with all the necessary derivatives
 bnew <- upB.pen(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess,pen.idx,
                 pml.control = pml.control) # updated betas
 # Compute log-likelihood for comparison, etc.
-pen.idx <- pidx(bnew)
+pen.idx <- pidx(bnew,pen.load)
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 lln <- c(sum(log(A2)) - lb2pM(bnew,Y,pen.idx,pml.control)) # penalized log-likelihood new
@@ -208,7 +210,7 @@ dvL <- dvY(Y,ghQ,bold,fam) # List with all the necessary derivatives
 bnew <- upB.pen(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess,pen.idx,
                 pml.control = pml.control) #updated betas
 # Compute log-likelihood for comparison, etc.
-pen.idx <- pidx(bnew)
+pen.idx <- pidx(bnew,pen.load)
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 lln <- c(sum(log(A2)) - lb2pM(bnew,Y,pen.idx,pml.control)) ; dlln <- round(lln,3) # log-likelihood new
@@ -221,7 +223,8 @@ if(control$silent == F) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", 
     
 }
 return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, ghQ = ghQ,
-            Y = as.data.frame(Y), fam = fam, formula = form, eps = eps))
+            Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
+            pml.control = pml.control))
 },
 error = function(e){
 cat(paste("\n Error in Estimation, proceeded with next simulation \n Error:",e))

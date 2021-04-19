@@ -410,7 +410,6 @@ return(list("hessian" = hess, "posi" = iN0, "posj" = jN0))
 }
 
 upB <- function(bold,ghQ,fam,dvL,pD,full.hess = T){
-                # ,spd.hess = T
 
 # Goal: To update factor loadings
 # Input : bold (loadings), ghQ (GHQ object), fam (distributions),
@@ -497,6 +496,7 @@ for(i in 1:length(fam)){
 Hm[(i2[i]-i1[i]+1):nrow(Hm),(i2[i]-i1[i]+1):i2[i]] <- Hr
 Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr) 
 }
+if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 pS <- nrow(pD)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, #  == (b != 0)
                     w.alasso = pml.control$w.alasso,gamma = pml.control$gamma, a = pml.control$a)
 pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
@@ -505,15 +505,16 @@ Sm <- Sm - pS%*%cb[cb != 0]
 Hm <- Hm - pS
 # Check PD
 # ~~~~~~~~
-Hm <- m2pdm(-Hm)
-cb[cb != 0] <- cb[cb != 0] + c(Hm$inv.mat%*%matrix(Sm))
-# cb[cb != 0] <- cb[cb != 0] - c(solve(Hm)%*%matrix(Sm))
+# Hm <- m2pdm(-Hm)
+# cb[cb != 0] <- cb[cb != 0] + c(Hm$inv.mat%*%matrix(Sm))
+cb[cb != 0] <- cb[cb != 0] - c(solve(Hm)%*%matrix(Sm))
 cb[abs(cb) < 1*sqrt(.Machine$double.eps)] <- 0
 bnew <- cb2lb(cb,bold)
 } else {
 # Update by item
 # ~~~~~~~~~~~~~~
 for(i in 1:length(fam)){
+if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[i,pen.idx[i,]]
  pS <- nrow(pD)*penM(c(b[i,pen.idx[i,]]),type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,
            gamma = pml.control$gamma, a = pml.control$a);
  if(length(pS) != 1) pS <- diag(pS)
@@ -524,9 +525,9 @@ for(i in 1:length(fam)){
  B <- hess(i,i,ghQ,bold,fam,dvL,pD)$hessian - pS
  # Check PD
  # ~~~~~~~~
- B <- m2pdm(-B)
- b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(As)) #} else {
- # b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B)%*%(As)) #} else {
+ # B <- m2pdm(-B)
+ # b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(As))
+ b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B)%*%(As))
  b[i, abs(b[i,]) < 1*sqrt(.Machine$double.eps)] <- 0
  }
 bnew <- mb2lb(b,bold) }
@@ -569,6 +570,9 @@ penM <- function(params, type = "lasso", lambda = 1, w.alasso = NULL,
 # Input : model parameters (params)
 # Output: Penalty matrix
 # Testing: params = lb2cb(borg); lambda = 1; gamma = 1; a = 3.7;
+# 
+if(is.null(gamma)) gamma = 1
+if(is.null(a)) gamma = 3.7
 
 eps = sqrt(.Machine$double.eps) # protective tolerance level
 if(type == "ridge"){
@@ -581,7 +585,6 @@ if(type == "lasso"){
 }
 if(type == "alasso"){
  if( is.null(w.alasso) ) w.alasso <- 1
- if( w.alasso == "par") w.alasso <- params
  w.al <- 1/abs(w.alasso)^gamma
  # S <- lambda * diag( w.al/sqrt(params^2 + eps) )#*as.integer(params != 0)
  A1 <- lambda*w.al/sqrt(params^2 + eps)
@@ -598,6 +601,6 @@ if(type == "mcp"){
  f.d <- (lambda-theta/a)*(theta < lambda*a)
  A1 <- f.d / ( sqrt(params^2 + eps) )
 }
-if(length(A1) == 1) S <- A1 else S <- diag(A1)
+if(length(A1) == 1) S <- matrix(A1) else S <- diag(A1)
 return(S)
 }

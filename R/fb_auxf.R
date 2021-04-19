@@ -112,7 +112,7 @@ penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,
 # Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
 #         bg (guide matrix), fam (distributions), pen.idx (penalty index / T if penalty)
 # Output: List with log-likelihood, gradient & full Hessian
-# Testing: cb = lb2cb(borg); Y = simR$Y; ghQ = ghQ; bg = borg; fam = fam; 
+# Testing: cb = lb2cb(bold); Y = Y; ghQ = ghQ; bg = bold; fam = fam; 
 #          pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
 
 b1 <- lb2cb(bg)
@@ -121,6 +121,7 @@ b1 <- cb2lb(b1,bg)
 A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 pD1 <- exp(rowSums(A1,dim = 2))/A2
+if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,
            gamma = pml.control$gamma, a = pml.control$a)
 pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
@@ -249,16 +250,17 @@ lb2pM <- function(lb,Y,pen.idx,
 # Goal: To compute the penalty part for the log-likelihood
 # Input : lb (list betas), Y (matrix of items), pml.control (options for Penalty)
 # Output: penalty for log-likelihood
-# Testing: lb = borg; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
+# Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
    
 b <- lb2mb(lb)[pen.idx]
+if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 P <- nrow(Y)*penM(b,type = pml.control$type, lambda = pml.control$lambda,
                   w.alasso = pml.control$w.alasso, gamma = pml.control$gamma,
                   a = pml.control$a)
 return(0.5*crossprod(b,P)%*%b)
 }
 
-pidx <- function(lb){
+pidx <- function(lb,pen.load){
 
 # Goal: Index of penalised columns of betas 
 # Input : lb (loadings list)
@@ -269,7 +271,8 @@ idx <- NULL
 for(i in names(lb)){
  if(i == "mu"){
   tmp <- array(T,dim = dim(lb[[i]]), dimnames = list(NULL,colnames(lb[[i]])))
-  tmp[,!c(colnames(tmp) %in% c("(Intercept)","Z1","Z2","Z3"))] <- F
+  if(!pen.load) tmp[,!c(colnames(tmp) %in% c("(Intercept)","Z1","Z2","Z3"))] <- F else
+    tmp[,!c(colnames(tmp) %in% c("(Intercept)"))] <- F
   idx <- cbind(idx, tmp);  
  } else {
   tmp <- array(T,dim = dim(lb[[i]]), dimnames = list(NULL,colnames(lb[[i]])))
@@ -279,3 +282,93 @@ for(i in names(lb)){
 idx <- idx == (lb2mb(lb) != 0)
 return(unname(!idx))
 }
+
+ini.par <- function(Y,fam,form,pC,q.){
+
+# Goal: To produce initial parameters for splvm
+# Input : Y (matrix of items), fam (distributions),  form (formulas for mu, sigma, etc.)
+#         pC (list of whether item i has mu or sigma, etc.), q. (# latent variables)
+# Output: List of parameters
+# Testing: Y = simR$Y; fam = fam; form = form; pC = pC; q. = q. # (get form fc_mfit first)
+
+# if(any(fam == "normal")){ idx <- which(fam == "normal"); Ypc <- Y[,idx] } else {
+#  if(any(fam == "binomial")) {idx <- which(fam == "binomial"); Yp} else {}
+# }
+
+Z. <- princomp(Y,cor = T)$scores[,1:q.,drop=F]
+colnames(Z.) <- paste0("Z", 1:q.)
+sZ <- NULL
+bstart <- NULL
+for(r in names(form)){
+ sZ[[r]] <- as.data.frame(model.matrix(form[[r]],as.data.frame(Z.)))
+ bstart[[r]] <- matrix(0, nrow = ncol(Y), ncol = ncol(sZ[[r]]))
+}
+
+if(!is.matrix(Y)) Y <- as.matrix(Y)
+for(i in 1:ncol(Y)){
+ eq <- NULL
+ tmpY <- Y[,i]
+ eq$mu <- update(form$mu, tmpY ~ .)
+ if(i %in% pC$sigma) eq$sigma <- update(form$sigma, tmpY ~ .)
+ if(i %in% pC$tau) eq$tau <- update(form$tau, tmpY ~ .)
+ if(i %in% pC$nu) eq$nu <- update(form$nu, tmpY ~ .)
+ if(fam[i] == "normal"){
+  tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+  bstart$sigma[i,] <- coef(tmp,"sigma")
+ }
+ if(fam[i] == "lognormal"){ 
+  tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,family = LOGNO(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+  bstart$sigma[i,] <- coef(tmp,"sigma")
+ }
+ if(fam[i] == "poisson"){ 
+  tmp <- gamlss(eq$mu,family = PO(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+ }
+ if(fam[i] == "gamma"){ 
+  tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,family = GA(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+  bstart$sigma[i,] <- coef(tmp,"sigma")
+ }
+ if(fam[i] == "binomial"){ 
+  tmp <- gamlss(eq$mu,family = BI(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+ }
+ if(fam[i] == "ZIpoisson"){ 
+  tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,family = ZIP(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+  bstart$sigma[i,] <- coef(tmp,"sigma")
+ }
+}
+return(bstart)
+}
+
+GBIC <- function(mod){
+  
+b <- mod$b
+ghQ <- mod$ghQ
+fam <- mod$fam
+Y <- mod$Y
+A1 <- dY(Y,ghQ,b,fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+dvL <- dvY(Y,ghQ,b,fam) # List with all the necessary derivatives  
+if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
+pen.idx <- pidx(b,pen.load)
+ll <- sum(log(A2)) # log-likelihood
+Hm <- sche(ghQ,b,fam,dvL,pD)$hessian
+
+if(!is.null(mod$pml.control)){
+pml.control <- mod$pml.control
+if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
+pS <- nrow(Y)*penM(lb2cb(b)[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda,
+                    w.alasso = pml.control$w.alasso,gamma = pml.control$gamma, a = pml.control$a)
+pS. <- rep(0,length(lb2cb(b))); pS.[c(t(pen.idx))] <- diag(pS)
+pS <- diag(pS.); pS <- pS[lb2cb(b) != 0,lb2cb(b) != 0];
+GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
+  GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm)%*%Hm))
+}
+return(GBIC)
+}
+
