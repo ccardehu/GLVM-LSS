@@ -445,6 +445,7 @@ Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr)
 # Hm <- m2pdm(-Hm)
 # cb[cb != 0] <- cb[cb != 0] + c(Hm$inv.mat%*%matrix(Sm))
 cb[cb != 0] <- cb[cb != 0] - c(solve(Hm)%*%matrix(Sm))
+# cb[cb != 0] <- cb[cb != 0] + 0.0005*c(matrix(Sm))
 bnew <- cb2lb(cb,bold)
 } else {
 # Update by item
@@ -455,8 +456,9 @@ for(i in 1:length(fam)){
  # Check PD
  # ~~~~~~~~
  # B <- m2pdm(-B$hessian)
- # b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(A$score)) #} else {
- b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$hess)%*%(A$score)) #} else {
+ # b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(A$score))
+ b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$hess)%*%(A$score))
+ # b[i, A$pos] <- c(b[i,A$pos]) + 0.0005*c(A$score)
  } 
 bnew <- mb2lb(b,bold) }
 return(bnew)
@@ -572,7 +574,7 @@ penM <- function(params, type = "lasso", lambda = 1, w.alasso = NULL,
 # Testing: params = lb2cb(borg); lambda = 1; gamma = 1; a = 3.7;
 # 
 if(is.null(gamma)) gamma = 1
-if(is.null(a)) gamma = 3.7
+if(is.null(a)) a = 3.7
 
 eps = sqrt(.Machine$double.eps) # protective tolerance level
 if(type == "ridge"){

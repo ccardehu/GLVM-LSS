@@ -196,76 +196,151 @@ GBIC(test[[which(lambda == 0.0100)]]),
 GBIC(test[[which(lambda == 0.0075)]]), 
 GBIC(test[[which(lambda == 0.0050)]]))
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# Test: Comparison vs penfa
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Test: Comparison vs penfa & lavaan
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  
 library(penfa)
 data(ccdata)
 
 ccdata.subset <- ccdata[ccdata$country == "LEB",2:8]
 ### Single-group analysis (no mean-structure, unit factor variances)
-syntax = 'Z1 =~ h1 + h2 + h3 + h4 + h5 + h6 + h7
-h1 + h2 + h3 + h4 + h5 + h6 + h7 ~ 1'
-alasso_fit <- penfa(## factor model
-model = syntax, data = ccdata.subset, std.lv = TRUE,
-pen.shrink = "none", information = "fisher",
+syntax = 'Z1 =~ h1 + h2 + h3 + h4 + h5 + h6 + h7'
+# h1 + h2 + h3 + h4 + h5 + h6 + h7 ~ 1'
+alasso_fit <- penfa(model = syntax, data = ccdata.subset, std.lv = TRUE,
+pen.shrink = "lasso", information = "hessian",
 eta = list(shrink = c("lambda" = 0.1), diff = c("none" = 0)),
-strategy = "fixed", gamma = 3.7)
+strategy = "auto", gamma = 3.7)
 summary(alasso_fit)
 # penfaParEstim(alasso_fit)
 
-# library(lavaan)
+library(lavaan)
 CFA.model <- ' Z1 =~ h1 + h2 + h3 + h4 + h5 + h6 + h7 '
-rmtest <- cfa(CFA.model, data = ccdata.subset, orthogonal = T, meanstructure = TRUE, std.lv = TRUE)
-# coef(rmtest)
+rmtest <- cfa(CFA.model, data = ccdata.subset, orthogonal = T, meanstructure = F, std.lv = TRUE); # coef(rmtest)
 summary(rmtest)
-# rm(CFA.model); rm(rmtest)
-
+# rm(CFA.model,rmtest)
+ 
 fam.ex <- rep("normal",ncol(ccdata.subset))
-ex.form <- list("mu" = "~ Z1", "sigma" = "~ 1")
-
+ex.form <- list("mu" = "~ Z1-1", "sigma" = "~ 1")
 ex.test.unp <- splvm.fit(ccdata.subset,fam.ex,ex.form,
-           control = list(method = "EM", full.hess = T,
-           ghQqp = 100, iter.lim = 250, tol = sqrt(.Machine$double.eps), silent = F))
+           control = list(method = "EM", full.hess = T,#start.val = ex.ulb,
+           ghQqp = 100, iter.lim = 250, tol = .Machine$double.eps, silent = F))
 
+# rmtes2 <- ERP::emfa(as.matrix(ccdata.subset), 1, min.err = .Machine$double.eps, verbose = FALSE, svd.method = c("irlba")) #"irlba" "fast.svd"
+# ex.EMfa <- NULL
+# ex.EMfa$mu <- matrix(rmtes2$B, dimnames = dimnames(ex.test.unp$b$mu))
+# ex.EMfa$sigma <- matrix(log(sqrt(rmtes2$Psi)),dimnames = dimnames(ex.test.unp$b$sigma))
+# # ~~~~~~~~~~~~~
+# ex.ulb <- mb2lb(matrix(coef(rmtest),nrow = ncol(ccdata.subset),byrow = F),ex.test.unp$b)
+# ex.ulb$sigma <- log(sqrt(ex.ulb$sigma))
+# c(logLik(rmtest)); ex.test.unp$loglik
+# round(cbind(ex.ulb$mu,ex.test.unp$b$mu,-ex.EMfa$mu),3)
+# round(cbind(ex.ulb$sigma,ex.test.unp$b$sigma,ex.EMfa$sigma),3)
+ 
 ex.lb <- mb2lb(matrix(coef(alasso_fit),nrow = ncol(ccdata.subset),byrow = F),ex.test.unp$b)
+ex.lb$sigma <- log(sqrt(ex.lb$sigma))
+
+mod <- NULL
+mod$b <- ex.lb
+mod$Y <- ex.test.unp$Y
+mod$ghQ <- ex.test.unp$ghQ
+mod$fam <- ex.test.unp$fam
+mod$loglik <- llkf(lb2cb(mod$b),mod$Y,mod$ghQ,mod$b,mod$fam) # Difference with penfa; c(alasso_fit@Optim$logl.unpen)
 
 ex.test.pen <- splvm.fit(ccdata.subset,fam.ex,ex.form,
-           control = list(method = "PEM", full.hess = T,
-           ghQqp = 100, iter.lim = 250, tol = sqrt(.Machine$double.eps), silent = F,
-           pml.control = list(type = "lasso", w.alasso = ex.test.unp$b, lambda = 0.1, pen.load = T)))
+           control = list(method = "PEM", full.hess = F,#start.val = ex.lb,
+           ghQqp = 100, iter.lim = 350, tol = .Machine$double.eps^0.5, silent = F,
+           pml.control = list(type = "alasso", w.alasso = ex.test.unp$b, lambda = 0.002, pen.load = T)))
 
-round(ex.test.unp$b$mu,3)
-round(ex.test.pen$b$mu,3)
-coef(alasso_fit)
-exp(ex.test.unp$b$sigma)
-exp(ex.test.pen$b$sigma)
-# logLik(rmtest); ex.test.unp$loglik
-logLik(alasso_fit); ex.test.pen$loglik
+# round(cbind(ex.lb$mu,ex.test.pen$b$mu),3)
+# round(cbind(ex.lb$sigma,ex.test.pen$b$sigma),3)
+
+round(cbind(ex.test.unp$b$mu,ex.test.pen$b$mu,ex.lb$mu),3)
+round(cbind(exp(ex.test.unp$b$sigma),exp(ex.test.pen$b$sigma),exp(ex.lb$sigma))^2,3)
+# coef(alasso_fit)
+c(alasso_fit@Optim$logl.unpen); ex.test.unp$loglik
+c(alasso_fit@Optim$logl.pen); ex.test.pen$loglik
+# slotNames(alasso_fit)
+
+rmMat <- sche.test(lb2cb(mod$b),mod)$hessian
+rmMat2 <- sche.test(lb2cb(ex.test.pen$b),ex.test.pen)$hessian
+a <- NULL; for(i in 1:ncol(ccdata.subset)){a <- c(a,i,i+ncol(ccdata.subset))}
+plot(c(rmMat2), col = "black", pch = 16, cex = 0.5) # mine
+points(c(rmMat), col = "blue", pch = 16, cex = 0.5) # Implied Elena's
+points(c(alasso_fit@Optim$hessian.pen[a,a]),col = "red", pch = 16, cex = 0.5) # Elena's
+rm(rmMat,rmMat2,a)
+
 GBIC(ex.test.pen)
 GBIC(ex.test.unp)
 
-# ~~~~~~~~~~~~~~~~~~
- 
+cov(ccdata.subset)
+alasso_fit@SampleStats@cov[[1]]
+
+# ~~~~~~~~~~~~~~~~~~~~~~~
+# Test: Comparison vs ltm
+# ~~~~~~~~~~~~~~~~~~~~~~~
+
+library(ltm)
+test <- WIRS
+test <- Mobility
+# data(test)
+rmltm <- ltm::ltm(test ~ z1*z2, IRT.param = F,control = list(GHk = 15, iter.em = 350))
+# rmltm <- ltm(test ~ z1 + I(z1^2), IRT.param = F,control = list(GHk = 50, iter.em = 350))
+# coef(rmltm)
+# rmltm$log.Lik
+
+ex.lb <- mb2lb(matrix(coef(rmltm),nrow = ncol(test),byrow = F),ex.test.unp$b)
+
+fam.ex <- rep("binomial",ncol(test))
+ex.form <- list("mu" = "~ Z1*Z2")
+# ex.form <- list("mu" = "~ Z1 + I(Z1^2)")
+ex.test.unp <- splvm.fit(test,fam.ex,ex.form,
+           control = list(method = "EM", full.hess = T, start.val = ex.lb,
+           ghQqp = 15, iter.lim = 250, tol = .Machine$double.eps^0.5, silent = F))
+
+round(cbind(ex.test.unp$b$mu,ex.lb$mu),3)
+rmltm$log.Lik; ex.test.unp$loglik
+
+ex.test.pen <- splvm.fit(test,fam.ex,ex.form,
+           control = list(method = "PEM", full.hess = T,start.val = ex.test.unp$b,
+           ghQqp = 15, iter.lim = 350, tol = .Machine$double.eps^0.5, silent = F,
+           pml.control = list(type = "mcp", w.alasso = ex.test.unp$b, lambda = 0.1, pen.load = T)))
+
+round(cbind(ex.test.pen$b$mu,ex.test.unp$b$mu,ex.lb$mu),3)
+rmltm$log.Lik; ex.test.unp$loglik; ex.test.pen$loglik
+
+GBIC(ex.test.pen)
+GBIC(ex.test.unp)
+
+mod <- NULL
+mod$b <- ex.lb
+mod$Y <- ex.test.unp$Y
+mod$ghQ <- ex.test.unp$ghQ
+mod$fam <- ex.test.unp$fam
+mod$loglik <- llkf(lb2cb(mod$b),mod$Y,mod$ghQ,mod$b,mod$fam) # rmltm$log.Lik
+
+
+# # ~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~
 
 zsco <- fscore(testc1) # check function
 
-b1 <- lb2cb(testa$b)
+modt <- ex.test.pen
+b1 <- lb2cb(modt$b)
 b2 <- lb2cb(lc)
-b3 <- rep(1,length(b1))*lb2cb(l1)
+b3 <- rep(1,length(b1))*lb2cb(modt$loadmt)
 b4 <- lb2cb(lc.)
-
-modt <- testa
-num.score <- grad(func = llkf, x = b4, method = "Richardson", method.args=list(r = 6, v = 2),
+num.score <- grad(func = llkf, x = b1, method = "Richardson", method.args=list(r = 6, v = 2),
                    Y = modt$Y, ghQ = modt$ghQ, fam = modt$fam, bg = modt$b)
-num.hess <- hessian(func = llkf, x = b4, method = "Richardson", method.args=list(r = 6, v = 2),
+num.hess <- hessian(func = llkf, x = b1, method = "Richardson", method.args=list(r = 6, v = 2),
                    Y = modt$Y, ghQ = modt$ghQ, fam = modt$fam, bg = modt$b)
-ana.res <- sche.test(b4,modt)
+ana.res <- sche.test(b1,modt)
 ana.score <- ana.res$gradient
 ana.hess <- ana.res$hessian
-
-eigen(-ana.hess,symmetric = T,only.values = T)$values
 
 xlabn <- NULL
 for(i in 1:ncol(modt$Y)){

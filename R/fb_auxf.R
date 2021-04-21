@@ -195,6 +195,7 @@ b1 <- cb2lb(b1,bg)
 A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 ll <- sum(log(A2)) # log-likelihood
+# ll <- log(prod(A2)) # log-likelihood
 return(ll)
 }
 

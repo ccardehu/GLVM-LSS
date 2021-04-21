@@ -48,12 +48,12 @@ if(!is.null(loadmt)){
    if(!is.matrix(loadmt[[i]])) loadmt[[i]] <- matrix(loadmt[[i]], nrow = p., ncol = ncol(ghQ$out[[i]]))
   }
 } else {
- message("\n Constraint matrices not supplied, simple structure assumed")
+ message("\n Constraint matrices not supplied. No identification restrictions assumed")
  loadmt <- NULL
  for(i in parY){
   if(length(all.vars(form[[i]])) > 1){
    r. <- p.%/%(ncol(ghQ$out[[i]])-1)
-   tmp1 <- matrix(0, nrow = p., ncol = ncol(ghQ$out[[i]]), dimnames = list(colnames(Y), colnames(ghQ$out[[i]])))
+   tmp1 <- matrix(1, nrow = p., ncol = ncol(ghQ$out[[i]]), dimnames = list(colnames(Y), colnames(ghQ$out[[i]]))) # 0
    for(j in seq_along(all.vars(form[[i]]))){
     tmp2 <- seq((j-1)*(r.)+1,(j)*(r.),length.out = r.)
     tmp1[tmp2,all.vars(form[[i]])[j]] <- 1
@@ -92,7 +92,7 @@ if(!is.null(icoefs)){
   }
   bold <- icoefs
 } else {
- message("\n Starting values not supplied; setting optimal starting values.")
+ message("\n Starting values not supplied. Using 'gamlss' + PCA for initial values. \n")
  # bold <- lapply(parY, function(i) matrix(1, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
  # names(bold) <- parY
  bold <- ini.par(Y,fam,form,pC,q.)
