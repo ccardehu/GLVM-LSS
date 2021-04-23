@@ -84,7 +84,7 @@ pFun <- function(f){ # eval @ fam[1]
  return(pars)
 }
 
-loglkf <- function(cb,Y,ghQ,bg,fam){
+loglkf <- function(cb,Y,ghQ,bg,fam,info){
 
 # Goal: To compute log-likelihood function (to be used in trust function)
 # Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
@@ -99,12 +99,12 @@ A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 pD1 <- exp(rowSums(A1,dim = 2))/A2
 ll <- sum(log(A2)) # log-likelihood
-dvL1 <- dvY(Y,ghQ,b1,fam)
-res <- sche(ghQ,b1,fam,dvL1,pD1)
+dvL1 <- dvY(Y,ghQ,b1,fam,info)
+res <- sche(ghQ,b1,fam,dvL1,pD1,info)
 return(list(value = ll, gradient = res$gradient, hessian = res$hessian))
 }
 
-penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,
+penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,info,
                       pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
                                          gamma = 1, a = 3.7)) {
 
@@ -127,8 +127,8 @@ pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.contr
 pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
 pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; 
 ll <- sum(log(A2)) - 0.5*crossprod(cb,pS)%*%cb # penalised log-likelihood
-dvL1 <- dvY(Y,ghQ,b1,fam)
-res <- sche(ghQ,b1,fam,dvL1,pD1)
+dvL1 <- dvY(Y,ghQ,b1,fam,info)
+res <- sche(ghQ,b1,fam,dvL1,pD1,info)
 return(list(value = c(ll), gradient = res$gradient - c(tcrossprod(cb,pS)), hessian = res$hessian - pS))
 }
 
@@ -210,8 +210,8 @@ b <- cb2lb(cb,mod$b)
 A1 <- dY(mod$Y,mod$ghQ,b,mod$fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%mod$ghQ$weights) # this is efy
 mod.pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
-mod.dvL <- dvY(mod$Y,mod$ghQ,b,mod$fam) # List with all the necessary derivatives
-res <- sche(ghQ = mod$ghQ, b = b, fam = mod$fam, dvL = mod.dvL, pD = mod.pD)    
+mod.dvL <- dvY(mod$Y,mod$ghQ,b,mod$fam,mod$info) # List with all the necessary derivatives
+res <- sche(ghQ = mod$ghQ, b = b, fam = mod$fam, dvL = mod.dvL, pD = mod.pD, info = mod$info)    
 return(res)
 }
 
@@ -254,11 +254,13 @@ lb2pM <- function(lb,Y,pen.idx,
 # Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
    
 b <- lb2mb(lb)[pen.idx]
+if(length(b) != 0){
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 P <- nrow(Y)*penM(b,type = pml.control$type, lambda = pml.control$lambda,
                   w.alasso = pml.control$w.alasso, gamma = pml.control$gamma,
                   a = pml.control$a)
-return(0.5*crossprod(b,P)%*%b)
+return(0.5*crossprod(b,P)%*%b)}
+else return(0)
 }
 
 pidx <- function(lb,pen.load){
@@ -348,17 +350,11 @@ return(bstart)
 GBIC <- function(mod){
   
 b <- mod$b
-ghQ <- mod$ghQ
-fam <- mod$fam
 Y <- mod$Y
-A1 <- dY(Y,ghQ,b,fam)
-A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
-pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
-dvL <- dvY(Y,ghQ,b,fam) # List with all the necessary derivatives  
 if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
 pen.idx <- pidx(b,pen.load)
-ll <- sum(log(A2)) # log-likelihood
-Hm <- sche(ghQ,b,fam,dvL,pD)$hessian
+ll <- mod$loglik
+Hm <- mod$hessian
 
 if(!is.null(mod$pml.control)){
 pml.control <- mod$pml.control
@@ -372,4 +368,42 @@ GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
 }
 return(GBIC)
 }
+
+GIC <- function(mod){
+  
+b <- mod$b
+Y <- mod$Y
+if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
+pen.idx <- pidx(b,pen.load)
+ll <- mod$loglik
+Hm <- mod$hessian
+
+if(!is.null(mod$pml.control)){
+pml.control <- mod$pml.control
+if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
+pS <- nrow(Y)*penM(lb2cb(b)[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda,
+                    w.alasso = pml.control$w.alasso,gamma = pml.control$gamma, a = pml.control$a)
+pS. <- rep(0,length(lb2cb(b))); pS.[c(t(pen.idx))] <- diag(pS)
+pS <- diag(pS.); pS <- pS[lb2cb(b) != 0,lb2cb(b) != 0];
+GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
+  GBIC <- -2*ll + 2*sum(diag(solve(Hm)%*%Hm))
+}
+return(GBIC)
+}
+
+# simbetas <- function(fam,form){
+# 
+# p <- length(fam)
+# parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
+# if(!is.list(form)) stop("Argument `form` should be a list with elements mu, sigma, tau and/or nu")
+# if(!all(names(form) == parY)) stop("Error in formula, check for mu, sigma, tau or nu")
+# for(i in parY){ form[[i]] <- as.formula(form[[i]]) }
+# 
+# lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
+# lvar <- lvar[grep("Z", lvar, fixed = T)]
+# if(length(lvar) == 0) stop("Latent variables in formula should be represented by letter Z (capital)")
+# q. <- length(lvar)
+# 
+# 
+# }
 
