@@ -128,11 +128,10 @@ if(fam[i] == "ZIpoisson"){ # structure(gamlss.dist::ZIP)
  dvY$d1sg[,z,i] = (u-sigma)/(sigma*(1-sigma)) * (sigma*(1-sigma))
  if(info.F) dvY$d2sg[,z,i] = -(u/(sigma^2) + (1-u)/((1-sigma)^2)) * (sigma*(1-sigma))^2 else  # CHECK THIS
   dvY$d2sg[,z,i] = -(sigma^2 - 2*u*sigma + u)/((sigma-1)*sigma)^2 * (sigma*(1-sigma))^2 + (1-2*sigma)*dvY$d1sg[,z,i] # -(u/(sigma^2) + (1-u)/((1-sigma)^2)) * (sigma*(1-sigma))^2
- dvY$dcms[,z,i] = rep(0, length(Y))
+ dvY$dcms[,z,i] = rep(0, length(Y[,i]))
 } } }
-
+for(i in names(dvY)){ if(all(is.na(dvY[[i]]))) dvY[[i]] <- NULL } 
 return(dvY)
-
 }
 
 sco <- function(i,ghQ,b,fam,dvL,pD){
@@ -609,27 +608,22 @@ penM <- function(params, type = "lasso", lambda = 1, w.alasso = NULL,
 if(is.null(gamma)) gamma = 1
 if(is.null(a)) a = 3.7
 eps = 1e-8 # sqrt(.Machine$double.eps) # protective tolerance level
-
 if(type == "ridge"){
- # S <- lambda * diag( rep(1, length(params) ) )
  A1 <-  lambda*rep(1, length(params))
 }
 if(type == "lasso"){
- # S <- lambda * diag( 1/sqrt(params^2 + eps) )#*as.integer(params != 0)
  A1 <- lambda*1/sqrt(params^2 + eps) 
 }
 if(type == "alasso"){
  if( is.null(w.alasso) ) w.alasso <- 1
  w.al <- 1/abs(w.alasso)^gamma
- # S <- lambda * diag( w.al/sqrt(params^2 + eps) )#*as.integer(params != 0)
  A1 <- lambda*w.al/sqrt(params^2 + eps)
 }
 if(type == "scad"){
  theta <- abs(params) 
  f1 <- sapply(theta, function(theta) { max(a*lambda - theta, 0)/((a-1)*lambda + eps) })
- f.d <- ((theta <= lambda) + f1 * (theta > lambda)) # * lambda
- # S <- diag( f.d / ( sqrt(params^2 + eps) + 1e-06 ) )
- A1 <- lambda* f.d / ( sqrt(params^2 + eps) ) #+ 1e-06
+ f.d <- ((theta <= lambda) + f1 * (theta > lambda))
+ A1 <- lambda* f.d / ( sqrt(params^2 + eps) )
 }
 if(type == "mcp"){
  theta <- abs(params) 

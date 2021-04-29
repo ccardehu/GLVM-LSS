@@ -165,22 +165,6 @@ fyz <- ifelse(rbinom(n,1,1-sigma) == 0, 0, rpois(n,mu))
 return(fyz)
 }
 
-fscore <- function(mod){
-   
-# Goal: To compute Expected a-posterior Scores for model 'mod'
-# Input : mod (splvm model)
-# Output: Matrix of factor scores
-# Testing: mod = testa
-
-A1 <- dY(mod$Y,mod$ghQ,mod$b,mod$fam)
-A2 <- c(exp(rowSums(A1,dim = 2))%*%mod$ghQ$weights) 
-pD <- exp(rowSums(A1,dim = 2))/A2 # posterior density
-# Check for conditional scoring when q > 1   
-zscore <- pD%*%mod$ghQ$points[,,drop=F]
-zscore <- as.data.frame(zscore); names(zscore) <- colnames(mod$ghQ$points)
-return(zscore)
-}
-
 llkf <- function(cb,Y,ghQ,bg,fam){
 
 # Goal: To compute log-likelihood function
@@ -305,6 +289,7 @@ bstart <- NULL
 for(r in names(form)){
  sZ[[r]] <- as.data.frame(model.matrix(form[[r]],as.data.frame(Z.)))
  bstart[[r]] <- matrix(0, nrow = ncol(Y), ncol = ncol(sZ[[r]]))
+ dimnames(bstart[[r]]) <- list(colnames(Y),colnames(sZ[[r]]))
 }
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
@@ -344,6 +329,7 @@ for(i in 1:ncol(Y)){
   bstart$sigma[i,] <- coef(tmp,"sigma")
  }
 }
+for(r in names(form)){ if("Z1" %in% colnames(bstart[[r]]) && bstart[[r]][1,"Z1"] < 0) bstart[[r]][,"Z1"] <- - bstart[[r]][,"Z1"] }
 return(bstart)
 }
 
@@ -391,19 +377,17 @@ GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
 return(GBIC)
 }
 
-# simbetas <- function(fam,form){
-# 
-# p <- length(fam)
-# parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
-# if(!is.list(form)) stop("Argument `form` should be a list with elements mu, sigma, tau and/or nu")
-# if(!all(names(form) == parY)) stop("Error in formula, check for mu, sigma, tau or nu")
-# for(i in parY){ form[[i]] <- as.formula(form[[i]]) }
-# 
-# lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
-# lvar <- lvar[grep("Z", lvar, fixed = T)]
-# if(length(lvar) == 0) stop("Latent variables in formula should be represented by letter Z (capital)")
-# q. <- length(lvar)
-# 
-# 
-# }
-
+fscore <- function(mod){
+   
+# Goal: To compute Expected a-posterior Scores for model 'mod'
+# Input : mod (splvm model)
+# Output: Matrix of factor scores
+# Testing: mod = testa
+ 
+A1 <- dY(mod$Y,mod$ghQ,mod$b,mod$fam)
+A2 <- c(exp(rowSums(A1,dim = 2))%*%mod$ghQ$weights) 
+pD <- exp(rowSums(A1,dim = 2))/A2 # posterior density
+zscore <- pD%*%(c(mod$ghQ$weights)*mod$ghQ$points)[,,drop=F]
+zscore <- as.data.frame(zscore); names(zscore) <- colnames(mod$ghQ$points)  
+return(zscore)
+}

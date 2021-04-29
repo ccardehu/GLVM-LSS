@@ -92,10 +92,10 @@ if(!is.null(icoefs)){
   }
   bold <- icoefs
 } else {
- cat("\n Starting values not supplied. Using 'gamlss' & PCA for initial values .... (Done)\n")
+ cat("\n Starting values not supplied: Initial guess defined using 'gamlss' & PCA (for factor scores)\n")
  # bold <- lapply(parY, function(i) matrix(1, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
  # names(bold) <- parY
- bold <- ini.par(Y,fam,form,pC,q.)
+ bold <- suppressWarnings(ini.par(Y,fam,form,pC,q.))
  }
 for(i in parY){
  bold[[i]] <- bold[[i]]*loadmt[[i]]
@@ -104,7 +104,7 @@ for(i in parY){
   
 # Estimation
 # ~~~~~~~~~~
-if(sum(lb2cb(loadmt)) > p.*(p.-1)/2) cat("\n Warning: Number of parameters is < p(p-1)/2. Model might be under-indentified.\n")
+if(sum(lb2cb(loadmt)) > p.*(p.-1)/2) cat("\n Warning: Number of free parameters is less than p(p-1)/2. Model might be under-indentified.\n")
 method <- control$method
 pml.control <- control$pml.control
 if(is.null(pml.control$pen.load)) pen.load <- F else pen.load <- pml.control$pen.load
@@ -237,6 +237,8 @@ if(control$silent == F) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", 
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 }
+
+# for(r in parY){ if(bold[[r]][1,"Z1"] < 0) bold[[r]][,"Z1"] <- -bold[[r]][,"Z1"] }
     
 }
 return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, ghQ = ghQ,

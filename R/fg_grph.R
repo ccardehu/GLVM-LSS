@@ -1,10 +1,115 @@
 
-splvm.plot <- function(item = 1, mod = ex1, morg = simR,
+grph.fun1 <- function(item,mod,qtl = c(seq(0.1,0.9,by = 0.2)) ){ #fFun + gFun
+
+# Goal: To compute Expected values, SD, fitted parameters
+#       and quantiles of distribution for item i
+# Input: item (item), model (mod), quantiles (qtl)
+# Output: List with E(i), sd(i), theta(i) and Q_{qtl}(i)
+# Testing: item = 1; mod = testmod; qtl = c(seq(0.1,0.9,by = 0.2))
+ 
+if(missing(qtl) || is.null(qtl)) qtl.ret <- F else qtl.ret <- T
+
+Z <- mod$ghQ$out
+
+if(mod$fam[item] == "normal"){
+ mu = c(unname(as.matrix(Z$mu)%*%matrix(mod$b$mu[item,])))
+ sigma = c(unname(exp(as.matrix(Z$sigma)%*%matrix(mod$b$sigma[item,]))))
+ EY = mu
+ SY = sigma
+ if(qtl.ret){
+  qM = matrix(nrow = length(mu), ncol = length(qtl)); colnames(qM) <- paste0("q",qtl*100)
+  for(j in seq_along(qtl)){ qM[,j] <- qnorm(qtl[j],mu,sigma) } }
+ theta = list(mu = mu, sigma = sigma)
+}
+if(mod$fam[item] == "lognormal"){
+ mu = c(unname(as.matrix(Z$mu)%*%matrix(mod$b$mu[item,])))
+ sigma = c(unname(exp(as.matrix(Z$sigma)%*%matrix(mod$b$sigma[item,]))))
+ EY = exp(mu + 0.5*sigma^2)
+ SY = sqrt((exp(sigma^2)-1)*exp(2*mu+sigma^2))
+ if(qtl.ret){
+  qM = matrix(nrow = length(mu), ncol = length(qtl)); colnames(qM) <- paste0("q",qtl*100)
+  for(j in seq_along(qtl)){ qM[,j] <- qlnorm(qtl[j],mu,sigma) } }
+ theta = list(mu = mu, sigma = sigma)
+}
+if(mod$fam[item] == "poisson"){
+ mu = c(unname(exp(as.matrix(Z$mu)%*%matrix(mod$b$mu[item,]))))
+ EY = mu
+ SY = sqrt(mu)
+ if(qtl.ret){
+  qM = matrix(nrow = length(mu), ncol = length(qtl)); colnames(qM) <- paste0("q",qtl*100)
+  for(j in seq_along(qtl)){ qM[,j] <- qpois(qtl[j],mu) } }
+ theta = list(mu = mu)
+}
+if(mod$fam[item] == "gamma"){
+ mu = c(unname(exp(as.matrix(Z$mu)%*%matrix(mod$b$mu[item,]))))
+ sigma = c(unname(exp(as.matrix(Z$sigma)%*%matrix(mod$b$sigma[item,]))))
+ EY = mu*sigma
+ SY = sqrt(mu*sigma^2)
+ if(qtl.ret){
+  qM = matrix(nrow = length(mu), ncol = length(qtl)); colnames(qM) <- paste0("q",qtl*100)
+  for(j in seq_along(qtl)){ qM[,j] <- qgamma(qtl[j], shape = mu, scale = sigma) } }
+ theta = list(mu = mu, sigma = sigma)
+}
+if(mod$fam[item] == "binomial"){
+ mu = c(unname(probs(as.matrix(Z$mu)%*%matrix(mod$b$mu[item,]))))
+ EY = mu
+ SY = sqrt(mu*(1-mu))
+ if(qtl.ret){
+  qM = matrix(nrow = length(mu), ncol = length(qtl)); colnames(qM) <- paste0("q",qtl*100)
+  for(j in seq_along(qtl)){ qM[,j] <- qbinom(qtl[j], 1, mu) } }
+ theta = list(mu = mu)
+}
+if(mod$fam[item] == "ZIpoisson"){
+ mu = c(unname(exp(as.matrix(Z$mu)%*%matrix(mod$b$mu[item,]))))
+ sigma = c(unname(probs(as.matrix(Z$sigma)%*%matrix(mod$b$sigma[item,]))))
+ qZIpoisson <- function (p,mu,sigma){ # https://stats.stackexchange.com/questions/463844/is-there-an-equation-for-the-median-and-percentile-of-a-zero-inflated-poisson
+  ly <- max(length(p), length(mu), length(sigma))
+  p <- rep(p, length = ly); sigma <- rep(sigma, length = ly); mu <- rep(mu, length = ly)
+  pnew <- ((p - sigma)/(1 - sigma)) - (1e-07)
+  pnew <- ifelse(pnew > 0, pnew, 0)
+  q <- ifelse(p > sigma*(1-sigma)*dpois(0,mu), qpois(pnew, mu), 0)
+  return(q)
+ }
+ EY = (1-sigma)*mu
+ SY = sqrt(mu*(1-sigma)*(1+mu*sigma))
+ if(qtl.ret){
+  qM = matrix(nrow = length(mu), ncol = length(qtl)); colnames(qM) <- paste0("q",qtl*100)
+  for(j in seq_along(qtl)){ qM[,j] <- qZIpoisson(qtl[j], mu, sigma) } }
+ theta = list(mu = mu, sigma = sigma)
+}
+if(qtl.ret){
+ return(list(mean = EY, sd = SY, theta = theta, quant = as.data.frame(qM))) } else {
+ return(list(mean = EY, sd = SY, theta = theta)) }
+}
+
+grph.fun2 <- function(item,mod,cut){ #f2Fun
+   
+# Goal: To compute density (using fitted parameters) for item i
+# Input: item (item), model (mod), cut
+# Output: Density f(Y_i), for a selected (cut) combination of theta[cut]
+# Testing: item = 1; mod = testmod; cut = 1
+
+g <- grph.fun1(item,mod)
+if(mod$fam[item] == "normal"){ fyz <- dnorm(mod$Y[,item], g$theta$mu[cut], g$theta$sigma[cut]) }
+if(mod$fam[item] == "lognormal"){ fyz <- dlnorm(mod$Y[,item], g$theta$mu[cut], g$theta$sigma[cut]) }
+if(mod$fam[item] == "poisson"){ fyz <- dpois(ceiling(mod$Y[,item]), g$theta$mu[cut]) }
+if(mod$fam[item] == "gamma"){ fyz <- dgamma(mod$Y[,item],shape = g$theta$mu[cut], scale = g$theta$sigma[cut]) }
+if(mod$fam[item] == "binomial"){ fyz <- dbinom(round(mod$Y[,item]), 1, prob = g$theta$mu[cut]) }  
+if(mod$fam[item] == "ZIpoisson"){
+dZIpoisson <- function(Y,mu,sigma,log=T){
+ u <- as.numeric(Y == 0); lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+ if(log == T) return(lf) else return(exp(lf))
+}; fyz <- dZIpoisson(ceiling(mod$Y[,item]), g$theta$mu[cut], g$theta$sigma[cut], log = F) }
+return(fyz)    
+}
+
+splvm.plot <- function(item, mod, 
+                       control.plot = list(sim.mod = simR,
                        plot.mean = T, plot.sd = F, plot.org = F,
-                       quant = c(0.05,0.2,0.4,0.6,0.8,0.95),
+                       qtl = c(0.05,0.2,0.4,0.6,0.8,0.95),
                        plot.3D = F, sep.plots = T, plot.dist = T,
                        plot.addpoints = F
-                       ){
+                       )){
 
 # Goal: Plot semi-parametric LVM
 # Input : item (item), model (mod),
