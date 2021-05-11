@@ -133,6 +133,7 @@ bold <- bnew
 if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
+upll <- lln
 }
   
 if(method == "PEM"){
@@ -156,6 +157,7 @@ bold <- bnew
 if(control$silent == F) cat("\r (Penalised) EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
+upll <- sum(log(A2))
 }
 
 if(method == "ML"){
@@ -173,6 +175,7 @@ iter <- control$iter.lim + 1; eps <- 0
 if(control$silent == F) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
 mod.grad <- r1$gradient
 mod.hess <- r1$hessian
+upll <- lln
 }
   
 if(method == "PML"){
@@ -192,6 +195,8 @@ iter <- control$iter.lim + 1; eps <- 0
 if(control$silent == F) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
 mod.grad <- r1$gradient
 mod.hess <- r1$hessian
+A1 <- dY(Y,ghQ,bnew,fam); A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights)
+upll <- sum(log(A2))
 }
 
 if(method == "hybrid"){
@@ -213,6 +218,7 @@ if(iter >= control$EM.iter.lim){ method <- "ML"; catmsg <- paste0("(after ", ite
 if(control$silent == F) cat("\r Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
+upll <- lln
 }
 
 if(method == "P-hybrid"){
@@ -236,12 +242,13 @@ if(iter >= control$EM.iter.lim){ method <- "PML"; catmsg <- paste0("(after ", it
 if(control$silent == F) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
+upll <- sum(log(A2))
 }
 
 # for(r in parY){ if(bold[[r]][1,"Z1"] < 0) bold[[r]][,"Z1"] <- -bold[[r]][,"Z1"] }
     
 }
-return(list(b = bnew, loglik = lln, loadmt = loadmt, iter = iter, ghQ = ghQ,
+return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt, iter = iter, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
             pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information))
 },

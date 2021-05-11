@@ -339,7 +339,7 @@ b <- mod$b
 Y <- mod$Y
 if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
 pen.idx <- pidx(b,pen.load)
-ll <- mod$loglik
+ll <- mod$uploglik
 Hm <- mod$hessian
 
 if(!is.null(mod$pml.control)){
@@ -361,7 +361,7 @@ b <- mod$b
 Y <- mod$Y
 if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
 pen.idx <- pidx(b,pen.load)
-ll <- mod$loglik
+ll <- mod$uploglik
 Hm <- mod$hessian
 
 if(!is.null(mod$pml.control)){
