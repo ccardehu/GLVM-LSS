@@ -483,8 +483,7 @@ return(list(b = bnew, gradient = Sm, hessian = as.matrix(Hm)))
 }
 
 upB.pen <- function(bold,ghQ,fam,dvL,pD,full.hess = T,pen.idx,information = c("Hessian","Fisher"),
-                    pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
-                                         gamma = 1, a = 3.7)){
+                    pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,a = NULL)){
                 
 # Goal: To update factor loadings (when Penalised EM)
 # Input : bold (loadings), ghQ (GHQ object), fam (distributions),
@@ -521,7 +520,7 @@ Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr)
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 if(length(cb[c(t(pen.idx))]) != 0){
 pS <- nrow(pD)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, #  == (b != 0)
-                    w.alasso = pml.control$w.alasso,gamma = pml.control$gamma, a = pml.control$a)
+                    w.alasso = pml.control$w.alasso, a = pml.control$a)
 pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
 pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; } else { pS <- diag(rep(0,sum(cb != 0))) }
 Sm <- Sm - pS%*%cb[cb != 0]
@@ -541,8 +540,7 @@ Sm <- NULL
 for(i in 1:length(fam)){
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[i,pen.idx[i,]]
  if(length(c(b[i,pen.idx[i,]])) != 0){
- pS <- nrow(pD)*penM(c(b[i,pen.idx[i,]]),type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,
-           gamma = pml.control$gamma, a = pml.control$a);
+ pS <- nrow(pD)*penM(c(b[i,pen.idx[i,]]),type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso, a = pml.control$a);
  if(length(pS) != 1) pS <- diag(pS)
  pS. <- diag(rep(0,length(c(b[i,])))); diag(pS.)[c(t(pen.idx[i,]))] <- pS
  pS <- pS.; pS <- pS[b[i,] != 0, b[i,] != 0]; } else { pS <- diag(rep(0,sum(c(b[i,] != 0)))) }
@@ -597,16 +595,14 @@ Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr)
 return(list(gradient = Sm, hessian = Hm))
 }
 
-penM <- function(params, type = "lasso", lambda = 1, w.alasso = NULL,
-                 gamma = 1, a = 3.7){ 
+penM <- function(params, type = "lasso", lambda = 1, w.alasso = NULL,a = 3.7){ 
 
 # Goal: To produce a Penalty matrix of parameters (params)
 # Input : model parameters (params)
 # Output: Penalty matrix
 # Testing: params = lb2cb(borg); lambda = 1; gamma = 1; a = 3.7;
 # 
-if(is.null(gamma)) gamma = 1
-if(is.null(a)) a = 3.7
+
 eps = 1e-8 # sqrt(.Machine$double.eps) # protective tolerance level
 if(type == "ridge"){
  A1 <-  lambda*rep(1, length(params))
@@ -615,17 +611,20 @@ if(type == "lasso"){
  A1 <- lambda*1/sqrt(params^2 + eps) 
 }
 if(type == "alasso"){
+ if(is.null(a)) a = 2
  if( is.null(w.alasso) ) w.alasso <- 1
- w.al <- 1/abs(w.alasso)^gamma
+ w.al <- 1/abs(w.alasso)^a
  A1 <- lambda*w.al/sqrt(params^2 + eps)
 }
 if(type == "scad"){
+ if(is.null(a)) a = 3.7
  theta <- abs(params) 
  f1 <- sapply(theta, function(theta) { max(a*lambda - theta, 0)/((a-1)*lambda + eps) })
  f.d <- ((theta <= lambda) + f1 * (theta > lambda))
  A1 <- lambda* f.d / ( sqrt(params^2 + eps) )
 }
 if(type == "mcp"){
+ if(is.null(a)) a = 2.5
  theta <- abs(params) 
  f.d <- (lambda-theta/a)*(theta < lambda*a)
  A1 <- f.d / ( sqrt(params^2 + eps) )

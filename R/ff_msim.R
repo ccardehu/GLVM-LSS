@@ -93,6 +93,7 @@ names(borg) <- parY
 
 Y <- sapply(1:p, function(i) rFun(n,i,fam[i], Z.,borg))
 Y <- as.data.frame(Y); colnames(Y) <- paste0("Y", 1:p)
+ll <- sum(sapply(1:p, function(i) dFun(i,Y,Z.,borg,fam)))
 
-return(list("Y" = Y, "Z" = Z, "Zout" = Z., "b" = borg, "formula" = form, "constraints" = constraints))
+return(list("Y" = Y, "Z" = Z, "Zout" = Z., "b" = borg, "formula" = form, "constraints" = constraints, "llk" = ll))
 }

@@ -9,6 +9,11 @@ library(splines)
 library(mvtnorm)
 library(numDeriv)
 library(gamlss)
+library(foreach)
+library(doSNOW)
+library(parallel)
+library(itertools)
+library(xtable)
 
 # `%!in%` <- Negate(`%in%`)
 
@@ -17,42 +22,47 @@ source("fb_auxf.R")
 source("fc_mfit.R")
 source("fd_mghq.R")
 source("ff_msim.R")
+source("fg_grph.R")
+# source("fi_esim.R")
 
 n = 1000     # Number of individuals
 p = 10       # Number of items
 nsim = 1000  # Number of simulations
-s.form <- list("mu" = "~ Z1 + Z2", "sigma" = "~ 1")
-fam <- rep("normal",p)
+s.form <- list("mu" = "~ Z1 * Z2")
+fam <- rep("binomial",p)
 
 l1 <- NULL
-l1$mu <- matrix(1,ncol = 3, nrow = p)
-l1$sigma <- matrix(1, ncol = 1, nrow = p)
+l1$mu <- matrix(1,ncol = 4, nrow = p)
+# l1$sigma <- matrix(1, ncol = 2, nrow = p)
 
 l1. <- l1
 # l1.$mu[1,3] <- 0
 # l1.$mu[6,2] <- 0
 # l1.$mu[sample(1:p, p/2, replace = F),3] <- 0
-# l1.$mu[sample(1:p, p/2, replace = F),4] <- 0
+l1.$mu[sample(1:p, p/2, replace = F),4] <- 0
 # l1.$sigma[sample(1:p, p/2, replace = F),2] <- 0
 # l1.$sigma[,3] <- 0
 # l1.$sigma[sample(which(l1.$sigma[,2] == 1), sum(l1.$sigma[,2] == 1)/2, replace = F),3] <- 1
 
 lc <- NULL
-lc$mu <- matrix(runif(length(l1$mu),-1,1),nrow = p)
-lc$mu[,1] <- runif(p,1,2) 
-lc$mu[,2] <- runif(p,-1,1)
-if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]
-# lc$mu[,3] <- runif(p,-1,-0.5)
+# lc$mu <- matrix(runif(length(l1$mu),-1.5,1.5),nrow = p) # for Normal
+lc$mu <- matrix(runif(length(l1$mu),-1.5,1.5),nrow = p) # for Bernoulli
+# lc$mu[,1] <- runif(p,1,2) # for Normal
+# lc$mu[,2] <- runif(p,-2,2) # for Normal
+if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2] # for Normal
+lc$mu[abs(lc$mu) < 0.3] <- runif(sum(abs(lc$mu) < 0.3), 0.5,1.0) # for Normal
+# lc$mu[,3] <- runif(p,-1,0.5)
 # lc$mu[,4] <- runif(p,-0.3,-0.1)
-lc$sigma <- matrix(runif(length(l1$sigma), min = 0.1, max = 0.3), nrow = p)
-if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2]
+# lc$sigma <- matrix(runif(length(l1$sigma), min = 0.3, max = 1.0), nrow = p) # for Normal
+# if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2] # for Normal
+# lc$sigma[abs(lc$sigma) < 0.2] <- runif(sum(abs(lc$sigma) < 0.2), 0.2,0.5) # for Normal
 # lc$sigma[,1] <- runif(p,-0.5,0.5)
 # lc$sigma[,2] <- runif(p,-0.5,1)
 # # lc$sigma[,3] <- runif(p,-0.3,-0.1)
 
 lc. <- NULL
 lc.$mu <- lc$mu * l1.$mu
-lc.$sigma <- lc$sigma * l1.$sigma
+# lc.$sigma <- lc$sigma * l1.$sigma
 
 simR <- splvm.sim(n = n, form = s.form, fam = fam, constraints = l1., coefs = lc.)
 Y <- simR$Y
@@ -64,40 +74,29 @@ e.form <- s.form
 # profvis::profvis({
 testa0 <- splvm.fit(Y,fam,e.form,
           control = list(method = "EM", constraint = l1., full.hess = F, start.val = lc.,
-          ghQqp = 10, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher"))
+          ghQqp = 30, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher"))
 
 testa1 <- splvm.fit(Y,fam,e.form,
-          control = list(method = "EM", constraint = l1., full.hess = F, 
-          ghQqp = 10, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher"))
+          control = list(method = "EM", constraint = l1, full.hess = F, 
+          ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher"))
 
 testa2 <- splvm.fit(Y,fam,e.form,
-          control = list(method = "PEM", constraint = l1., full.hess = F, start.val = testa1$b,
-          ghQqp = 10, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher",
-          pml.control = list(type = "scad", lambda = 0.01, w.alasso = testa1$b, gamma = 1, a = 3.7,pen.load = T)))
+          control = list(method = "PEM", constraint = l1, full.hess = F, #start.val = testa1$b,
+          ghQqp = 30, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher",
+          pml.control = list(type = "scad", lambda = 0.1, w.alasso = testa1$b, pen.load = F)))
 
 testa3 <- splvm.fit(Y,fam,e.form,
-          control = list(method = "PEM", constraint = l1., full.hess = F, start.val = testa1$b,
-          ghQqp = 10, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher",
-          pml.control = list(type = "mcp", lambda = 0.03, w.alasso = testa1$b, gamma = 1, a = 3.7,pen.load = T)))
+          control = list(method = "PEM", constraint = l1, full.hess = F, #start.val = testa1$b,
+          ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher",
+          pml.control = list(type = "mcp", lambda = 0.01, w.alasso = testa1$b, pen.load = F)))
 
-round(cbind(testa1$b$mu,testa2$b$mu,testa3$b$mu,borg$mu),4)
-round(cbind(testa1$b$sigma,testa2$b$sigma,testa3$b$sigma, borg$sigma),4)
+round(cbind(testa0$b$mu,testa1$b$mu,testa2$b$mu,testa3$b$mu,borg$mu),4)
+round(cbind(testa0$b$sigma,testa1$b$sigma,testa2$b$sigma,testa3$b$sigma, borg$sigma),4)
 # })
 
-GBIC(testa1); GBIC(testa2); GBIC(testa3)
+GBIC(testa0);GBIC(testa1); GBIC(testa2); GBIC(testa3)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# library(ltm)
-# rmltma <- ltm::ltm(Y ~ z1, IRT.param = F, start.val = lc$mu, control = list(GHk = 20, iter.em = 200))
-# coef(rmltma)*l1$mu
-# rmltma$log.Lik
-# # 
-# library(lavaan)
-# CFA.model <- ' Z1 =~ NA*Y1+Y2+Y3+Y4+Y5+Y6+Y7+Y8+Y9+Y10 '
-# rmtest <- cfa(CFA.model, data = Y, orthogonal = T, meanstructure = TRUE, std.lv = TRUE)
-# coef(rmtest)
-# summary(rmtest)
 
 testb0 <- splvm.fit(Y,fam,e.form,
           control = list(method = "EM", constraint = l1, full.hess = T, start.val = lc, 
@@ -110,12 +109,12 @@ testb1 <- splvm.fit(Y,fam,e.form,
 testb2 <- splvm.fit(Y,fam,e.form,
           control = list(method = "PEM", constraint = l1, full.hess = T, start.val = testb0$b, 
           ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
-          pml.control = list(type = "mcp", lambda = 0.1, w.alasso = testb1$b,gamma = 1, a = 3.7,pen.load = F)))
+          pml.control = list(type = "mcp", lambda = 0.1, w.alasso = testb1$b, pen.load = F)))
 
 testb3 <- splvm.fit(Y,fam,e.form,
           control = list(method = "PEM", constraint = l1, full.hess = T,
           ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
-          pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testb1$b,gamma = 1, a = 3.7,pen.load = F)))
+          pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testb1$b, pen.load = F)))
 
 round(cbind(testb1$b$mu,testb2$b$mu,testb3$b$mu,borg$mu),4)
 round(cbind(testb1$b$sigma,testb2$b$sigma,testb3$b$sigma, borg$sigma),4)
@@ -135,12 +134,12 @@ testc1 <- splvm.fit(Y,fam,e.form,
 testc2 <- splvm.fit(Y,fam,e.form,
           control = list(method = "PML", constraint = l1, start.val = testc1$b, 
           ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
-          pml.control = list(type = "lasso", lambda = 0.2, w.alasso = testc1$b, gamma = 1, a = 3.7,pen.load = F)))
+          pml.control = list(type = "lasso", lambda = 0.2, w.alasso = testc1$b, pen.load = F)))
 
 testc3 <- splvm.fit(Y,fam,e.form,
           control = list(method = "PML", constraint = l1, start.val = testc1$b,
           ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
-          pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testc1$b, gamma = 1, a = 3.7,pen.load = F)))
+          pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testc1$b, pen.load = F)))
 
 round(cbind(testc1$b$mu,testc2$b$mu,testc3$b$mu,borg$mu),3)
 round(cbind(testc1$b$sigma,testc2$b$sigma,testc3$b$sigma, borg$sigma),4)
@@ -160,12 +159,12 @@ testd1 <- splvm.fit(Y,fam,e.form,
 testd2 <- splvm.fit(Y,fam,e.form,
           control = list(method = "P-hybrid", constraint = l1, full.hess = F, start.val = testd1$b,
           EM.iter.lim = 10, ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
-          pml.control = list(type = "lasso", lambda = 0.01, w.alasso = testd1$b, gamma = 1, a = 3.7,pen.load = F)))
+          pml.control = list(type = "lasso", lambda = 0.01, w.alasso = testd1$b, pen.load = F)))
 
 testd3 <- splvm.fit(Y,fam,e.form,
           control = list(method = "P-hybrid", constraint = l1, full.hess = F,start.val = testd1$b,
           EM.iter.lim = 10, ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
-          pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testd1$b, gamma = 1, a = 3.7,pen.load = F)))
+          pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testd1$b, pen.load = F)))
 
 round(cbind(testd1$b$mu,testd2$b$mu,testd3$b$mu,borg$mu),4)
 round(cbind(testd1$b$sigma,testd2$b$sigma,testd3$b$sigma, borg$sigma),4)
@@ -187,15 +186,43 @@ round(cbind(testa3$b$sigma, testb3$b$sigma, testc3$b$sigma, testd3$b$sigma, borg
 # Test for different values of lambda in PML
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-lambda <- seq(0.02,0.005,length.out = 7)
+lambda <- seq(0.01,0.1,by = 0.01)
+pas <- seq(1.5,2.5,by = 0.5)
 
-test <- NULL
+test <- matrix(NA,ncol=length(pas),nrow = length(lambda))
+colnames(test) <- pas; rownames(test) <- lambda
 for(i in seq_along(lambda)){
- test[[i]] <- splvm.fit(Y,fam,e.form,
-           control = list(method = "PEM", constraint = l1,full.hess = T,
-           ghQqp = 20, iter.lim = 1e3, tol = sqrt(.Machine$double.eps), silent = T,information = "Fisher",
-           pml.control = list(type = "lasso", lambda = lambda[i]),pen.load = T))
+ for(j in seq_along(pas)){
+ test[i,j] <- GBIC(splvm.fit(Y = simR$Y, fam = fam, form = simR$form,
+                   control = list(method = "PEM", constraint = restrf,
+                   ghQqp = 20, iter.lim = 1e3, full.hess = F, tol = sqrt(.Machine$double.eps),
+                   silent = T, information = "Fisher",
+                   pml.control = list(type = "mcp", lambda = lambda[i], a = pas[j], w.alasso = NULL, pen.load = F))))
+ cat(paste0("\n a = ",pas[j]," [",j,"] ","; \U03BB = ",lambda[i]," [",i,"] "))
+ }
 }
+
+testor <- test
+
+cores <- detectCores()-2
+cl<-makeCluster(cores)
+registerDoSNOW(cl)
+progress <- function(n) setTxtProgressBar(txtProgressBar(max = length(lambda), style = 3), n)
+opts <- list(progress = progress)
+for(j in seq_along(pas)){
+test[,j] <- foreach(i = 1:length(lambda),
+                .combine = rbind,
+                .packages = c("mvtnorm", "fastGHQuad","gamlss"),
+                .options.snow = opts) %dopar% {GBIC(splvm.fit(Y = simR$Y, fam = fam, form = simR$form,
+                   control = list(method = "PEM", constraint = restrf,
+                   ghQqp = 20, iter.lim = 1e3, full.hess = F, tol = sqrt(.Machine$double.eps),
+                   silent = T, information = "Fisher",
+                   pml.control = list(type = "mcp", lambda = lambda[i], a = pas[j], w.alasso = NULL, pen.load = F))))}
+}
+stopCluster(cl)
+
+
+which(test == min(test), arr.ind = T)
 
 round(cbind(test[[which(lambda == 0.0150)]]$b$mu,
             test[[which(lambda == 0.0125)]]$b$mu,
@@ -284,11 +311,9 @@ c(alasso_fit@Optim$logl.pen); ex.test.pen$loglik; llkf(lb2cb(ex.test.pen$b),ex.t
 pen.idx <- pidx(ex.test.pen$b,T)
 penmat(alasso_fit)[1:7,1:7]
 nrow(ex.test.pen$Y)*penM(lb2mb(ex.test.pen$b)[pen.idx],type = ex.test.pen$pml.control$type, lambda = ex.test.pen$pml.control$lambda,
-                  w.alasso = lb2mb(ex.test.pen$pml.control$w.alasso)[pen.idx], gamma = ex.test.pen$pml.control$gamma,
-                  a = ex.test.pen$pml.control$a)
+                  w.alasso = lb2mb(ex.test.pen$pml.control$w.alasso)[pen.idx], a = ex.test.pen$pml.control$a)
 nrow(ex.test.pen$Y)*penM(lb2mb(ex.lb)[pen.idx],type = ex.test.pen$pml.control$type, lambda = ex.test.pen$pml.control$lambda,
-                  w.alasso = lb2mb(ex.test.pen$pml.control$w.alasso)[pen.idx], gamma = ex.test.pen$pml.control$gamma,
-                  a = ex.test.pen$pml.control$a)
+                  w.alasso = lb2mb(ex.test.pen$pml.control$w.alasso)[pen.idx], a = ex.test.pen$pml.control$a)
 # slotNames(alasso_fit)
 
 rmMat <- mod$hessian
@@ -433,3 +458,17 @@ cor(Z$Z1, fscore(testa0)$Z1,method = "pearson")
 cor(Z$Z2, fscore(testa0)$Z2,method = "pearson")
 points(testa0$ghQ$points, testa0$ghQ$weights, col = "red", pch = 16)
 lines(seq(-5,5,length.out = 100), dnorm(seq(-5,5,length.out = 100)), col = "blue", lwd = 2)
+
+##################
+#########################
+##########################
+
+Ex1 <- splvm.mcsim(3, sil = F, n = n, form = s.form, fam = fam, restr = l1, coefs = lc,
+                   saveRes = F, cleanRes = F)
+splvm.plot(1,testa1,
+           control.plot = list(sim.mod = simR,
+           plot.mean = T, plot.sd = F, qtl = c(0.025,0.975), plot.3D = T, bw = F))
+
+splvm.plot(1,testa3,
+           control.plot = list(sim.mod = simR,
+           plot.mean = T, plot.sd = F, qtl = c(seq(0.1,0.9,by = 0.2)), plot.3D = T, bw = F))

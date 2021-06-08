@@ -105,8 +105,7 @@ return(list(value = ll, gradient = res$gradient, hessian = res$hessian))
 }
 
 penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,info,
-                      pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
-                                         gamma = 1, a = 3.7)) {
+                      pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,a = NULL)) {
 
 # Goal: To compute penalised log-likelihood function (to be used in trust function)
 # Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
@@ -122,8 +121,7 @@ A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 pD1 <- exp(rowSums(A1,dim = 2))/A2
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
-pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,
-           gamma = pml.control$gamma, a = pml.control$a)
+pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,a = pml.control$a)
 pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
 pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; 
 ll <- sum(log(A2)) - 0.5*crossprod(cb,pS)%*%cb # penalised log-likelihood
@@ -163,6 +161,28 @@ fyz <- ifelse(rbinom(n,1,1-sigma) == 0, 0, rpois(n,mu))
 }
 # Add other distributions in SimFA::fod
 return(fyz)
+}
+
+dFun <- function(i,Y,Z.,b,fam){
+  
+# Goal: To compute (simulated) log-likelihood
+# Input i (item), Y (original data), Z. (Z output in ff_msim), b (betas), fam (family)
+# Output: Log-likelihood
+# Testing: i = 1; Y = simR$Y; Z = simR$Zout; b = borg; fam = fam
+
+for(a in names(Z.)){ if(!is.matrix(Z.[[a]])) Z.[[a]] <- as.matrix(Z.[[a]]) }
+if(fam[i] == "normal"){ llg <- sum(dnorm(Y[,i], c(Z.$mu%*%matrix(b$mu[i,])), c(exp(Z.$sigma%*%matrix(b$sigma[i,]))),log = T)) }
+if(fam[i] == "lognormal"){ llg <- sum(dlnorm(Y[,i], c(Z.$mu%*%matrix(b$mu[i,])), c(exp(Z.$sigma%*%matrix(b$sigma[,i]))),log = T)) }
+if(fam[i] == "poisson"){ llg <- sum(dpois(Y[,i], c(exp(Z.$mu%*%matrix(b$mu[i,]))), log = T)) }
+if(fam[i] == "gamma"){ llg <- sum(dgamma(Y[,i], shape = c(exp(Z.$mu%*%matrix(b$mu[i,]))), scale = c(exp(Z.$sigma%*%matrix(b$sigma[i,]))),log = T)) }
+if(fam[i] == "binomial"){ llg <- sum(dbinom(Y[,i],1, c(probs(Z.$mu%*%matrix(b$mu[i,]))), log = T)) }
+if(fam[i] == "ZIpoisson"){
+ dZIpoisson <- function(Y,mu,sigma,log = T){
+ u <- as.numeric(Y == 0)
+ lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+ if(log == T) return(lf) else return(exp(lf)) }
+ llg <- sum(dZIpoisson(Y[,i], c(exp(Z.$mu%*%matrix(b$mu[i,]))), c(exp(Z.$sigma%*%matrix(b$sigma[i,]))), log = T)) }
+return(llg)
 }
 
 llkf <- function(cb,Y,ghQ,bg,fam){
@@ -229,20 +249,18 @@ return(list(mat = res, inv.mat = res.inv,check.eigen = check.eigen))
 }
 
 lb2pM <- function(lb,Y,pen.idx,
-                  pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
-                                         gamma = 1, a = 3.7)){
+                  pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,a = NULL)){
 
 # Goal: To compute the penalty part for the log-likelihood
 # Input : lb (list betas), Y (matrix of items), pml.control (options for Penalty)
 # Output: penalty for log-likelihood
-# Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
+# Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, a = NULL)
    
 b <- lb2mb(lb)[pen.idx]
 if(length(b) != 0){
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 P <- nrow(Y)*penM(b,type = pml.control$type, lambda = pml.control$lambda,
-                  w.alasso = pml.control$w.alasso, gamma = pml.control$gamma,
-                  a = pml.control$a)
+                  w.alasso = pml.control$w.alasso,a = pml.control$a)
 return(0.5*crossprod(b,P)%*%b)}
 else return(0)
 }
@@ -329,7 +347,8 @@ for(i in 1:ncol(Y)){
   bstart$sigma[i,] <- coef(tmp,"sigma")
  }
 }
-for(r in names(form)){ if("Z1" %in% colnames(bstart[[r]]) && bstart[[r]][1,"Z1"] < 0) bstart[[r]][,"Z1"] <- - bstart[[r]][,"Z1"] }
+if("Z1" %in% colnames(bstart$mu) && bstart$mu[1,"Z1"] < 0) for(r in names(form)){ bstart[[r]][,"Z1"] <- -bstart[[r]][,"Z1"] }
+# for(r in names(form)){ if("Z1" %in% colnames(bstart[[r]]) && bstart[[r]][1,"Z1"] < 0) bstart[[r]][,"Z1"] <- - bstart[[r]][,"Z1"] }
 return(bstart)
 }
 
@@ -346,7 +365,7 @@ if(!is.null(mod$pml.control)){
 pml.control <- mod$pml.control
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 pS <- nrow(Y)*penM(lb2cb(b)[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda,
-                    w.alasso = pml.control$w.alasso,gamma = pml.control$gamma, a = pml.control$a)
+                    w.alasso = pml.control$w.alasso,a = pml.control$a)
 pS. <- rep(0,length(lb2cb(b))); pS.[c(t(pen.idx))] <- diag(pS)
 pS <- diag(pS.); pS <- pS[lb2cb(b) != 0,lb2cb(b) != 0];
 GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
@@ -368,7 +387,7 @@ if(!is.null(mod$pml.control)){
 pml.control <- mod$pml.control
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 pS <- nrow(Y)*penM(lb2cb(b)[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda,
-                    w.alasso = pml.control$w.alasso,gamma = pml.control$gamma, a = pml.control$a)
+                    w.alasso = pml.control$w.alasso,a = pml.control$a)
 pS. <- rep(0,length(lb2cb(b))); pS.[c(t(pen.idx))] <- diag(pS)
 pS <- diag(pS.); pS <- pS[lb2cb(b) != 0,lb2cb(b) != 0];
 GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {

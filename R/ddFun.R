@@ -276,7 +276,7 @@ fFun <- function(i,fam,Z,b,qnt = c(0.2,0.4,0.6,0.8),forms,lvp){
  if(missing(qnt)){ qnt = c(0.2,0.8)}
  pars <- pFun(fam)
  lvar <- unique(unlist(lapply(pars, function(i) all.vars(forms[[i]]))))
- lvar <- lvar[grep("Z", lvar, fixed = T)]; qMM <- list()
+ lvar <- grep("Z", lvar, fixed = T, value = T); qMM <- list()
 
  if(fam == "normal"){
   mu = drop(unname(as.matrix(Z$mu)%*%matrix(b$mu[i,])))

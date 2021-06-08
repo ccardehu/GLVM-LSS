@@ -5,7 +5,7 @@ splvm.fit <- function(Y, fam, form,
                                      ghQqp = 15, iter.lim = 150, full.hess = F, EM.iter.lim = 20,
                                      tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
                                      pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
-                                         gamma = 1, a = 3.7, pen.load = F)) )
+                                         a = 3.7, pen.load = F)) )
                       {
 
 # Goal: Fits semi-parametric LVM
@@ -16,13 +16,13 @@ splvm.fit <- function(Y, fam, form,
 # Testing: Y = simR$Y; fam = fam; form = e.form;
 #          control = list(method = "PEM", start.val = lc, constraint = l1,
 #          ghQqp = 15, iter.lim = 150, tol = sqrt(.Machine$double.eps), silent = F, full.hess = F, information = "Fisher")
-#          control$pml.control = list(type = "scad", lambda = 1, w.alasso = 1, gamma = 1, a = 3.7, pen.load = T)
+#          control$pml.control = list(type = "scad", lambda = 1, w.alasso = 1, a = 3.7, pen.load = T)
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
 for(i in parY){form[[i]] <- as.formula(form[[i]])}
 lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
-lvar <- lvar[grep("Z", lvar, fixed = T)]
+lvar <- grep("Z", lvar, fixed = T, value = T)
 if(length(lvar) == 0) stop("\n Latent variables in formula should be represented by letter Z (capital)")
 q. <- length(lvar)
 p. <- ncol(Y)
@@ -48,7 +48,7 @@ if(!is.null(loadmt)){
    if(!is.matrix(loadmt[[i]])) loadmt[[i]] <- matrix(loadmt[[i]], nrow = p., ncol = ncol(ghQ$out[[i]]))
   }
 } else {
- cat("\n Constraint matrices not supplied. No identification restrictions assumed.\n")
+ if(!control$silent) cat("\n Constraint matrices not supplied. No identification restrictions assumed.\n")
  loadmt <- NULL
  for(i in parY){
   if(length(all.vars(form[[i]])) > 1){
@@ -92,7 +92,7 @@ if(!is.null(icoefs)){
   }
   bold <- icoefs
 } else {
- cat("\n Starting values not supplied: Initial guess defined using 'gamlss' & PCA (for factor scores)\n")
+ if(!control$silent) cat("\n Starting values not supplied: Initial guess defined using 'gamlss' & PCA (for factor scores)\n")
  # bold <- lapply(parY, function(i) matrix(1, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
  # names(bold) <- parY
  bold <- suppressWarnings(ini.par(Y,fam,form,pC,q.))
@@ -104,7 +104,7 @@ for(i in parY){
   
 # Estimation
 # ~~~~~~~~~~
-if(sum(lb2cb(loadmt)) > p.*(p.-1)/2) cat("\n Warning: Number of free parameters is less than p(p-1)/2. Model might be under-indentified.\n")
+if(sum(lb2cb(loadmt)) > p.*(p.-1)/2 && !control$silent) cat("\n Warning: Number of free parameters is less than p(p-1)/2. Model might be under-indentified.\n")
 method <- control$method
 pml.control <- control$pml.control
 if(is.null(pml.control$pen.load)) pen.load <- F else pen.load <- pml.control$pen.load
@@ -134,6 +134,7 @@ if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", dlln, ", \U0394 l
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- lln
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
   
 if(method == "PEM"){
@@ -154,16 +155,17 @@ dlln <- round(lln,3) # penalized log-likelihood new (printing)
 eps <- abs(lln-llo)
 iter <- iter + 1
 bold <- bnew
-if(control$silent == F) cat("\r (Penalised) EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
+if(!control$silent) cat("\r (Penalised) EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- sum(log(A2))
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
 if(method == "ML"){
 b2r <- lb2cb(bold)
 btr <- b2r[lb2cb(bold) != 0]
-if(control$silent == F){
+if(!control$silent){
   if(exists("catmsg")) cat(paste0("\n Using trust-region algorithm to refine ML estimates ", catmsg))
   else cat("\n Using trust-region algorithm to find ML estimates") }
 r1 <- trust::trust(objfun = loglkf, parinit = btr, rinit = 1, rmax = 10,
@@ -172,16 +174,17 @@ b2r[lb2cb(bold) != 0] <- r1$argument
 bnew <- cb2lb(b2r,bold)
 lln <- r1$value
 iter <- control$iter.lim + 1; eps <- 0
-if(control$silent == F) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
+if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
 mod.grad <- r1$gradient
 mod.hess <- r1$hessian
 upll <- lln
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
   
 if(method == "PML"){
 b2r <- lb2cb(bold)
 btr <- b2r[lb2cb(bold) != 0]
-if(control$silent == F){
+if(!control$silent){
   if(exists("catmsg")) cat(paste0("\n Using trust-region algorithm to refine Penalised ML estimates ", catmsg))
   else cat("\n Using trust-region algorithm to find Penalised ML estimates") }
 r1 <- trust::trust(objfun = penloglkf, parinit = btr, rinit = 1, rmax = 10,
@@ -192,11 +195,12 @@ b2r[lb2cb(bold) != 0] <- rep; rm(rep)
 bnew <- cb2lb(b2r,bold)
 lln <- r1$value
 iter <- control$iter.lim + 1; eps <- 0
-if(control$silent == F) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
+if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
 mod.grad <- r1$gradient
 mod.hess <- r1$hessian
 A1 <- dY(Y,ghQ,bnew,fam); A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights)
 upll <- sum(log(A2))
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
 if(method == "hybrid"){
@@ -215,10 +219,11 @@ eps <- abs(lln-llo)
 iter <- iter + 1
 bold <- bnew
 if(iter >= control$EM.iter.lim){ method <- "ML"; catmsg <- paste0("(after ", iter," Hybrid-EM iterations)") }
-if(control$silent == F) cat("\r Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
+if(!control$silent) cat("\r Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- lln
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
 if(method == "P-hybrid"){
@@ -239,10 +244,11 @@ eps <- abs(lln-llo)
 iter <- iter + 1
 bold <- bnew
 if(iter >= control$EM.iter.lim){ method <- "PML"; catmsg <- paste0("(after ", iter," (Penalised) Hybrid-EM iterations)") }
-if(control$silent == F) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
+if(!control$silent) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- sum(log(A2))
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
 # for(r in parY){ if(bold[[r]][1,"Z1"] < 0) bold[[r]][,"Z1"] <- -bold[[r]][,"Z1"] }
