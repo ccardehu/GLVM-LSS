@@ -121,7 +121,7 @@ A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 pD1 <- exp(rowSums(A1,dim = 2))/A2
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
-pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,a = pml.control$a)
+pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, id = pen.idx,lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,a = pml.control$a)$red
 pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
 pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; 
 ll <- sum(log(A2)) - 0.5*crossprod(cb,pS)%*%cb # penalised log-likelihood
@@ -227,7 +227,7 @@ m2pdm <- function(mat){
 # Testing: i = 1; ghQ = ghQ; b = l1; fam = fam; dvL = dvY(Y,ghQ,b,fam);
 #          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
 #          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
-#          mat = hess(i,i,ghQ,b,fam,dvL,pD)$hessian
+#          mat = hess(i,i,ghQ,b,fam,dvL,pD,"Fisher")$hessian
 
 eS    <- eigen(mat, symmetric = TRUE)                
 e.val <- eS$values
@@ -243,12 +243,13 @@ D <- diag(e.val)
 D.inv <- diag(1/e.val)
 res <- e.vec %*% D %*% t(e.vec) 
 res.inv <- e.vec %*% D.inv %*% t(e.vec)
-} else { res <- mat; res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) } 
+res.sqr <- e.vec %*% sqrt(D)
+} else { res <- mat; res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) ; res.sqr <- e.vec %*% diag(sqrt(e.val))} 
 res.inv <- (res.inv + t(res.inv) ) / 2 
-return(list(mat = res, inv.mat = res.inv,check.eigen = check.eigen))
+return(list(mat = res, inv.mat = res.inv, sqr.mat = t(res.sqr), is.PDM = !check.eigen))
 }
 
-lb2pM <- function(lb,Y,pen.idx,
+lb2pM <- function(lb,Y,pen.idx,loadmt,
                   pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,a = NULL)){
 
 # Goal: To compute the penalty part for the log-likelihood
@@ -256,36 +257,29 @@ lb2pM <- function(lb,Y,pen.idx,
 # Output: penalty for log-likelihood
 # Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, a = NULL)
    
-b <- lb2mb(lb)[pen.idx]
-if(length(b) != 0){
+b <- lb2cb(lb)[t(lb2mb(loadmt))]
 if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
-P <- nrow(Y)*penM(b,type = pml.control$type, lambda = pml.control$lambda,
-                  w.alasso = pml.control$w.alasso,a = pml.control$a)
-return(0.5*crossprod(b,P)%*%b)}
-else return(0)
+P <- nrow(Y)*penM(lb2cb(lb),type = pml.control$type, id = pen.idx, rs = loadmt, lambda = pml.control$lambda,
+                  w.alasso = pml.control$w.alasso,a = pml.control$a)$f
+return(list(lp = 0.5*crossprod(b,P)%*%b, pM = P))
 }
 
-pidx <- function(lb,pen.load){
+pidx <- function(lb,loadmt,pen.load){
 
 # Goal: Index of penalised columns of betas 
-# Input : lb (loadings list)
-# Output: Vector of indices (for colums to be used in lb2mb)
-# Testing: lb = borg
+# Input : lb (loadings list), loadmt (free parameters == T) pen.load (penalise loadings?)
+# Output: Vector of indices (for columns to be used in lb2mb)
+# Testing: lb = borg; loadmt; pen.load = F
 
 idx <- NULL
 for(i in names(lb)){
- if(i == "mu"){
-  tmp <- array(T,dim = dim(lb[[i]]), dimnames = list(NULL,colnames(lb[[i]])))
-  if(!pen.load) tmp[,!c(colnames(tmp) %in% c("(Intercept)","Z1","Z2","Z3"))] <- F else
-    tmp[,!c(colnames(tmp) %in% c("(Intercept)"))] <- F
-  idx <- cbind(idx, tmp);  
- } else {
-  tmp <- array(T,dim = dim(lb[[i]]), dimnames = list(NULL,colnames(lb[[i]])))
-  tmp[,!c(colnames(tmp) %in% "(Intercept)")] <- F
-  idx <- cbind(idx, tmp); }
+ tmp <- array(T,dim = dim(lb[[i]]), dimnames = list(NULL,colnames(lb[[i]])))
+ if("(Intercept)" %in% colnames(tmp)) { tmp[,"(Intercept)"] <- F }
+ tmp <- tmp & loadmt[[i]] & (lb[[i]] != 0); 
+ if(i == "mu" && !pen.load){ tmp[,c(colnames(tmp) %in% c("(Intercept)","Z1","Z2","Z3"))] <- F }
+ idx <- cbind(idx, tmp)
 }
-idx <- idx == (lb2mb(lb) != 0)
-return(unname(!idx))
+return(unname(idx))
 }
 
 ini.par <- function(Y,fam,form,pC,q.){
@@ -295,10 +289,6 @@ ini.par <- function(Y,fam,form,pC,q.){
 #         pC (list of whether item i has mu or sigma, etc.), q. (# latent variables)
 # Output: List of parameters
 # Testing: Y = simR$Y; fam = fam; form = form; pC = pC; q. = q. # (get form fc_mfit first)
-
-# if(any(fam == "normal")){ idx <- which(fam == "normal"); Ypc <- Y[,idx] } else {
-#  if(any(fam == "binomial")) {idx <- which(fam == "binomial"); Yp} else {}
-# }
 
 Z. <- princomp(Y,cor = T)$scores[,1:q.,drop=F]
 colnames(Z.) <- paste0("Z", 1:q.)
@@ -348,7 +338,6 @@ for(i in 1:ncol(Y)){
  }
 }
 if("Z1" %in% colnames(bstart$mu) && bstart$mu[1,"Z1"] < 0) for(r in names(form)){ bstart[[r]][,"Z1"] <- -bstart[[r]][,"Z1"] }
-# for(r in names(form)){ if("Z1" %in% colnames(bstart[[r]]) && bstart[[r]][1,"Z1"] < 0) bstart[[r]][,"Z1"] <- - bstart[[r]][,"Z1"] }
 return(bstart)
 }
 
@@ -357,17 +346,13 @@ GBIC <- function(mod){
 b <- mod$b
 Y <- mod$Y
 if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
-pen.idx <- pidx(b,pen.load)
+pen.idx <- pidx(b,mod$loadmt,pen.load)
 ll <- mod$uploglik
 Hm <- mod$hessian
 
 if(!is.null(mod$pml.control)){
 pml.control <- mod$pml.control
-if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
-pS <- nrow(Y)*penM(lb2cb(b)[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda,
-                    w.alasso = pml.control$w.alasso,a = pml.control$a)
-pS. <- rep(0,length(lb2cb(b))); pS.[c(t(pen.idx))] <- diag(pS)
-pS <- diag(pS.); pS <- pS[lb2cb(b) != 0,lb2cb(b) != 0];
+pS <- lb2pM(b,Y,pen.idx,uplm(b,mod$loadmt),pml.control)$pM
 GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
   GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm)%*%Hm))
 }
@@ -379,21 +364,17 @@ GIC <- function(mod){
 b <- mod$b
 Y <- mod$Y
 if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
-pen.idx <- pidx(b,pen.load)
+pen.idx <- pidx(b,mod$loadmt,pen.load)
 ll <- mod$uploglik
 Hm <- mod$hessian
 
 if(!is.null(mod$pml.control)){
 pml.control <- mod$pml.control
-if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
-pS <- nrow(Y)*penM(lb2cb(b)[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda,
-                    w.alasso = pml.control$w.alasso,a = pml.control$a)
-pS. <- rep(0,length(lb2cb(b))); pS.[c(t(pen.idx))] <- diag(pS)
-pS <- diag(pS.); pS <- pS[lb2cb(b) != 0,lb2cb(b) != 0];
-GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
-  GBIC <- -2*ll + 2*sum(diag(solve(Hm)%*%Hm))
+pS <- lb2pM(b,Y,pen.idx,uplm(b,mod$loadmt),pml.control)$pM
+GIC <- -2*ll + 2*sum(diag(solve(Hm-pS)%*%Hm)) } else {
+  GIC <- -2*ll + 2*sum(diag(solve(Hm)%*%Hm))
 }
-return(GBIC)
+return(GIC)
 }
 
 fscore <- function(mod){
@@ -409,4 +390,36 @@ pD <- exp(rowSums(A1,dim = 2))/A2 # posterior density
 zscore <- pD%*%(c(mod$ghQ$weights)*mod$ghQ$points)[,,drop=F]
 zscore <- as.data.frame(zscore); names(zscore) <- colnames(mod$ghQ$points)  
 return(zscore)
+}
+
+rmat <- function(res,b){
+
+# Goal: To build a restriction matrix 
+# Input: res (dataframe), b (betas matrix lb2mb form)
+# Output: matrix of restrictions (l2bmb form)
+# Testing: res = l2rm(list(c("sigma",2,"Z1",0),c("mu", 1,"(Intercept)",1))); b = bold
+ 
+rest <- l2rm(res)
+frparm <- vector(mode = "list",length = length(b))
+names(frparm) <- names(b)
+for(i in names(b)){
+ frparm[[i]] <- array(NA, dim = dim(b[[i]]))
+ dimnames(frparm[[i]]) <- dimnames(b[[i]])
+}
+for(i in 1:nrow(rest)){
+  frparm[[as.character(rest[i,1])]][as.integer(rest[i,2]),as.character(rest[i,3])] <- as.numeric(rest[i,4])
+}
+return(frparm)
+}
+
+l2rm <- function(rlist){
+
+# Goal: List to Restrictions matrix
+# Input: List of restrictions
+# Output: Dataframe of restrictions
+# Testing: rlist = list(c("sigma",2,"Z1",0),c("mu", 1,"(Intercept)",1))
+
+if(!is.list(rlist)) stop("Restrictions should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
+r <- as.data.frame(matrix(unlist(rlist), ncol=4, byrow = T))
+return(r)
 }

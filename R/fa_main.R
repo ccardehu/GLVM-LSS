@@ -70,7 +70,6 @@ names(dvY) <- c("d1mu","d1sg","d1ta","d1nu","d2mu","d2sg","d2ta","d2nu","dcms",
                 "dcmt","dcmn","dcst","dcsn","dctn")
 for(i in 1:length(dvY)){ 
   dvY[[i]] <- array(NA,dim = c(nrow(Y),nrow(ghQ$points),ncol(Y))) }
-
 for(z in 1:nrow(ghQ$points)){
 for(i in 1:ncol(Y)){
 if(fam[i] == "normal"){ # structure(gamlss.dist::NO)
@@ -134,19 +133,19 @@ for(i in names(dvY)){ if(all(is.na(dvY[[i]]))) dvY[[i]] <- NULL }
 return(dvY)
 }
 
-sco <- function(i,ghQ,b,fam,dvL,pD){
+sco <- function(i,ghQ,b,rs,fam,dvL,pD){
   
 # Goal: To compute Score vector for item i (eq. A1)
-# Input : i (item), ghQ (GHQ object), b (loadings matrix),
+# Input : i (item), ghQ (GHQ object), b (loadings matrix), rs (restriction matrix),
 #         fam (distributions), dvL (list of derivatives),
 #         pD (posterior density, to be compute with joint with weights)
 # Output: vector of length (total # of parameters for item i)
 # Testing: i = 1; Y = simR$Y; ghQ = ghQ; b = borg; fam = fam; 
-#          dvL = dvY(Y,ghQ,b,fam)
+#          dvL = dvY(Y,ghQ,b,fam); rs = loadmt;
 #          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
 #          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
 
-iN0 <- which(lb2mb(b)[i,] != 0)
+iN0 <- which(lb2mb(rs)[i,])
 Z <- ghQ$out
 wmu <- colSums(dvL$d1mu[,,i]*pD)*c(ghQ$weights)
 ps <- Z$mu * wmu
@@ -166,25 +165,26 @@ ps <- as.matrix(colSums(unname(ps[,iN0])))
 return(list("score" = ps, "pos" = iN0))
 }
 
-hess <- function(i,j,ghQ,b,fam,dvL,pD){
+hess <- function(i,j,ghQ,b,rs,fam,dvL,pD,information = "Fisher"){
   
 # Goal: To compute Hessian matrix for items i & j (eq. A3)
 # Input : i & j (items), ghQ (GHQ object), b (loadings matrix),
 #         fam (distributions), dvL (list of derivatives),
 #         pD (part of posterior density, to be jointly computed with weights)
 # Output: vector of length (total # of parameters for item i)
-# Testing: i = 1; Y = simR$Y; ghQ = ghQ; b = borg; fam = fam; 
+# Testing: i = 1; Y = simR$Y; ghQ = ghQ; b = borg; fam = fam; rs = loadmt;
 #          dvL = dvY(Y,ghQ,b,fam,control$information)
 #          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
 #          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
 
+info.F <- match.arg(information,c("Fisher","Hessian")) == "Fisher"
 Z <- ghQ$out
-
+if(!info.F){
 if(i == j){
-iN0 <- jN0 <- which(lb2mb(b)[i,] != 0)
+iN0 <- jN0 <- which(lb2mb(rs)[i,])
 # For first Hessian (eq. A3, row 1)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Zmu <- unname(as.matrix(Z$mu[,which(b$mu[i,] != 0),drop=F]))
+Zmu <- unname(as.matrix(Z$mu[,rs$mu[i,],drop=F]))
 wmu1 <- colSums(dvL$d2mu[,,i]*pD)*c(ghQ$weights)
 hmu1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,]) * wmu1[z]),
             dim = c(ncol(Zmu),ncol(Zmu),length(ghQ$weights)))
@@ -204,7 +204,7 @@ Zhe3 <- array(sapply(1:nrow(pD), function(m) Zmu*wmu3[m,]),
 if("sigma" %in%  pFun(fam[i])){
  # For first Hessian (eq. A3, row 1)
  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Zsg <- unname(as.matrix(Z$sigma[,which(b$sigma[i,] != 0),drop=F]))
+ Zsg <- unname(as.matrix(Z$sigma[,rs$sigma[i,],drop=F]))
  wsg1 <- colSums(dvL$d2sg[,,i]*pD)*c(ghQ$weights)
  wms1 <- colSums(dvL$dcms[,,i]*pD)*c(ghQ$weights)
  hsg1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zsg[z,]) * wsg1[z]),
@@ -237,7 +237,7 @@ if("sigma" %in%  pFun(fam[i])){
 if("tau" %in%  pFun(fam[i])){
  # For first Hessian (eq. A3, row 1)
  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- Zta <- unname(as.matrix(Z$tau[,which(b$tau[i,] != 0),drop=F]))
+ Zta <- unname(as.matrix(Z$tau[,rs$tau[i,],drop=F]))
  wta1 <- colSums(dvL$d2ta[,,i]*pD)*c(ghQ$weights)
  wmt1 <- colSums(dvL$dcmt[,,i]*pD)*c(ghQ$weights)
  wst1 <- colSums(dvL$dcst[,,i]*pD)*c(ghQ$weights)
@@ -283,7 +283,7 @@ if("nu" %in%  pFun(fam[i])){
  wmn1 <- colSums(dvL$dcmn[,,i]*pD)*c(ghQ$weights)
  wsn1 <- colSums(dvL$dcsn[,,i]*pD)*c(ghQ$weights)
  wtn1 <- colSums(dvL$dctn[,,i]*pD)*c(ghQ$weights)
- Znu <- unname(as.matrix(Z$nu[,which(b$nu[i,] != 0),drop=F]))
+ Znu <- unname(as.matrix(Z$nu[,rs$nu[i,],drop=F]))
  hnu1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Znu[z,]) * wnu1[z]),
                dim = c(ncol(Znu),ncol(Znu),length(ghQ$weights)))
  hmn1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,],Znu[z,]) * wmn1[z]),
@@ -332,12 +332,12 @@ hess3 <- matrix(rowSums(sapply(1:nrow(pD), function(m) tcrossprod(Zhe3[m,]))),
                 ncol(Zhe3))
 hess <- hess1 + hess2 - hess3
 } else {
-iN0 <- which(lb2mb(b)[i,] != 0)
-jN0 <- which(lb2mb(b)[j,] != 0)
+iN0 <- which(lb2mb(rs)[i,])
+jN0 <- which(lb2mb(rs)[j,])
 # For first Hessian (eq. A3, row 1)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Zhe2i <- Zmui <- unname(as.matrix(Z$mu[,which(b$mu[i,] != 0)]))
-Zhe2j <- Zmuj <- unname(as.matrix(Z$mu[,which(b$mu[j,] != 0)]))
+Zhe2i <- Zmui <- unname(as.matrix(Z$mu[,rs$mu[i,]]))
+Zhe2j <- Zmuj <- unname(as.matrix(Z$mu[,rs$mu[j,]]))
 # For second Hessian (eq. A3, row 2)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 wmu2i <- dvL$d1mu[,,i]; wl2i <- "wmu2i"
@@ -354,7 +354,7 @@ Zhe3j <- array(sapply(1:nrow(pD), function(m) Zmuj*wmu3j[m,]),
                dim = c(nrow(ghQ$points),ncol(Zmuj),nrow(pD)))
 for(k in c("i","j")){
 if("sigma" %in% pFun(fam[get(k)])){
- assign(paste0("Zsg",k), unname(as.matrix(Z$sigma[,which(b$sigma[get(k),] != 0)])))
+ assign(paste0("Zsg",k), unname(as.matrix(Z$sigma[,rs$sigma[get(k),]])))
  assign(paste0("wsg2",k), dvL$d1sg[,,get(k)] )
  assign(paste0("wl2",k), append(get(paste0("wl2",k)), paste0("wsg2",k)))
  assign(paste0("Zhe2",k), cbind(get(paste0("Zhe2",k)), get(paste0("Zsg",k))))
@@ -368,7 +368,7 @@ if("sigma" %in% pFun(fam[get(k)])){
  assign(paste0("Zhe3",k), abind::abind(get(paste0("Zhe3",k)),get(paste0("the3",k)),along = 2))
 }
 if("tau" %in% pFun(fam[get(k)])){
- assign(paste0("Zta",k), unname(as.matrix(Z$tau[,which(b$tau[get(k),] != 0)])))
+ assign(paste0("Zta",k), unname(as.matrix(Z$tau[,rs$tau[get(k),]])))
  assign(paste0("wta2",k), dvL$d1ta[,,get(k)] )
  assign(paste0("wl2",k), append(get(paste0("wl2",k)), paste0("wta2",k)))
  assign(paste0("Zhe2",k), cbind(get(paste0("Zhe2",k)), get(paste0("Zta",k))))
@@ -382,7 +382,7 @@ if("tau" %in% pFun(fam[get(k)])){
  assign(paste0("Zhe3",k), abind::abind(get(paste0("Zhe3",k)),get(paste0("the3",k)),along = 2))
 }
 if("nu" %in% pFun(fam[get(k)])){
- assign(paste0("Znu",k), unname(as.matrix(Z$nu[,which(b$nu[get(k),] != 0)])))
+ assign(paste0("Znu",k), unname(as.matrix(Z$nu[,rs$nu[get(k),]])))
  assign(paste0("wnu2",k), dvL$d1nu[,,get(k)] )
  assign(paste0("wl2",k), append(get(paste0("wl2",k)), paste0("wnu2",k)))
  assign(paste0("Zhe2",k), cbind(get(paste0("Zhe2",k)), get(paste0("Znu",k))))
@@ -416,74 +416,99 @@ hess3 <- t(matrix(rowSums(sapply(1:nrow(pD), function(m) tcrossprod(Zhe3i[m,],Zh
 hess1 <- matrix(0,nrow = nrow(hess2),ncol = ncol(hess2))
 hess <- hess1 + hess2 - hess3
 }
-return(list("hessian" = hess, "posi" = iN0, "posj" = jN0, "fisher" = hess1))
+return(list("hessian" = hess, "posi" = iN0, "posj" = jN0))} else {
+if(i == j){
+iN0 <- jN0 <- which(lb2mb(rs)[i,])
+# For first Hessian (eq. A3, row 1)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Zmu <- unname(as.matrix(Z$mu[,rs$mu[i,],drop=F]))
+wmu1 <- colSums(dvL$d2mu[,,i]*pD)*c(ghQ$weights)
+hmu1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,]) * wmu1[z]),
+            dim = c(ncol(Zmu),ncol(Zmu),length(ghQ$weights)))
+hess1 <- hmu1 <- rowSums(hmu1, dims = 2)
+if("sigma" %in%  pFun(fam[i])){
+ # For first Hessian (eq. A3, row 1)
+ # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Zsg <- unname(as.matrix(Z$sigma[,rs$sigma[i,],drop=F]))
+ wsg1 <- colSums(dvL$d2sg[,,i]*pD)*c(ghQ$weights)
+ wms1 <- colSums(dvL$dcms[,,i]*pD)*c(ghQ$weights)
+ hsg1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zsg[z,]) * wsg1[z]),
+            dim = c(ncol(Zsg),ncol(Zsg),length(ghQ$weights)))
+ hms1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,],Zsg[z,]) * wms1[z]),
+              dim = c(ncol(Zmu),ncol(Zsg),length(ghQ$weights)))
+ hsg1 <- rowSums(hsg1, dims = 2)
+ hms1 <- rowSums(hms1, dims = 2)
+ hess1 <- cbind(rbind(hmu1,t(hms1)),rbind(hms1,hsg1))
+} 
+if("tau" %in%  pFun(fam[i])){
+ # For first Hessian (eq. A3, row 1)
+ # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ Zta <- unname(as.matrix(Z$tau[,rs$tau[i,],drop=F]))
+ wta1 <- colSums(dvL$d2ta[,,i]*pD)*c(ghQ$weights)
+ wmt1 <- colSums(dvL$dcmt[,,i]*pD)*c(ghQ$weights)
+ wst1 <- colSums(dvL$dcst[,,i]*pD)*c(ghQ$weights)
+ hta1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zta[z,]) * wta1[z]),
+               dim = c(ncol(Zta),ncol(Zta),length(ghQ$weights)))  
+ hmt1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,],Zta[z,]) * wmt1[z]),
+               dim = c(ncol(Zmu),ncol(Zta),length(ghQ$weights))) 
+ hst1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zsg[z,],Zta[z,]) * wst1[z]),
+               dim = c(ncol(Zsg),ncol(Zta),length(ghQ$weights)))   
+ hta1 <- rowSums(hta1, dims = 2)
+ hmt1 <- rowSums(hmt1, dims = 2)
+ hst1 <- rowSums(hst1, dims = 2)
+ hess1 <- cbind(rbind(hess1,cbind(t(hmt1),t(hst1))),rbind(hmt1,hst1,hta1))
+}
+if("nu" %in%  pFun(fam[i])){
+ # For first Hessian (eq. A3, row 1)
+ # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ wnu1 <- colSums(dvL$d2nu[,,i]*pD)*c(ghQ$weights)
+ wmn1 <- colSums(dvL$dcmn[,,i]*pD)*c(ghQ$weights)
+ wsn1 <- colSums(dvL$dcsn[,,i]*pD)*c(ghQ$weights)
+ wtn1 <- colSums(dvL$dctn[,,i]*pD)*c(ghQ$weights)
+ Znu <- unname(as.matrix(Z$nu[,rs$nu[i,],drop=F]))
+ hnu1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Znu[z,]) * wnu1[z]),
+               dim = c(ncol(Znu),ncol(Znu),length(ghQ$weights)))
+ hmn1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,],Znu[z,]) * wmn1[z]),
+               dim = c(ncol(Zmu),ncol(Znu),length(ghQ$weights)))
+ hsn1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zsg[z,],Znu[z,]) * wsn1[z]),
+               dim = c(ncol(Zsg),ncol(Znu),length(ghQ$weights)))
+ htn1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zta[z,],Znu[z,]) * wtn1[z]),
+               dim = c(ncol(Zta),ncol(Znu),length(ghQ$weights)))
+ hnu1 <- rowSums(hnu1, dims = 2)
+ hmn1 <- rowSums(hmn1, dims = 2)
+ hsn1 <- rowSums(hsn1, dims = 2)
+ htn1 <- rowSums(htn1, dims = 2)
+ hess1 <- cbind(rbind(hess1,cbind(t(hmn1),t(hsn1),t(htn1))),rbind(hmn1,hsn1,htn1,hnu1))
+}
+hess <- hess1
+} else {
+iN0 <- which(lb2mb(rs)[i,])
+jN0 <- which(lb2mb(rs)[j,])
+hess1 <- matrix(0,nrow = length(iN0),ncol = length(jN0))
+hess <- hess1
+}
+return(list("hessian" = hess, "posi" = iN0, "posj" = jN0)) }
 }
 
-upB <- function(bold,ghQ,fam,dvL,pD,full.hess = T,information = c("Hessian","Fisher")){
+upB <- function(bold,shObj,loadmt){
 
 # Goal: To update factor loadings
-# Input : bold (loadings), ghQ (GHQ object), fam (distributions),
-#         dvL (list of derivatives), pD (posterior density)
-#         full.hess (whether to update item by item or using full hessian)
+# Input : bold (loadings), shObj (score-hessian object), loadmt (restri)
 # Output: bnew (new loadings)
-# Testing: bold = borg; ghQ = ghQ; fam = fam; dvL = dvY(Y,ghQ,bold,fam)
-#          pD = exp(rowSums(dY(Y,ghQ,bold,fam),dim = 2)) /
-#          c(exp(rowSums(dY(Y,ghQ,bold,fam),dim = 2))%*%ghQ$weights)  
-#          full.hess = T;
-          
-info = match.arg(information, c("Hessian","Fisher"))
-if(info == "Fisher" && full.hess == T) full.hess <- F
-b = lb2mb(bold)
-if(full.hess == T){
-# Update using Full Hessian
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# Testing: bold = borg; 
+#          shObj = sche(ghQ,bold,loadmt,fam,dvL,
+#          pD,control$information,control$full.hess)
+
 cb <- lb2cb(bold)
-Sm <- NULL
-i1 <- i2 <- rep(0,length(fam))
-Hm <- matrix(0,sum(b != 0),sum(b != 0))
-for(i in 1:length(fam)){
- A <- sco(i,ghQ,bold,fam,dvL,pD); i1[i] <- length(A$score)
- Sm <- c(Sm,A$score); i2[i]<- length(Sm) 
- Hr <- NULL
- for(j in i:length(fam)){
-  B <- hess(i,j,ghQ,bold,fam,dvL,pD)
-  Hr <- rbind(Hr,B$hessian)
- }
-Hm[(i2[i]-i1[i]+1):nrow(Hm),(i2[i]-i1[i]+1):i2[i]] <- Hr
-Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr) 
-}
-# Check PD
-# ~~~~~~~~
-# Hm <- m2pdm(-Hm)
-# cb[cb != 0] <- cb[cb != 0] + c(Hm$inv.mat%*%matrix(Sm))
-cb[cb != 0] <- cb[cb != 0] - c(solve(Hm)%*%matrix(Sm))
-# cb[cb != 0] <- cb[cb != 0] + 0.0005*c(matrix(Sm))
+bu <- cb[t(lb2mb(loadmt))]
+bn <- bu - c(solve(shObj$hess)%*%matrix(shObj$gradient))
+cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
-} else {
-# Update by item
-# ~~~~~~~~~~~~~~
-Hm <- matrix()
-Sm <- NULL
-for(i in 1:length(fam)){
- A <- sco(i,ghQ,bold,fam,dvL,pD)
- B <- hess(i,i,ghQ,bold,fam,dvL,pD)
- # Check PD
- # ~~~~~~~~
- # B <- m2pdm(-B$hessian)
- # b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(A$score))
- if(info == "Hessian") b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$hess)%*%(A$score))
- if(info == "Fisher") b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$fisher)%*%(A$score))
- # b[i, A$pos] <- c(b[i,A$pos]) + 0.0005*c(A$score)
- Sm <- c(Sm,A$score)
- Hm <- Matrix::bdiag(Hm,B$hess)
- } 
-bnew <- mb2lb(b,bold)
-Hm <- Hm[-1,-1] }
-return(list(b = bnew, gradient = Sm, hessian = as.matrix(Hm)))
+     
+return(list(b = bnew, gradient = shObj$gradient, hessian = shObj$hessian))
 }
 
-upB.pen <- function(bold,ghQ,fam,dvL,pD,full.hess = T,pen.idx,information = c("Hessian","Fisher"),
-                    pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,a = NULL)){
+upB.pen <- function(bold,shObj,pmObj,loadmt){
                 
 # Goal: To update factor loadings (when Penalised EM)
 # Input : bold (loadings), ghQ (GHQ object), fam (distributions),
@@ -496,139 +521,137 @@ upB.pen <- function(bold,ghQ,fam,dvL,pD,full.hess = T,pen.idx,information = c("H
 #          full.hess = T;
 #          pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
 
-info = match.arg(information, c("Hessian","Fisher"))
-if(info == "Fisher" && full.hess == T) full.hess <- F
-b = lb2mb(bold)
-if(full.hess == T){
-# Update using Full Hessian
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
 cb <- lb2cb(bold)
-Sm <- NULL
-i1 <- i2 <- rep(0,length(fam))
-Hm <- matrix(0,sum(b != 0),sum(b != 0))
-for(i in 1:length(fam)){
- A <- sco(i,ghQ,bold,fam,dvL,pD) ; i1[i] <- length(A$score)
- Sm <- c(Sm,A$score); i2[i]<- length(Sm) 
- Hr <- NULL
- for(j in i:length(fam)){
-  B <- hess(i,j,ghQ,bold,fam,dvL,pD)
-  Hr <- rbind(Hr,B$hessian)
- }
-Hm[(i2[i]-i1[i]+1):nrow(Hm),(i2[i]-i1[i]+1):i2[i]] <- Hr
-Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr) 
-}
-if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
-if(length(cb[c(t(pen.idx))]) != 0){
-pS <- nrow(pD)*penM(cb[c(t(pen.idx))],type = pml.control$type, lambda = pml.control$lambda, #  == (b != 0)
-                    w.alasso = pml.control$w.alasso, a = pml.control$a)
-pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
-pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; } else { pS <- diag(rep(0,sum(cb != 0))) }
-Sm <- Sm - pS%*%cb[cb != 0]
-Hm <- Hm - pS
-# Check PD
-# ~~~~~~~~
-# Hm <- m2pdm(-Hm)
-# cb[cb != 0] <- cb[cb != 0] + c(Hm$inv.mat%*%matrix(Sm))
-cb[cb != 0] <- cb[cb != 0] - c(solve(Hm)%*%matrix(Sm))
-cb[abs(cb) < 1*sqrt(.Machine$double.eps)] <- 0
+bu <- cb[t(lb2mb(loadmt))]
+bn <- bu - c(solve(shObj$hess - pmObj$pM)%*%matrix(shObj$gradient - pmObj$pM%*%bu))
+bn[abs(bn) < 1*sqrt(.Machine$double.eps)] <- 0
+cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
-} else {
-# Update by item
-# ~~~~~~~~~~~~~~
-Hm <- matrix()
-Sm <- NULL
-for(i in 1:length(fam)){
-if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[i,pen.idx[i,]]
- if(length(c(b[i,pen.idx[i,]])) != 0){
- pS <- nrow(pD)*penM(c(b[i,pen.idx[i,]]),type = pml.control$type, lambda = pml.control$lambda, w.alasso = pml.control$w.alasso, a = pml.control$a);
- if(length(pS) != 1) pS <- diag(pS)
- pS. <- diag(rep(0,length(c(b[i,])))); diag(pS.)[c(t(pen.idx[i,]))] <- pS
- pS <- pS.; pS <- pS[b[i,] != 0, b[i,] != 0]; } else { pS <- diag(rep(0,sum(c(b[i,] != 0)))) }
- A <- sco(i,ghQ,bold,fam,dvL,pD)
- As <- A$score - pS%*%b[i,b[i,] != 0]
- if(info == "Hessian") B <- hess(i,i,ghQ,bold,fam,dvL,pD)$hessian - pS
- if(info == "Fisher") B <- hess(i,i,ghQ,bold,fam,dvL,pD)$fisher - pS
- # Check PD
- # ~~~~~~~~
- # B <- m2pdm(-B)
- # b[i, A$pos] <- c(b[i,A$pos]) + c(B$inv.mat%*%(As))
- b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B)%*%(As))
- # if(info == "Hessian") b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$hess)%*%(As))
- # if(info == "Fisher") b[i, A$pos] <- c(b[i,A$pos]) - c(solve(B$fisher)%*%(As))
- b[i, abs(b[i,]) < 1*sqrt(.Machine$double.eps)] <- 0
- Sm <- c(Sm,As)
- Hm <- Matrix::bdiag(Hm,B)
- }
-bnew <- mb2lb(b,bold)
-Hm <- Hm[-1,-1]}
-return(list(b = bnew, hessian = as.matrix(Hm)))
+
+return(list(b = bnew,  gradient = shObj$gradient, hessian = shObj$hessian))
 }
 
-sche <- function(ghQ,b,fam,dvL,pD,info){
+sche <- function(ghQ,b,rs,fam,dvL,pD,info,full.hess = F){
 
 # Goal: To compute Score vector & full Hessian matrix for all items
 # Input : ghQ (GHQ object), b (loadings matrix), fam (distributions),
 #         dvL (list of derivatives),
 #         pD (posterior density, to be compute with joint with weights)
 # Output: list of gradient vector and Hessian matrix
-# Testing: ghQ = gr; b = borg; fam = fam; dvL = dvY(Y,ghQ,b,fam)
+# Testing: ghQ = gr; b = borg; fam = fam; dvL = dvY(Y,ghQ,b,fam); rs = loadmt;
 #          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
-#          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
+#          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights); info = "Fisher"
 
-info.F <- match.arg(info,c("Fisher","Hessian")) == "Fisher"
 cb <- lb2cb(b)
-Sm <- NULL
-i1 <- i2 <- rep(0,length(fam))
-Hm <- matrix(0,sum(cb != 0),sum(cb != 0))
+Sm <- array(NA,dim=dim(lb2mb(b)))
+posM <- matrix(1:length(cb),nrow = nrow(Sm),byrow = T)
+Hm <- matrix(0,length(cb),length(cb))
+Hm[c(t(!lb2mb(rs))),] <- Hm[,c(t(!lb2mb(rs)))] <- NA
 for(i in 1:length(fam)){
- A <- sco(i,ghQ,b,fam,dvL,pD); i1[i] <- length(A$score)
- Sm <- c(Sm,A$score); i2[i]<- length(Sm) 
- Hr <- NULL
+ A <- sco(i,ghQ,b,rs,fam,dvL,pD);
+ Sm[i,A$pos] <- c(A$score)
+ if(full.hess){
  for(j in i:length(fam)){
-  B <- hess(i,j,ghQ,b,fam,dvL,pD)
-  if(info.F) Hr <- rbind(Hr,B$fisher) else
-  Hr <- rbind(Hr,B$hessian)
+  B <- hess(i,j,ghQ,b,rs,fam,dvL,pD,match.arg(info,c("Fisher","Hessian")))
+  Hm[posM[i,B$posi],posM[j,B$posj]] <- t(B$hessian)
+  Hm[posM[j,B$posj],posM[i,B$posi]] <- B$hessian
  }
-Hm[(i2[i]-i1[i]+1):nrow(Hm),(i2[i]-i1[i]+1):i2[i]] <- Hr
-Hm[(i2[i]-i1[i]+1):i2[i],(i2[i]-i1[i]+1):ncol(Hm)] <- t(Hr) 
-}
+ } else {
+  B <- hess(i,i,ghQ,b,rs,fam,dvL,pD,match.arg(info,c("Fisher","Hessian")))
+  Hm[posM[i,B$posi],posM[i,B$posi]] <- t(B$hessian)
+  Hm[posM[i,B$posi],posM[i,B$posi]] <- B$hessian
+}}
+Sm <- c(t(Sm)[t(lb2mb(rs))])
+Hm <- Hm[c(t(lb2mb(rs))),c(t(lb2mb(rs)))]
 return(list(gradient = Sm, hessian = Hm))
 }
 
-penM <- function(params, type = "lasso", lambda = 1, w.alasso = NULL,a = 3.7){ 
+penM <- function(params, type = "lasso", id = pen.idx, rs = loadmt, lambda = 1, w.alasso = NULL,a = 3.7){ 
 
 # Goal: To produce a Penalty matrix of parameters (params)
 # Input : model parameters (params)
 # Output: Penalty matrix
-# Testing: params = lb2cb(borg); lambda = 1; gamma = 1; a = 3.7;
-# 
-
+# Testing: params = lb2cb(bold); lambda = pml.control$lambda; id = pen.idx
+#          w.alasso = pml.control$w.alasso; rs = loadmt2; type = pml.control$type
+ 
+if(!is.null(w.alasso) && is.list(w.alasso)) w.alasso <- lb2mb(w.alasso)[id]
+S. <- diag(0,length(params))
+param <- params[c(t(id))]
 eps = 1e-8 # sqrt(.Machine$double.eps) # protective tolerance level
 if(type == "ridge"){
- A1 <-  lambda*rep(1, length(params))
+ A1 <-  c(lambda)*rep(1, length(param))
 }
 if(type == "lasso"){
- A1 <- lambda*1/sqrt(params^2 + eps) 
+ A1 <- c(lambda)*1/sqrt(param^2 + eps) 
 }
 if(type == "alasso"){
  if(is.null(a)) a = 2
  if( is.null(w.alasso) ) w.alasso <- 1
  w.al <- 1/abs(w.alasso)^a
- A1 <- lambda*w.al/sqrt(params^2 + eps)
+ A1 <- c(lambda)*w.al/sqrt(param^2 + eps)
 }
 if(type == "scad"){
  if(is.null(a)) a = 3.7
- theta <- abs(params) 
- f1 <- sapply(theta, function(theta) { max(a*lambda - theta, 0)/((a-1)*lambda + eps) })
- f.d <- ((theta <= lambda) + f1 * (theta > lambda))
- A1 <- lambda* f.d / ( sqrt(params^2 + eps) )
+ theta <- abs(param)
+ f1 <- sapply(theta, function(theta) { max(a*c(lambda) - theta, 0)/((a-1)*c(lambda) + eps) })
+ f.d <- ((theta <= c(lambda)) + f1 * (theta > c(lambda)))
+ A1 <- c(lambda)* f.d / ( sqrt(params^2 + eps) )
 }
 if(type == "mcp"){
  if(is.null(a)) a = 2.5
- theta <- abs(params) 
- f.d <- (lambda-theta/a)*(theta < lambda*a)
- A1 <- f.d / ( sqrt(params^2 + eps) )
+ theta <- abs(param) 
+ f.d <- (c(lambda)-theta/a)*(theta < c(lambda)*a)
+ A1 <- f.d / ( sqrt(param^2 + eps) )
 }
 if(length(A1) == 1) S <- matrix(A1) else S <- diag(A1)
-return(S)
+diag(S.)[c(t(id))] <- A1
+S. <- S.[t(lb2mb(rs)),t(lb2mb(rs))]
+return(list(full = S., red = S))
+}
+
+uplm <- function(b,loadmt){
+  
+# Goal: To update loadmt (with new zeroes in b)
+# Input : b (parameters) and loadmt (restrictions)
+# Output: loadmt
+# Testing: b = bold;
+ 
+lmt <- loadmt
+for(i in names(b)){ lmt[[i]] <- (b[[i]] != 0) & loadmt[[i]] }
+return(lmt)
+}
+
+op.lambda <- function(lambda,b,upbObj,pmObj,rs,nY){
+  
+# Goal: to update automatic lambda
+# Input: lambda, updated-Beta (penalised) obj, penalty object, restriction matrix (rs)
+# Output: lambda (updated)
+# Testing: lambda = pml.control$lambda; b = bnew; upbObj = A3; pmObj = A2a; rs = loadmt2
+
+pM <- pmObj$pM/c(nY*lambda)
+sJ <- m2pdm(-upbObj$hessian)$sq
+Q <- qr.Q(qr(sJ))
+R <- qr.R(qr(sJ))
+B <- m2pdm(pmObj$pM)$sq
+th <- t(lb2mb(b))[lb2mb(rs)]
+svdRB <- svd(rbind(R,B))
+U1 <- svdRB$u[1:nrow(R),]
+# U2 <- svdRB$u[(nrow(R)+1):nrow(svdRB$u),]
+V <- svdRB$v
+D <- diag(svdRB$d)
+K = sJ%*%th + solve(t(sJ))%*%upbObj$gradient
+K1 = t(U1)%*%t(Q)%*%K
+# Zl = solve(D)%*%t(V)%*%pmObj$pM%*%V%*%solve(D)
+Zl = solve(D)%*%t(V)%*%pM%*%V%*%solve(D)
+Cl = Zl%*%crossprod(U1)
+
+dtrA = -lambda*nY*sum(diag(Cl))
+d2trA = 2*lambda^2*nY^2*sum(diag(Zl%*%Cl)) - lambda*sum(diag(Cl))
+dP = 2*lambda*nY*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
+d2P = 2*lambda^2*nY*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + dP
+
+dV = 1/sum(lb2mb(rs))*dP + 1.4*2/sum(lb2mb(rs))*dtrA
+d2V = 1/sum(lb2mb(rs))*d2P + 1.4*2/sum(lb2mb(rs))*d2trA
+# return(exp(lambda) - solve(d2V)%*%dV)
+return(exp(log(lambda) - solve(d2V)%*%dV))
 }

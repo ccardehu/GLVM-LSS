@@ -14,9 +14,9 @@ splvm.fit <- function(Y, fam, form,
 #         control (list of controls)
 # Output: Estimated semi-parametric LVM
 # Testing: Y = simR$Y; fam = fam; form = e.form;
-#          control = list(method = "PEM", start.val = lc, constraint = l1,
+#          control = list(method = "PEM", #start.val = lc, constraint = l1,
 #          ghQqp = 15, iter.lim = 150, tol = sqrt(.Machine$double.eps), silent = F, full.hess = F, information = "Fisher")
-#          control$pml.control = list(type = "scad", lambda = 1, w.alasso = 1, a = 3.7, pen.load = T)
+#          control$pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testa1$b, pen.load = F)
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
@@ -31,48 +31,8 @@ for(i in parY){ for(j in 1:p.){ if(i %in% pFun(fam[j])) {pC[[i]] <- append(pC[[i
 
 # Gaussian Hermite Quadrature
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-if(is.null(control$ghQqp)) control$ghQqp <- 15
+if(is.null(control$ghQqp)) { if(q. == 1) control$ghQqp <- 25 else control$ghQqp <- 10 }
 ghQ <- mvghQ(n = control$ghQqp, formula = form)
-
-# Constraint matrices (for each parameter)
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-loadmt <- control$constraint
-if(!is.null(loadmt)){
-  if(!is.list(loadmt)) stop("Constraint should be a list with dim p*(q+intercept) restriction matrices for mu, sigma, tau, nu")
-  if(length(loadmt) != length(parY)) stop("Number of matrices in `loadmt` should match number of parameters mu, sigma, tau, nu")
-  names(loadmt) <- parY 
-  for(i in parY) {
-   colnames(loadmt[[i]]) <- colnames(ghQ$out[[i]]); rownames(loadmt[[i]]) <- colnames(Y)
-   if(length(loadmt[[i]]) != p.*ncol(ghQ$out[[i]])) stop("Provided `loadmt` is not lenght p*(q+intercept), revise dimension")
-   if(!is.matrix(loadmt[[i]])) loadmt[[i]] <- matrix(loadmt[[i]], nrow = p., ncol = ncol(ghQ$out[[i]]))
-  }
-} else {
- if(!control$silent) cat("\n Constraint matrices not supplied. No identification restrictions assumed.\n")
- loadmt <- NULL
- for(i in parY){
-  if(length(all.vars(form[[i]])) > 1){
-   r. <- p.%/%(ncol(ghQ$out[[i]])-1)
-   tmp1 <- matrix(1, nrow = p., ncol = ncol(ghQ$out[[i]]), dimnames = list(colnames(Y), colnames(ghQ$out[[i]]))) # 0
-   for(j in seq_along(all.vars(form[[i]]))){
-    tmp2 <- seq((j-1)*(r.)+1,(j)*(r.),length.out = r.)
-    tmp1[tmp2,all.vars(form[[i]])[j]] <- 1
-    if(j == length(all.vars(form[[i]])) && p.%%2 != 0) tmp1[(tail(tmp2,1)+1):nrow(tmp1),all.vars(form[[i]])[j]] <- 1
-   }
-   tmp1[,!(colnames(tmp1) %in% all.vars(form[[i]]))] <- 1
-   loadmt[[i]] <- tmp1; rm(tmp1,tmp2)
-  } else{
-   loadmt[[i]] <- matrix(1,nrow = p., ncol = ncol(ghQ$out[[i]]))
-   # loadmt[[i]][1,ncol(gr$out[[i]])] <- 0 # ! HERE
-   # if(ncol(ghQ$out[[i]])-1 > 1){
-    # message(paste0("Nonlinear functions for ", i, ", identification restriction imposed in item 1"))
-    # loadmt[[i]][1,ncol(ghQ$out[[i]])] <- 0
-   # }
-  }
-  colnames(loadmt[[i]]) <- colnames(ghQ$out[[i]])
-  rownames(loadmt[[i]]) <- colnames(Y)  
- }
-}
 
 # Starting values
 # ~~~~~~~~~~~~~~~
@@ -85,22 +45,53 @@ if(!is.null(icoefs)){
   if(length(icoefs) != length(parY)) stop("\n Number of matrices in starting values should match number of parameters mu, sigma, tau, nu")
   names(icoefs) <- parY 
   for(i in parY) {
-    colnames(icoefs[[i]]) <- colnames(ghQ$out[[i]]); rownames(icoefs[[i]]) <- colnames(Y)
-    if(length(icoefs[[i]]) != p.*ncol(ghQ$out[[i]])) stop("\n Provided starting values is not lenght p*(q+intercept), revise dimension")
-    if(!is.matrix(icoefs[[i]])) icoefs[[i]] <- matrix(icoefs[[i]], nrow = p., ncol = ncol(ghQ$out[[i]]))
-    icoefs[[i]] <- icoefs[[i]] + runif(length(icoefs[[i]]), min = -2*tol, max = 2*tol)
+   colnames(icoefs[[i]]) <- colnames(ghQ$out[[i]]); rownames(icoefs[[i]]) <- colnames(Y)
+   if(length(icoefs[[i]]) != p.*ncol(ghQ$out[[i]])) stop("\n Provided starting values is not lenght p*(q+intercept), revise dimension")
+   if(!is.matrix(icoefs[[i]])) icoefs[[i]] <- matrix(icoefs[[i]], nrow = p., ncol = ncol(ghQ$out[[i]]))
+   icoefs[[i]] <- icoefs[[i]] + runif(length(icoefs[[i]]), min = -2*tol, max = 2*tol)
   }
   bold <- icoefs
 } else {
  if(!control$silent) cat("\n Starting values not supplied: Initial guess defined using 'gamlss' & PCA (for factor scores)\n")
- # bold <- lapply(parY, function(i) matrix(1, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
- # names(bold) <- parY
  bold <- suppressWarnings(ini.par(Y,fam,form,pC,q.))
- }
-for(i in parY){
- bold[[i]] <- bold[[i]]*loadmt[[i]]
- bold[[i]][-pC[[i]],] <- 0
 }
+
+# Constraints matrices (for each parameter)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+restr <- control$constraint
+if(!is.null(restr)){
+  if(!is.list(restr)) stop("Argument 'control$constraint' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
+  restr <- rmat(restr,bold)
+  loadmt <- vector(mode = "list",length = length(restr)); names(loadmt) <- names(restr)
+  for(i in parY){loadmt[[i]] <- is.na(restr[[i]]); bold[[i]][!loadmt[[i]]] <- restr[[i]][!loadmt[[i]]] }
+} else {
+ if(!control$silent) cat("\n Argument 'control$constraint' not supplied. No (identification) restrictions assumed.\n")
+ loadmt <- vector(mode = "list", length = length(parY)); names(loadmt) <- parY
+ restr <- vector(mode = "list", length = length(loadmt)); names(restr) <- parY
+ for(i in parY){
+  if(length(all.vars(form[[i]])) > 1){
+   r. <- p.%/%(ncol(ghQ$out[[i]])-1)
+   tmp1 <- matrix(T, nrow = p., ncol = ncol(ghQ$out[[i]]), dimnames = list(colnames(Y), colnames(ghQ$out[[i]]))) # 0
+   for(j in seq_along(all.vars(form[[i]]))){
+    tmp2 <- seq((j-1)*(r.)+1,(j)*(r.),length.out = r.)
+    tmp1[tmp2,all.vars(form[[i]])[j]] <- T
+    if(j == length(all.vars(form[[i]])) && p.%%2 != 0) tmp1[(tail(tmp2,1)+1):nrow(tmp1),all.vars(form[[i]])[j]] <- T
+   }
+   tmp1[,!(colnames(tmp1) %in% all.vars(form[[i]]))] <- T
+   loadmt[[i]] <- tmp1; rm(tmp1,tmp2)
+  } else{
+   loadmt[[i]] <- matrix(T,nrow = p., ncol = ncol(ghQ$out[[i]]))
+  }
+  colnames(loadmt[[i]]) <- colnames(ghQ$out[[i]])
+  rownames(loadmt[[i]]) <- colnames(Y)
+  restr[[i]] <- array(NA,dim = dim(loadmt[[i]]), dimnames = dimnames(loadmt[[i]]))
+ }
+}
+loadmt2 <- loadmt
+
+# Fixing values for restrictions parameters
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+for(i in parY){ bold[[i]][-pC[[i]],] <- 0 }
   
 # Estimation
 # ~~~~~~~~~~
@@ -110,10 +101,19 @@ pml.control <- control$pml.control
 if(is.null(pml.control$pen.load)) pen.load <- F else pen.load <- pml.control$pen.load
 if(is.null(control$information)) control$information <- "Fisher"
 
+autoL <- F
+if(!is.null(pml.control$lambda)){
+ if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
+ if(pml.control$lambda == "auto"){ pml.control$lambda <- 0.01; autoL <- T } # starting lambda
+}
+
+if(is.null(control$full.hess)) control$full.hess <- F
+if(is.null(control$iter.lim)) control$iter.lim <- 1e3
+
 tryCatch({
 while(eps > tol && iter < control$iter.lim){
 
-pen.idx <- pidx(bold,pen.load)
+pen.idx <- pidx(bold,loadmt2,pen.load)
 
 if(method == "EM"){
 A1 <- dY(Y,ghQ,bold,fam)
@@ -121,9 +121,10 @@ A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 llo <- sum(log(A2)) # log-likelihood old
 pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 dvL <- dvY(Y,ghQ,bold,fam,control$information) # List with all the necessary derivatives
-A3 <- upB(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess,information = control$information) # updated betas
+A3 <- sche(ghQ,bold,loadmt,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
+A4 <- upB(bold,A3,loadmt) # updated betas
 # Compute log-likelihood for comparison, etc.
-bnew <- A3$b
+bnew <- A4$b
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 lln <- sum(log(A2)) ; dlln <- round(lln,3) # log-likelihood new
@@ -131,8 +132,8 @@ eps <- abs(lln-llo)
 iter <- iter + 1
 bold <- bnew
 if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
-mod.grad <- A3$gradient
-mod.hess <- A3$hessian
+mod.grad <- A4$gradient
+mod.hess <- A4$hessian
 upll <- lln
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
@@ -140,26 +141,34 @@ for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0
 if(method == "PEM"){
 A1 <- dY(Y,ghQ,bold,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
-llo <- c(sum(log(A2)) - lb2pM(bold,Y,pen.idx,pml.control)) # penalized log-likelihood old
+A2a <- lb2pM(bold,Y,pen.idx,loadmt2,pml.control)
+llo <- c(sum(log(A2)) - A2a$lp) # penalized log-likelihood old
 pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 dvL <- dvY(Y,ghQ,bold,fam,control$information) # List with all the necessary derivatives
-A3 <- upB.pen(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess,pen.idx,
-                pml.control = pml.control,information = control$information) # updated betas
+A3 <- sche(ghQ,bold,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
+A4 <- upB.pen(bold,A3,A2a,loadmt2) # updated betas
 # Compute log-likelihood for comparison, etc.
-bnew <- A3$b
-pen.idx <- pidx(bnew,pen.load)
+bnew <- A4$b
+pen.idx <- pidx(bnew,loadmt2,pen.load)
+loadmt2 <- uplm(bnew,loadmt2)
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
-lln <- c(sum(log(A2)) - lb2pM(bnew,Y,pen.idx,pml.control)) # penalized log-likelihood new
+A2a <- lb2pM(bnew,Y,pen.idx,loadmt2,pml.control)
+A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
+lln <- c(sum(log(A2)) - A2a$lp) # penalized log-likelihood new
 dlln <- round(lln,3) # penalized log-likelihood new (printing)
 eps <- abs(lln-llo)
 iter <- iter + 1
 bold <- bnew
-if(!control$silent) cat("\r (Penalised) EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
-mod.grad <- A3$gradient
-mod.hess <- A3$hessian
+mod.grad <- A4$gradient
+mod.hess <- A4$hessian
 upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+if(!control$silent){
+ if(!autoL){
+  cat("\r Penalised EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "") } else {
+  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, ", \U03bb: ", round(pml.control$lambda,5), sep = "") }}
+if(autoL){ pml.control$lambda <- op.lambda(pml.control$lambda,bnew,A3,A2a,loadmt2,nrow(Y)) }
 }
 
 if(method == "ML"){
@@ -236,7 +245,7 @@ A3 <- upB.pen(bold,ghQ,fam,dvL,pD,full.hess = control$full.hess,pen.idx,
                 pml.control = pml.control,information = control$information) #updated betas
 # Compute log-likelihood for comparison, etc.
 bnew <- A3$b
-pen.idx <- pidx(bnew,pen.load)
+pen.idx <- pidx(bnew,loadmt,pen.load)
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 lln <- c(sum(log(A2)) - lb2pM(bnew,Y,pen.idx,pml.control)) ; dlln <- round(lln,3) # log-likelihood new
@@ -251,12 +260,11 @@ upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
-# for(r in parY){ if(bold[[r]][1,"Z1"] < 0) bold[[r]][,"Z1"] <- -bold[[r]][,"Z1"] }
-    
 }
 return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt, iter = iter, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
-            pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information))
+            pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information,
+            pen.idx = pen.idx))
 },
 error = function(e){
 cat(paste("\n Error in Estimation, proceeded with next simulation \n Error:",e))
