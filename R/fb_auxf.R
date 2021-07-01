@@ -290,7 +290,7 @@ ini.par <- function(Y,fam,form,pC,q.){
 # Output: List of parameters
 # Testing: Y = simR$Y; fam = fam; form = form; pC = pC; q. = q. # (get form fc_mfit first)
 
-Z. <- princomp(Y,cor = T)$scores[,1:q.,drop=F]
+Z. <- princomp(Y,cor = T)$scores[,q.:1,drop=F]
 colnames(Z.) <- paste0("Z", 1:q.)
 sZ <- NULL
 bstart <- NULL

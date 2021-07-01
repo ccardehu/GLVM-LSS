@@ -36,9 +36,9 @@ ghQ <- mvghQ(n = control$ghQqp, formula = form)
 
 # Starting values
 # ~~~~~~~~~~~~~~~
-iter <- 0
+cycl <- iter <- 0
 if(!is.null(control$tol)) tol <- control$tol else tol <- sqrt(.Machine$double.eps)
-eps <- tol + 1
+eps <- eps2 <- tol + 1; tol2 <- max(tol,1e-5)
 icoefs <- control$start.val
 if(!is.null(icoefs)){
   if(!is.list(icoefs)) stop("\n Provided starting values should be a list with dim p*(q+intercept) loading matrices for mu, sigma, tau, nu")
@@ -52,7 +52,7 @@ if(!is.null(icoefs)){
   }
   bold <- icoefs
 } else {
- if(!control$silent) cat("\n Starting values not supplied: Initial guess defined using 'gamlss' & PCA (for factor scores)\n")
+ if(!control$silent) cat("\n Argument 'control$start.val' not supplied: Initial guess defined using 'gamlss' & PCA (for factor scores).\n")
  bold <- suppressWarnings(ini.par(Y,fam,form,pC,q.))
 }
 
@@ -65,7 +65,7 @@ if(!is.null(restr)){
   loadmt <- vector(mode = "list",length = length(restr)); names(loadmt) <- names(restr)
   for(i in parY){loadmt[[i]] <- is.na(restr[[i]]); bold[[i]][!loadmt[[i]]] <- restr[[i]][!loadmt[[i]]] }
 } else {
- if(!control$silent) cat("\n Argument 'control$constraint' not supplied. No (identification) restrictions assumed.\n")
+ if(!control$silent) cat("\n Argument 'control$constraint' not supplied: No (identification) restrictions assumed.\n")
  loadmt <- vector(mode = "list", length = length(parY)); names(loadmt) <- parY
  restr <- vector(mode = "list", length = length(loadmt)); names(restr) <- parY
  for(i in parY){
@@ -96,22 +96,25 @@ for(i in parY){ bold[[i]][-pC[[i]],] <- 0 }
 # Estimation
 # ~~~~~~~~~~
 if(sum(lb2cb(loadmt)) > p.*(p.-1)/2 && !control$silent) cat("\n Warning: Number of free parameters is less than p(p-1)/2. Model might be under-indentified.\n")
-method <- control$method
-pml.control <- control$pml.control
+method <- control$method; pml.control <- control$pml.control
 if(is.null(pml.control$pen.load)) pen.load <- F else pen.load <- pml.control$pen.load
 if(is.null(control$information)) control$information <- "Fisher"
-
-autoL <- F
-if(!is.null(pml.control$lambda)){
- if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
- if(pml.control$lambda == "auto"){ pml.control$lambda <- 0.01; autoL <- T } # starting lambda
-}
-
 if(is.null(control$full.hess)) control$full.hess <- F
 if(is.null(control$iter.lim)) control$iter.lim <- 1e3
 
+stop.crit <- autoL <- F;
+olObj <- list(); olObj$MSE <- iiter <- "NA"
+if(!is.null(pml.control$lambda)){
+ if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
+ if(pml.control$lambda == "auto"){ pml.control$lambda <- 0.01; autoL <- T } # starting lambda
+ if(is.null(pml.control$gamma)){pml.control$gamma <- 1.4} 
+}
+
+hist.lambda <- ifelse(autoL, pml.control$lambda, NA) # starting lambda
+
 tryCatch({
-while(eps > tol && iter < control$iter.lim){
+  
+while(!stop.crit){
 
 pen.idx <- pidx(bold,loadmt2,pen.load)
 
@@ -127,14 +130,13 @@ A4 <- upB(bold,A3,loadmt) # updated betas
 bnew <- A4$b
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
-lln <- sum(log(A2)) ; dlln <- round(lln,3) # log-likelihood new
+upll <- lln <- sum(log(A2)) ; dlln <- round(lln,3) # log-likelihood new
 eps <- abs(lln-llo)
 iter <- iter + 1
 bold <- bnew
-if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "")
+if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), sep = "")
 mod.grad <- A4$gradient
 mod.hess <- A4$hessian
-upll <- lln
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
   
@@ -157,18 +159,19 @@ A2a <- lb2pM(bnew,Y,pen.idx,loadmt2,pml.control)
 A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
 lln <- c(sum(log(A2)) - A2a$lp) # penalized log-likelihood new
 dlln <- round(lln,3) # penalized log-likelihood new (printing)
-eps <- abs(lln-llo)
+eps <- abs(lln-llo) # /(0.1+abs(lln))
 iter <- iter + 1
 bold <- bnew
 mod.grad <- A4$gradient
 mod.hess <- A4$hessian
 upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+
 if(!control$silent){
  if(!autoL){
-  cat("\r Penalised EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, sep = "") } else {
-  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", dlln, ", \U0394 loglk: ", lln-llo, ", \U03bb: ", round(pml.control$lambda,5), sep = "") }}
-if(autoL){ pml.control$lambda <- op.lambda(pml.control$lambda,bnew,A3,A2a,loadmt2,nrow(Y)) }
+  cat("\r Penalised EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), sep = "") } else {
+  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), ", (\U03bb: ", format(pml.control$lambda, digits = 4, nsmall = 4), ", cycle: ", cycl, ", inner iter: ", iiter,")",sep = "") 
+ } }
 }
 
 if(method == "ML"){
@@ -260,11 +263,24 @@ upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
+if(autoL && eps < tol && eps2 > tol2){
+ cycl <- cycl + 1
+ olObj <- op.lambda(bnew,Y,pen.idx,loadmt2,pml.control,A3,control$iter.lim,tol2)
+ laold <- pml.control$lambda
+ lanew <- pml.control$lambda <- olObj$lambda ; iiter <- olObj$iter
+ hist.lambda <- c(hist.lambda,lanew)
+ eps2 <- abs(lanew - laold) # /(0.1+abs(lanew))
+ eps <- 1
+ iter <- 0 }
+
+stop.crit <- (eps < tol || iter >= control$iter.lim)
+
 }
+
 return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt, iter = iter, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
             pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information,
-            pen.idx = pen.idx))
+            pen.idx = pen.idx, hist = hist.lambda))
 },
 error = function(e){
 cat(paste("\n Error in Estimation, proceeded with next simulation \n Error:",e))

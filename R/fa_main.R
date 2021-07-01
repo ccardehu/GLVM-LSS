@@ -490,6 +490,42 @@ hess <- hess1
 return(list("hessian" = hess, "posi" = iN0, "posj" = jN0)) }
 }
 
+sche <- function(ghQ,b,rs,fam,dvL,pD,info,full.hess = F){
+
+# Goal: To compute Score vector & full Hessian matrix for all items
+# Input : ghQ (GHQ object), b (loadings matrix), fam (distributions),
+#         dvL (list of derivatives),
+#         pD (posterior density, to be compute with joint with weights)
+# Output: list of gradient vector and Hessian matrix
+# Testing: ghQ = ghQ; b = bold; fam = fam; dvL = dvY(Y,ghQ,b,fam); rs = loadmt;
+#          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
+#          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights); info = "Fisher"
+
+cb <- lb2cb(b)
+Sm <- array(NA,dim=dim(lb2mb(b)))
+posM <- matrix(1:length(cb),nrow = nrow(Sm),byrow = T)
+Hm <- matrix(0,length(cb),length(cb))
+Hm[c(t(!lb2mb(rs))),] <- Hm[,c(t(!lb2mb(rs)))] <- NA
+for(i in 1:length(fam)){
+ A <- sco(i,ghQ,b,rs,fam,dvL,pD);
+ Sm[i,A$pos] <- c(A$score)
+ if(full.hess){
+ for(j in i:length(fam)){
+  B <- hess(i,j,ghQ,b,rs,fam,dvL,pD,match.arg(info,c("Fisher","Hessian")))
+  Hm[posM[i,B$posi],posM[j,B$posj]] <- t(B$hessian)
+  Hm[posM[j,B$posj],posM[i,B$posi]] <- B$hessian
+ }
+ } else {
+  B <- hess(i,i,ghQ,b,rs,fam,dvL,pD,match.arg(info,c("Fisher","Hessian")))
+  Hm[posM[i,B$posi],posM[i,B$posi]] <- t(B$hessian)
+  Hm[posM[i,B$posi],posM[i,B$posi]] <- B$hessian
+}}
+Sm <- c(t(Sm)[t(lb2mb(rs))])
+Hm <- Hm[c(t(lb2mb(rs))),c(t(lb2mb(rs)))]
+# if(!m2pdm(-Hm)$is.PDM){ Hm <- -m2pdm(-Hm)$mat }
+return(list(gradient = Sm, hessian = Hm))
+}
+
 upB <- function(bold,shObj,loadmt){
 
 # Goal: To update factor loadings
@@ -523,47 +559,13 @@ upB.pen <- function(bold,shObj,pmObj,loadmt){
 
 cb <- lb2cb(bold)
 bu <- cb[t(lb2mb(loadmt))]
-bn <- bu - c(solve(shObj$hess - pmObj$pM)%*%matrix(shObj$gradient - pmObj$pM%*%bu))
+iM <- tryCatch({solve(shObj$hess - pmObj$pM)}, error = function(e){return(m2pdm(-shObj$hess + pmObj$pM)$inv.mat)})
+bn <- bu - c(iM%*%matrix(shObj$gradient - pmObj$pM%*%bu))
 bn[abs(bn) < 1*sqrt(.Machine$double.eps)] <- 0
 cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
 
 return(list(b = bnew,  gradient = shObj$gradient, hessian = shObj$hessian))
-}
-
-sche <- function(ghQ,b,rs,fam,dvL,pD,info,full.hess = F){
-
-# Goal: To compute Score vector & full Hessian matrix for all items
-# Input : ghQ (GHQ object), b (loadings matrix), fam (distributions),
-#         dvL (list of derivatives),
-#         pD (posterior density, to be compute with joint with weights)
-# Output: list of gradient vector and Hessian matrix
-# Testing: ghQ = gr; b = borg; fam = fam; dvL = dvY(Y,ghQ,b,fam); rs = loadmt;
-#          pD = exp(rowSums(dY(Y,ghQ,b,fam),dim = 2)) /
-#          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights); info = "Fisher"
-
-cb <- lb2cb(b)
-Sm <- array(NA,dim=dim(lb2mb(b)))
-posM <- matrix(1:length(cb),nrow = nrow(Sm),byrow = T)
-Hm <- matrix(0,length(cb),length(cb))
-Hm[c(t(!lb2mb(rs))),] <- Hm[,c(t(!lb2mb(rs)))] <- NA
-for(i in 1:length(fam)){
- A <- sco(i,ghQ,b,rs,fam,dvL,pD);
- Sm[i,A$pos] <- c(A$score)
- if(full.hess){
- for(j in i:length(fam)){
-  B <- hess(i,j,ghQ,b,rs,fam,dvL,pD,match.arg(info,c("Fisher","Hessian")))
-  Hm[posM[i,B$posi],posM[j,B$posj]] <- t(B$hessian)
-  Hm[posM[j,B$posj],posM[i,B$posi]] <- B$hessian
- }
- } else {
-  B <- hess(i,i,ghQ,b,rs,fam,dvL,pD,match.arg(info,c("Fisher","Hessian")))
-  Hm[posM[i,B$posi],posM[i,B$posi]] <- t(B$hessian)
-  Hm[posM[i,B$posi],posM[i,B$posi]] <- B$hessian
-}}
-Sm <- c(t(Sm)[t(lb2mb(rs))])
-Hm <- Hm[c(t(lb2mb(rs))),c(t(lb2mb(rs)))]
-return(list(gradient = Sm, hessian = Hm))
 }
 
 penM <- function(params, type = "lasso", id = pen.idx, rs = loadmt, lambda = 1, w.alasso = NULL,a = 3.7){ 
@@ -621,15 +623,23 @@ for(i in names(b)){ lmt[[i]] <- (b[[i]] != 0) & loadmt[[i]] }
 return(lmt)
 }
 
-op.lambda <- function(lambda,b,upbObj,pmObj,rs,nY){
+op.lambda <- function(b,Y,idx,rs,pml,shObj,itl,tol = 1e-3){
   
 # Goal: to update automatic lambda
 # Input: lambda, updated-Beta (penalised) obj, penalty object, restriction matrix (rs)
 # Output: lambda (updated)
-# Testing: lambda = pml.control$lambda; b = bnew; upbObj = A3; pmObj = A2a; rs = loadmt2
+# Testing: b = bnew; Y = Y; idx = pen.idx; rs = loadmt2; pml = pml.control; shObj = A3
 
+it <- 0
+es <- 1
+nY <- nrow(Y)
+   
+while(it < itl && es > tol){
+
+pmObj <- lb2pM(b,Y,idx,rs,pml)
+lambda <- pml$lambda
 pM <- pmObj$pM/c(nY*lambda)
-sJ <- m2pdm(-upbObj$hessian)$sq
+sJ <- m2pdm(-shObj$hessian)$sq
 Q <- qr.Q(qr(sJ))
 R <- qr.R(qr(sJ))
 B <- m2pdm(pmObj$pM)$sq
@@ -639,19 +649,27 @@ U1 <- svdRB$u[1:nrow(R),]
 # U2 <- svdRB$u[(nrow(R)+1):nrow(svdRB$u),]
 V <- svdRB$v
 D <- diag(svdRB$d)
-K = sJ%*%th + solve(t(sJ))%*%upbObj$gradient
+iD <- m2pdm(D)$inv.mat
+K = sJ%*%th + solve(t(sJ))%*%shObj$gradient
 K1 = t(U1)%*%t(Q)%*%K
-# Zl = solve(D)%*%t(V)%*%pmObj$pM%*%V%*%solve(D)
-Zl = solve(D)%*%t(V)%*%pM%*%V%*%solve(D)
+Zl = iD%*%t(V)%*%pM%*%V%*%iD
 Cl = Zl%*%crossprod(U1)
 
 dtrA = -lambda*nY*sum(diag(Cl))
-d2trA = 2*lambda^2*nY^2*sum(diag(Zl%*%Cl)) - lambda*sum(diag(Cl))
+d2trA = 2*lambda^2*nY^2*sum(diag(Zl%*%Cl)) - lambda*nY*sum(diag(Cl))
 dP = 2*lambda*nY*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
 d2P = 2*lambda^2*nY*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + dP
 
-dV = 1/sum(lb2mb(rs))*dP + 1.4*2/sum(lb2mb(rs))*dtrA
-d2V = 1/sum(lb2mb(rs))*d2P + 1.4*2/sum(lb2mb(rs))*d2trA
-# return(exp(lambda) - solve(d2V)%*%dV)
-return(exp(log(lambda) - solve(d2V)%*%dV))
+dV = dP + (pml$gamma)*2*dtrA #/sum(lb2mb(rs))
+d2V = d2P + (pml$gamma)*2*d2trA #/sum(lb2mb(rs))
+i2dV <- tryCatch({solve(d2V)}, error = function(e){return(1)})
+lambda2 <- c(exp(log(lambda) - i2dV%*%dV))
+es <- abs(round(lambda2,6) - round(lambda,6))
+it = it + 1 
+pml$lambda <- lambda2
+}
+A <- sJ%*%m2pdm(-shObj$hessian + pmObj$pM)$inv.mat%*%t(sJ)
+MSE <- crossprod(K-A%*%K) + 2*sum(diag(A)) - sum(lb2mb(rs))
+if(it == itl) it <- paste0("max ~ ",itl)
+return(list(lambda = pml$lambda, iter = it, MSE = MSE))
 }

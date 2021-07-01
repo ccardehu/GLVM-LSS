@@ -277,13 +277,16 @@ fam.ex <- rep("binomial",ncol(test))
 #                ghQqp = 15, iter.lim = 2e3, tol = .Machine$double.eps^0.5, silent = F,information = "Fisher"))
 
 ex.form <- list("mu" = "~ Z1*Z2")
-ex.test.unp <- splvm.fit(test,fam.ex,ex.form,
-               control = list(method = "EM", full.hess = F, start.val = ex.lb,
-               ghQqp = 15, iter.lim = 2e3, tol = .Machine$double.eps^0.5, silent = F,information = "Fisher"))
+ex.test.unp <- splvm.fit(test,fam.ex,ex.form, control = list(method = "EM",
+               iter.lim = 2e3, tol = .Machine$double.eps^0.5, silent = F,information = "Fisher"))
+ex.test.pen <- splvm.fit(test,fam.ex,ex.form, control = list(method = "PEM",
+               iter.lim = 2e3, tol = .Machine$double.eps^0.5, silent = F,information = "Fisher",
+               pml.control = list(type = "alasso", w.alasso = ex.test.unp$b, lambda = "auto", pen.load = T)))
 
-round(cbind(ex.lb$mu,ex.test.unp$b$mu),3)
-c(rmltm$log.Lik,ex.test.unp$loglik)
-GBIC(ex.test.unp)
+round(cbind(ex.lb$mu,ex.test.unp$b$mu,ex.test.pen$b$mu),3)
+c(rmltm$log.Lik,ex.test.unp$loglik,ex.test.pen$loglik)
+GBIC(ex.test.unp);GBIC(ex.test.pen)
+GIC(ex.test.unp);GIC(ex.test.pen)
 
 lamt <- seq(0,1,by = 0.1)
 at <- seq(0.5,1.5,by = 0.5)

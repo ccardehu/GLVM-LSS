@@ -36,29 +36,31 @@ l1$mu <- matrix(1,ncol = 4, nrow = p)
 # l1$sigma <- matrix(1, ncol = 2, nrow = p)
 
 l1. <- l1
-# l1.$mu[1,3] <- 0
-# l1.$mu[6,2] <- 0
+# l1.$mu[1:5,3] <- 0
+# l1.$mu[6:10,2] <- 0
 # l1.$mu[sample(1:p, p/2, replace = F),3] <- 0
 l1.$mu[sample(1:p, p/2, replace = F),4] <- 0
+# l1.$mu[sample(which(l1.$mu[,2] == 1), sum(l1.$mu[,2] == 1)/2, replace = F),3] <- 1
 # l1.$sigma[sample(1:p, p/2, replace = F),2] <- 0
+# l1.$sigma[c(2,6,10),3] <- 0
 # l1.$sigma[,3] <- 0
 # l1.$sigma[sample(which(l1.$sigma[,2] == 1), sum(l1.$sigma[,2] == 1)/2, replace = F),3] <- 1
 
 lc <- NULL
-# lc$mu <- matrix(runif(length(l1$mu),-1.5,1.5),nrow = p) # for Normal
-lc$mu <- matrix(runif(length(l1$mu),-1.5,1.5),nrow = p) # for Bernoulli
+lc$mu <- matrix(runif(length(l1$mu),-1.5,1.5),nrow = p) # for Normal
+# lc$mu <- matrix(runif(length(l1$mu),-2.5,2.5),nrow = p) # for Bernoulli
 # lc$mu[,1] <- runif(p,1,2) # for Normal
 # lc$mu[,2] <- runif(p,-2,2) # for Normal
 if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2] # for Normal
-lc$mu[abs(lc$mu) < 0.3] <- runif(sum(abs(lc$mu) < 0.3), 0.5,1.0) # for Normal
+lc$mu[abs(lc$mu) < 0.7] <- runif(sum(abs(lc$mu) < 0.7), 1.0,2.0) # for Normal
 # lc$mu[,3] <- runif(p,-1,0.5)
-# lc$mu[,4] <- runif(p,-0.3,-0.1)
+lc$mu[,4] <- runif(p,-0.3,-0.1)
 # lc$sigma <- matrix(runif(length(l1$sigma), min = 0.3, max = 0.7), nrow = p) # for Normal
-# if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2] # for Normal
-# lc$sigma[abs(lc$sigma) < 0.2] <- runif(sum(abs(lc$sigma) < 0.2), 0.2,0.5) # for Normal
 # lc$sigma[,1] <- runif(p,-0.5,0.5)
-# lc$sigma[,2] <- runif(p,-0.5,1)
+# lc$sigma[,2] <- runif(p,-0.5,0.7)
 # # lc$sigma[,3] <- runif(p,-0.3,-0.1)
+# if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2] # for Normal
+# lc$sigma[abs(lc$sigma) < 0.5] <- runif(sum(abs(lc$sigma) < 0.5), 0.5,1.0) # for Normal
 
 lc. <- NULL
 lc.$mu <- lc$mu * l1.$mu
@@ -71,29 +73,65 @@ borg <- simR$b
 e.form <- s.form
 
 # Restrictions (l1.)
-restr <- list(c("mu",1,"Z1:Z2",0),c("mu",4,"Z1:Z2",0),c("mu",5,"Z1:Z2",0),
-              c("mu",6,"Z1:Z2",0),c("mu",10,"Z1:Z2",0))
+# ~~~~~~~~~~~~~~~~~~ 
+
+# Quadratic + HT
+# restr <- list(c("mu",1,"I(Z1^2)",0),c("mu",4,"I(Z1^2)",0),c("mu",5,"I(Z1^2)",0),
+#               c("mu",6,"I(Z1^2)",0),c("mu",10,"I(Z1^2)",0),
+#               c("sigma",2,"Z1",0), c("sigma",4,"Z1",0), c("sigma",5,"Z1",0),
+#               c("sigma",6,"Z1",0),c("sigma",8,"Z1",0))
+
+# HT               
+# restr <- list(c("sigma",1,"Z1",0), c("sigma",4,"Z1",0), c("sigma",5,"Z1",0),
+#               c("sigma",6,"Z1",0),c("sigma",10,"Z1",0))
+               
+# Interaction binomial
+restr <- list(c("mu",1,"Z1:Z2",0), c("mu",4,"Z1:Z2",0), c("mu",5,"Z1:Z2",0),
+              c("mu",6,"Z1:Z2",0), c("mu",10,"Z1:Z2",0))
+
+# irs <- list(c("mu",1,"Z2",0), c("mu",6,"Z1",0))
 
 testa0 <- splvm.fit(Y,fam,e.form,
-          control = list(method = "EM", constraint = restr, start.val = lc.,
-          tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher"))
+          control = list(method = "EM", constraint = restr, silent = F, ghQp = 6))
 
-testa1 <- splvm.fit(Y,fam,e.form,control = list(method = "EM",
-          tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher"))
+testa1 <- splvm.fit(Y,fam,e.form,control = list(method = "EM", silent = F, ghQp = 6))
 
-testa2 <- splvm.fit(Y,fam,e.form, control = list(method = "PEM",
-          tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher",
-          pml.control = list(type = "alasso", lambda = "auto", w.alasso = testa1$b, pen.load = F)))
+testa2 <- splvm.fit(Y,fam,e.form, control = list(method = "PEM", ghQp = 6,
+          silent = F, pml.control = list(type = "alasso", lambda = "auto",
+          w.alasso = testa1$b, pen.load = F, gamma = 2)))
 
 testa3 <- splvm.fit(Y,fam,e.form, control = list(method = "PEM",
-          tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher",
-          pml.control = list(type = "mcp", lambda = 0.5, pen.load = F)))
+          silent = F, pml.control = list(type = "mcp", lambda = 0.1, pen.load = F)))
 
-round(cbind(testa0$b$mu,testa1$b$mu,testa2$b$mu,testa3$b$mu,borg$mu),4)
-round(cbind(testa0$b$sigma,testa1$b$sigma,testa2$b$sigma,testa3$b$sigma,borg$sigma),4)
+round(cbind(testa1$b$mu,testa2$b$mu,testa3$b$mu,borg$mu),4)
+round(cbind(testa1$b$sigma,testa2$b$sigma,testa3$b$sigma,borg$sigma),4)
 
-GBIC(testa0);GBIC(testa1); GBIC(testa2); GBIC(testa3)
-GIC(testa0);GIC(testa1); GIC(testa2); GIC(testa3)
+GBIC(testa0); GBIC(testa1); GBIC(testa2); GBIC(testa3)
+GIC(testa0); GIC(testa1); GIC(testa2); GIC(testa3)
+
+# syntax = 'Z1 =~ Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
+# Z2 =~ Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
+# Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ~ 1 ;
+# Z1 ~~ 1*Z2'
+# # library(penfa)
+# alasso_fit <- penfa(model = syntax, data = Y, std.lv = TRUE,
+# pen.shrink = "lasso", information = "fisher",
+# eta = list(shrink = c("lambda" = 0.1), diff = c("none" = 0)),
+# strategy = "auto", meanstructure = T)
+# summary(alasso_fit)
+# penfaParEstim(alasso_fit)
+# penmat(alasso_fit)
+# alasso_fit@Options$eta$shrink
+# matrm <- array(0,dim = dim(lb2mb(testa2$loadmt)))
+# matrm[lb2mb(testa2$loadmt)[,c(2,3,1,4)]] <- coef(alasso_fit)
+# ex.lb <- mb2lb(matrm[,c(3,1,2,4)],testa1$b) # [,c(2,1,3)]
+# ex.lb <- mb2lb(matrix(coef(alasso_fit),nrow = ncol(Y),byrow = F)[,c(2,3,1,3)],testa1$b) # [,c(2,1,3)]
+# ex.lb$sigma <- log(sqrt(ex.lb$sigma))
+# round(cbind(testa2$b$mu,ex.lb$mu,borg$mu),3)
+ 
+# round(cbind(testa1$b$mu,testa2$b$mu,borg$mu),4)
+# round(cbind(testa1$b$sigma,testa2$b$sigma,borg$sig),3)
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -323,17 +361,6 @@ segments(x0 = seq_along(ana.hess[int]), y0 = unlist(ana.hess)[int], y1 = num.hes
 legend(0,-2500,legend=c("Analytical", "Numerical (Hessian)"), col=c("gray50", "red",0.6),
        pch = c(16,16), cex=0.8, inset = 0.02, box.col = "white")
 rm(modt)
-
-
-rbenchmark::benchmark(
-  "test20" = {testa <- splvm.fit(Y,fam,e.form,
-          control = list(method = "EM", constraint = l1, full.hess = F, start.val = lc,
-          ghQqp = 20, iter.lim = 200, tol = sqrt(.Machine$double.eps), silent = F))},
-  "test40" = {testa <- splvm.fit(Y,fam,e.form,
-          control = list(method = "EM", constraint = l1, full.hess = F, start.val = lc,
-          ghQqp = 40, iter.lim = 200, tol = sqrt(.Machine$double.eps), silent = F))},
-  replications = 3, columns = c("test", "replications", "elapsed", "relative", "user.self", "sys.self")
-)
 
 
 hist(Z$Z1, breaks = 100, freq = F, xlim = c(-5,5), border = "gray", ylim = c(0,0.7))
