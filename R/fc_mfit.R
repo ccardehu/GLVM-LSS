@@ -38,7 +38,7 @@ ghQ <- mvghQ(n = control$ghQqp, formula = form)
 # ~~~~~~~~~~~~~~~
 cycl <- iter <- 0
 if(!is.null(control$tol)) tol <- control$tol else tol <- sqrt(.Machine$double.eps)
-eps <- eps2 <- tol + 1; tol2 <- max(tol,1e-5)
+eps <- eps2 <- tol + 1; tol2 <- min(tol,1e-5) # max(tol,1e-5)
 icoefs <- control$start.val
 if(!is.null(icoefs)){
   if(!is.list(icoefs)) stop("\n Provided starting values should be a list with dim p*(q+intercept) loading matrices for mu, sigma, tau, nu")
@@ -103,7 +103,7 @@ if(is.null(control$full.hess)) control$full.hess <- F
 if(is.null(control$iter.lim)) control$iter.lim <- 1e3
 
 stop.crit <- autoL <- F;
-olObj <- list(); olObj$MSE <- iiter <- "NA"
+olObj <- list(); iiter <- "NA" # olObj$MSE <- 
 if(!is.null(pml.control$lambda)){
  if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
  if(pml.control$lambda == "auto"){ pml.control$lambda <- 0.01; autoL <- T } # starting lambda
@@ -156,7 +156,6 @@ loadmt2 <- uplm(bnew,loadmt2)
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 A2a <- lb2pM(bnew,Y,pen.idx,loadmt2,pml.control)
-A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
 lln <- c(sum(log(A2)) - A2a$lp) # penalized log-likelihood new
 dlln <- round(lln,3) # penalized log-likelihood new (printing)
 eps <- abs(lln-llo) # /(0.1+abs(lln))
@@ -170,7 +169,7 @@ for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0
 if(!control$silent){
  if(!autoL){
   cat("\r Penalised EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), sep = "") } else {
-  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), ", (\U03bb: ", format(pml.control$lambda, digits = 4, nsmall = 4), ", cycle: ", cycl, ", inner iter: ", iiter,")",sep = "") 
+  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), ", (\U03bb: ", format(pml.control$lambda, digits = 4, nsmall = 4), ", middle cycle: ", cycl+1, ", iters: ", iiter,")",sep = "") 
  } }
 }
 
@@ -263,8 +262,11 @@ upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
-if(autoL && eps < tol && eps2 > tol2){
+if(autoL && (eps < tol | iter >= control$iter.lim) && eps2 > tol2){
  cycl <- cycl + 1
+ pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+ dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
+ A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
  olObj <- op.lambda(bnew,Y,pen.idx,loadmt2,pml.control,A3,control$iter.lim,tol2)
  laold <- pml.control$lambda
  lanew <- pml.control$lambda <- olObj$lambda ; iiter <- olObj$iter
@@ -274,10 +276,12 @@ if(autoL && eps < tol && eps2 > tol2){
  iter <- 0 }
 
 stop.crit <- (eps < tol || iter >= control$iter.lim)
+# if(cycl == 1) stop()
+# pml.control$lambda <- 0.01
 
 }
 
-return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt, iter = iter, ghQ = ghQ,
+return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = iter, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
             pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information,
             pen.idx = pen.idx, hist = hist.lambda))

@@ -258,7 +258,7 @@ lb2pM <- function(lb,Y,pen.idx,loadmt,
 # Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, a = NULL)
    
 b <- lb2cb(lb)[t(lb2mb(loadmt))]
-if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
+# if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 P <- nrow(Y)*penM(lb2cb(lb),type = pml.control$type, id = pen.idx, rs = loadmt, lambda = pml.control$lambda,
                   w.alasso = pml.control$w.alasso,a = pml.control$a)$f
 return(list(lp = 0.5*crossprod(b,P)%*%b, pM = P))

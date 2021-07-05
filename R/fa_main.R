@@ -559,7 +559,7 @@ upB.pen <- function(bold,shObj,pmObj,loadmt){
 
 cb <- lb2cb(bold)
 bu <- cb[t(lb2mb(loadmt))]
-iM <- tryCatch({solve(shObj$hess - pmObj$pM)}, error = function(e){return(m2pdm(-shObj$hess + pmObj$pM)$inv.mat)})
+iM <- tryCatch({solve(shObj$hess - pmObj$pM)}, error = function(e){return(-m2pdm(-shObj$hess + pmObj$pM)$inv.mat)})
 bn <- bu - c(iM%*%matrix(shObj$gradient - pmObj$pM%*%bu))
 bn[abs(bn) < 1*sqrt(.Machine$double.eps)] <- 0
 cb[t(lb2mb(loadmt))] <- bn
@@ -576,7 +576,7 @@ penM <- function(params, type = "lasso", id = pen.idx, rs = loadmt, lambda = 1, 
 # Testing: params = lb2cb(bold); lambda = pml.control$lambda; id = pen.idx
 #          w.alasso = pml.control$w.alasso; rs = loadmt2; type = pml.control$type
  
-if(!is.null(w.alasso) && is.list(w.alasso)) w.alasso <- lb2mb(w.alasso)[id]
+if(!is.null(w.alasso) && is.list(w.alasso)) w.alasso <- t(lb2mb(w.alasso))[t(id)]
 S. <- diag(0,length(params))
 param <- params[c(t(id))]
 eps = 1e-8 # sqrt(.Machine$double.eps) # protective tolerance level
@@ -584,13 +584,13 @@ if(type == "ridge"){
  A1 <-  c(lambda)*rep(1, length(param))
 }
 if(type == "lasso"){
- A1 <- c(lambda)*1/sqrt(param^2 + eps) 
+ A1 <- c(lambda)/sqrt(param^2 + eps) 
 }
 if(type == "alasso"){
  if(is.null(a)) a = 2
  if( is.null(w.alasso) ) w.alasso <- 1
- w.al <- 1/abs(w.alasso)^a
- A1 <- c(lambda)*w.al/sqrt(param^2 + eps)
+ w.al <- abs(w.alasso)^a
+ A1 <- c(lambda)/(w.al*sqrt(param^2 + eps))
 }
 if(type == "scad"){
  if(is.null(a)) a = 3.7
@@ -643,7 +643,7 @@ sJ <- m2pdm(-shObj$hessian)$sq
 Q <- qr.Q(qr(sJ))
 R <- qr.R(qr(sJ))
 B <- m2pdm(pmObj$pM)$sq
-th <- t(lb2mb(b))[lb2mb(rs)]
+th <- t(lb2mb(b))[t(lb2mb(rs))] # t(lb2mb(b))[lb2mb(rs)]
 svdRB <- svd(rbind(R,B))
 U1 <- svdRB$u[1:nrow(R),]
 # U2 <- svdRB$u[(nrow(R)+1):nrow(svdRB$u),]
@@ -656,20 +656,20 @@ Zl = iD%*%t(V)%*%pM%*%V%*%iD
 Cl = Zl%*%crossprod(U1)
 
 dtrA = -lambda*nY*sum(diag(Cl))
-d2trA = 2*lambda^2*nY^2*sum(diag(Zl%*%Cl)) - lambda*nY*sum(diag(Cl))
+d2trA = 2*lambda^2*nY^2*sum(diag(Zl%*%Cl)) + dtrA
 dP = 2*lambda*nY*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
-d2P = 2*lambda^2*nY*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + dP
+d2P = 2*lambda^2*nY^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + dP
 
 dV = dP + (pml$gamma)*2*dtrA #/sum(lb2mb(rs))
 d2V = d2P + (pml$gamma)*2*d2trA #/sum(lb2mb(rs))
-i2dV <- tryCatch({solve(d2V)}, error = function(e){return(1)})
+i2dV <- tryCatch({solve(d2V)}, error = function(e){return(1/nY)})
 lambda2 <- c(exp(log(lambda) - i2dV%*%dV))
-es <- abs(round(lambda2,6) - round(lambda,6))
+es <- abs(lambda2 - lambda)
 it = it + 1 
 pml$lambda <- lambda2
 }
-A <- sJ%*%m2pdm(-shObj$hessian + pmObj$pM)$inv.mat%*%t(sJ)
-MSE <- crossprod(K-A%*%K) + 2*sum(diag(A)) - sum(lb2mb(rs))
+# A <- sJ%*%m2pdm(-shObj$hessian + pmObj$pM)$inv.mat%*%t(sJ)
+# MSE <- crossprod(K-A%*%K) + 2*sum(diag(A)) - sum(lb2mb(rs))
 if(it == itl) it <- paste0("max ~ ",itl)
-return(list(lambda = pml$lambda, iter = it, MSE = MSE))
+return(list(lambda = pml$lambda, iter = it)) # , MSE = MSE
 }
