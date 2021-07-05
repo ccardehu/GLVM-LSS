@@ -26,46 +26,59 @@ source("fg_grph.R")
 # source("fi_esim.R")
 
 n = 1000     # Number of individuals
-p = 10       # Number of items
 nsim = 1000  # Number of simulations
-s.form <- list("mu" = "~ Z1*Z2")
-fam <- rep("binomial",p)
 
-l1 <- NULL
-l1$mu <- matrix(1,ncol = 4, nrow = p)
+# Simulation 1: quadratic + heteroscedastic Normal model:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# s.form <- list("mu" = "~ Z1 + I(Z1^2)", "sigma" = "~ Z1"); p = 10
+# fam <- rep("normal",p)
+# l1 <- lc <- NULL
+# l1$mu <- matrix(1,ncol = 3, nrow = p)
 # l1$sigma <- matrix(1, ncol = 2, nrow = p)
+# lc$mu <- matrix(runif(length(l1$mu),-1.5,1.5),nrow = p)
+# lc$sigma <- matrix(runif(length(l1$sigma),0.3,1), nrow = p)
+# lc$mu[,1] <- runif(p,1,2); if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]
+# lc$mu[,3] <- runif(p,-1,0.5)
+# lc$mu[abs(lc$mu) < 0.5] <- runif(sum(abs(lc$mu) < 0.5),0.5,1.5)
+# if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2]
+
+# Simulation 2: Bi-factor binomial IRT with interactions:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+s.form <- list("mu" = "~ Z1*Z2"); p = 10
+fam <- rep("binomial",p)
+l1 <- lc <- NULL
+l1$mu <- matrix(1,ncol = 4, nrow = p)
+lc$mu <- matrix(runif(length(l1$mu),-2.5,2.5),nrow = p)
+if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]
+lc$mu[,4] <- runif(p,-0.7,-0.3)
+
+ 
+# Simulation 3: Mixture of Poisson and ZI-Poisson:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 l1. <- l1
-# l1.$mu[1:5,3] <- 0
-# l1.$mu[6:10,2] <- 0
+
+# Parameter restrictions:
+# Simulation 1
+# ~~~~~~~~~~~~
 # l1.$mu[sample(1:p, p/2, replace = F),3] <- 0
-l1.$mu[sample(1:p, p/2, replace = F),4] <- 0
-# l1.$mu[sample(which(l1.$mu[,2] == 1), sum(l1.$mu[,2] == 1)/2, replace = F),3] <- 1
 # l1.$sigma[sample(1:p, p/2, replace = F),2] <- 0
-# l1.$sigma[c(2,6,10),3] <- 0
-# l1.$sigma[,3] <- 0
-# l1.$sigma[sample(which(l1.$sigma[,2] == 1), sum(l1.$sigma[,2] == 1)/2, replace = F),3] <- 1
 
-lc <- NULL
-lc$mu <- matrix(runif(length(l1$mu),-1.5,1.5),nrow = p) # for Normal
-# lc$mu <- matrix(runif(length(l1$mu),-2.5,2.5),nrow = p) # for Bernoulli
-# lc$mu[,1] <- runif(p,1,2) # for Normal
-# lc$mu[,2] <- runif(p,-2,2) # for Normal
-if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2] # for Normal
-lc$mu[abs(lc$mu) < 0.7] <- runif(sum(abs(lc$mu) < 0.7), 1.0,2.0) # for Normal
-# lc$mu[,3] <- runif(p,-1,0.5)
-lc$mu[,4] <- runif(p,-0.3,-0.1)
-# lc$sigma <- matrix(runif(length(l1$sigma), min = 0.3, max = 0.7), nrow = p) # for Normal
-# lc$sigma[,1] <- runif(p,-0.5,0.5)
-# lc$sigma[,2] <- runif(p,-0.5,0.7)
-# # lc$sigma[,3] <- runif(p,-0.3,-0.1)
-# if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2] # for Normal
-# lc$sigma[abs(lc$sigma) < 0.5] <- runif(sum(abs(lc$sigma) < 0.5), 0.5,1.0) # for Normal
+# Simulation 2
+# ~~~~~~~~~~~~
+l1.$mu[sample(1:p, p/2, replace = F),4] <- 0
+l1.$mu[sample(1:p, p/2, replace = F),3] <- 0
+for(i in 1:nrow(l1.$mu)){ if(l1.$mu[i,3] != 0 && l1.$mu[i,4] != 0) l1.$mu[i,2] <- 0} #rbinom(1,1,0.5)
+# l1.$mu[6:10,2] <- 0
 
-lc. <- NULL
-lc.$mu <- lc$mu * l1.$mu
-# lc.$sigma <- lc$sigma * l1.$sigma
+# Simulation 3
+# ~~~~~~~~~~~~
 
+
+# Simulation procedure:
+# ~~~~~~~~~~~~~~~~~~~~~
+
+lc. <- NULL; for(i in names(l1.)){ lc.[[i]] <- lc[[i]]*l1.[[i]] }
 simR <- splvm.sim(n = n, form = s.form, fam = fam, constraints = l1., coefs = lc.)
 Y <- simR$Y
 Z <- simR$Z
@@ -75,39 +88,47 @@ e.form <- s.form
 # Restrictions (l1.)
 # ~~~~~~~~~~~~~~~~~~ 
 
-# Quadratic + HT
-# restr <- list(c("mu",1,"I(Z1^2)",0),c("mu",4,"I(Z1^2)",0),c("mu",5,"I(Z1^2)",0),
-#               c("mu",6,"I(Z1^2)",0),c("mu",10,"I(Z1^2)",0),
-#               c("sigma",2,"Z1",0), c("sigma",4,"Z1",0), c("sigma",5,"Z1",0),
-#               c("sigma",6,"Z1",0),c("sigma",8,"Z1",0))
+# Simulation 1: Quadratic heteroscedastic model
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# HT               
-# restr <- list(c("sigma",1,"Z1",0), c("sigma",4,"Z1",0), c("sigma",5,"Z1",0),
-#               c("sigma",6,"Z1",0),c("sigma",10,"Z1",0))
-               
+# restr <- list(c("mu",1,"I(Z1^2)",0),c("mu",3,"I(Z1^2)",0),
+#               c("mu",6,"I(Z1^2)",0),c("mu",8,"I(Z1^2)",0),c("mu",10,"I(Z1^2)",0),
+#               c("sigma",2,"Z1",0),c("sigma",6,"Z1",0),c("sigma",7,"Z1",0),
+#               c("sigma",9,"Z1",0),c("sigma",10,"Z1",0))
+
+
 # Interaction binomial
-restr <- list(c("mu",1,"Z1:Z2",0), c("mu",4,"Z1:Z2",0), c("mu",5,"Z1:Z2",0),
-              c("mu",6,"Z1:Z2",0), c("mu",10,"Z1:Z2",0))
+restr <- list(c("mu",2,"Z1:Z2",0), c("mu",3,"Z1:Z2",0), c("mu",4,"Z1:Z2",0),
+              c("mu",8,"Z1:Z2",0), c("mu",9,"Z1:Z2",0),
+              c("mu",1,"Z2",0), c("mu",2,"Z2",0), c("mu",5,"Z2",0),
+              c("mu",6,"Z2",0), c("mu",7,"Z2",0),
+              c("mu",10,"Z1",0)) # , c("mu",7,"Z1",0), c("mu",8,"Z1",0),
+              # c("mu",9,"Z1",0), c("mu",10,"Z1",0)
 
-# irs <- list(c("mu",1,"Z2",0), c("mu",6,"Z1",0))
+# irs <- list(c("mu",1,"Z2",0), c("mu",6,"Z1",0), c("mu",1,"Z1:Z2",0),c("mu",6,"Z1:Z2",0))
 
-testa0 <- splvm.fit(Y,fam,e.form,
-          control = list(method = "EM", constraint = restr, silent = F, ghQp = 6))
+testCF <- splvm.fit(Y,fam,e.form,
+          control = list(method = "EM", constraint = restr, silent = F))
 
-testa1 <- splvm.fit(Y,fam,e.form,control = list(method = "EM", silent = F, ghQp = 6))
+testUP <- splvm.fit(Y,fam,e.form,control = list(method = "EM", silent = F))
 
-testa2 <- splvm.fit(Y,fam,e.form, control = list(method = "PEM", ghQp = 6,
+# testLA <- splvm.fit(Y,fam,e.form, control = list(method = "PEM",
+#           silent = F, pml.control = list(type = "lasso", lambda = 0.1,
+#           pen.load = F, gamma = 3)))
+
+testAL <- splvm.fit(Y,fam,e.form, control = list(method = "PEM",
           silent = F, pml.control = list(type = "alasso", lambda = "auto",
-          w.alasso = testa1$b, pen.load = F, gamma = 2)))
+          w.alasso = testUP$b, pen.load = T)))
 
-testa3 <- splvm.fit(Y,fam,e.form, control = list(method = "PEM",
-          silent = F, pml.control = list(type = "mcp", lambda = 0.1, pen.load = F)))
+testMC <- splvm.fit(Y,fam,e.form, control = list(method = "PEM",
+          silent = F, pml.control = list(type = "mcp", lambda = 0.05, pen.load = T)))
 
-round(cbind(testa1$b$mu,testa2$b$mu,testa3$b$mu,borg$mu),4)
-round(cbind(testa1$b$sigma,testa2$b$sigma,testa3$b$sigma,borg$sigma),4)
+round(c(testCF$loglik,testUP$loglik,testAL$loglik,testMC$loglik),3)
+round(cbind(testCF$b$mu,testUP$b$mu,testAL$b$mu,borg$mu),4)
+round(cbind(testCF$b$s,testUP$b$sigma,testAL$b$sigma,borg$sigma),4)
 
-GBIC(testa0); GBIC(testa1); GBIC(testa2); GBIC(testa3)
-GIC(testa0); GIC(testa1); GIC(testa2); GIC(testa3)
+GBIC(testUP); GBIC(testLA); GBIC(testAL); GBIC(testMC)
+GIC(testUP); GIC(testLA); GIC(testAL); GIC(testMC)
 
 # syntax = 'Z1 =~ Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
 # Z2 =~ Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
@@ -218,8 +239,7 @@ fam.ex <- rep("normal",ncol(ccdata.subset))
 ex.form <- list("mu" = "~ Z1", "sigma" = "~ 1")
 test <- ccdata.subset
 
-ex.test.unp <- splvm.fit(test,fam.ex,ex.form,control = list(method = "EM",ghQqp = 50,
-               tol = sqrt(.Machine$double.eps), silent = F,information = "Fisher"))
+ex.test.unp <- splvm.fit(test,fam.ex,ex.form,control = list(method = "EM", silent = F))
 
 # rmtes2 <- ERP::emfa(as.matrix(ccdata.subset), 1, min.err = .Machine$double.eps, verbose = FALSE, svd.method = c("irlba")) #"irlba" "fast.svd"
 # ex.EMfa <- NULL
@@ -237,8 +257,7 @@ ex.lb <- mb2lb(matrix(coef(alasso_fit),nrow = ncol(test),byrow = F)[,c(2,1,3)],e
 ex.lb$sigma <- log(sqrt(ex.lb$sigma))
 
 ex.test.pen <- splvm.fit(test,fam.ex,ex.form,control = list(method = "PEM",
-               tol = .Machine$double.eps^(1/2), silent = F,information = "Fisher",
-               pml.control = list(type = "alasso", w.alasso = ex.lb, lambda = "auto", pen.load = T)))
+               silent = F, pml.control = list(type = "alasso", w.alasso = ex.lb, lambda = "auto", pen.load = T)))
 
 # alasso_fit@Options$eta$shrink
 # Y = test; fam = fam.ex; form = ex.form
