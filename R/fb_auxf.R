@@ -181,7 +181,7 @@ if(fam[i] == "ZIpoisson"){
  u <- as.numeric(Y == 0)
  lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
  if(log == T) return(lf) else return(exp(lf)) }
- llg <- sum(dZIpoisson(Y[,i], c(exp(Z.$mu%*%matrix(b$mu[i,]))), c(exp(Z.$sigma%*%matrix(b$sigma[i,]))), log = T)) }
+ llg <- sum(dZIpoisson(Y[,i], c(exp(Z.$mu%*%matrix(b$mu[i,]))), c(probs(Z.$sigma%*%matrix(b$sigma[i,]))), log = T)) }
 return(llg)
 }
 
@@ -191,7 +191,7 @@ llkf <- function(cb,Y,ghQ,bg,fam){
 # Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
 #         bg (guide matrix), fam (distributions)
 # Output: List with log-likelihood, gradient & full Hessian
-# Testing: cb = lb2cb(borg); Y = simR$Y; ghQ = gr; bg = borg; fam = fam; 
+# Testing: cb = lb2cb(borg); Y = simR$Y; ghQ = ghQ; bg = borg; fam = fam; 
 
 b1 <- lb2cb(bg)
 b1[lb2cb(bg) != 0] <- cb # complete with cb including zeros
@@ -208,14 +208,14 @@ sche.test <- function(cb,mod){
 # Goal: To compute scores & hessian from estimated model
 # Input : vector of betas (cb), mod (splvm.fit object)
 # Output: List with gradient (score) & full Hessian computed @ cb2lb(cb)
-# Testing: cb = lb2cb(borg); mod = testa
+# Testing: cb = lb2cb(borg); mod = testUP
 
 b <- cb2lb(cb,mod$b)
 A1 <- dY(mod$Y,mod$ghQ,b,mod$fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%mod$ghQ$weights) # this is efy
 mod.pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 mod.dvL <- dvY(mod$Y,mod$ghQ,b,mod$fam,mod$info) # List with all the necessary derivatives
-res <- sche(ghQ = mod$ghQ, b = b, fam = mod$fam, dvL = mod.dvL, pD = mod.pD, info = mod$info)    
+res <- sche(ghQ = mod$ghQ, b = b, rs = mod$loadmt, fam = mod$fam, dvL = mod.dvL, pD = mod.pD, info = mod$info, full.hess = T)    
 return(res)
 }
 

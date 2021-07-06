@@ -122,10 +122,10 @@ if(fam[i] == "ZIpoisson"){ # structure(gamlss.dist::ZIP)
  sigma = c(probs(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
  u = ifelse(Y[,i] == 0, (1 + exp(-logit(sigma)-mu))^(-1),0) # as.numeric(Y == 0)
  dvY$d1mu[,z,i] = (1-u)*(Y[,i]/mu-1) * mu
- if(info.F) dvY$d2mu[,z,i] = (1-u)*(-1/mu^2) * mu^2 else 
+ if(info.F) dvY$d2mu[,z,i] = (1-u)*(-1/mu) * mu^2 else 
   dvY$d2mu[,z,i] = (1-u)*(-Y[,i]/mu^2) * mu^2 + dvY$d1mu[,z,i] # expected value is -1/mu; original is (-Y/mu^2)
  dvY$d1sg[,z,i] = (u-sigma)/(sigma*(1-sigma)) * (sigma*(1-sigma))
- if(info.F) dvY$d2sg[,z,i] = -(u/(sigma^2) + (1-u)/((1-sigma)^2)) * (sigma*(1-sigma))^2 else  # CHECK THIS
+ if(info.F) dvY$d2sg[,z,i] = 1/(sigma*(sigma-1)) * (sigma*(1-sigma))^2 else  # CHECK THIS
   dvY$d2sg[,z,i] = -(sigma^2 - 2*u*sigma + u)/((sigma-1)*sigma)^2 * (sigma*(1-sigma))^2 + (1-2*sigma)*dvY$d1sg[,z,i] # -(u/(sigma^2) + (1-u)/((1-sigma)^2)) * (sigma*(1-sigma))^2
  dvY$dcms[,z,i] = rep(0, length(Y[,i]))
 } } }
@@ -628,7 +628,7 @@ op.lambda <- function(b,Y,idx,rs,pml,shObj,itl,tol = 1e-3){
 # Goal: to update automatic lambda
 # Input: lambda, updated-Beta (penalised) obj, penalty object, restriction matrix (rs)
 # Output: lambda (updated)
-# Testing: b = bnew; Y = Y; idx = pen.idx; rs = loadmt2; pml = pml.control; shObj = A3
+# Testing: b = bnew; Y = Y; idx = pen.idx; rs = loadmt2; pml = pml.control; shObj = A3; itl = control$iter.lim
 
 it <- 0
 es <- 1
@@ -662,7 +662,8 @@ d2P = 2*lambda^2*nY^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%
 
 dV = dP + (pml$gamma)*2*dtrA #/sum(lb2mb(rs))
 d2V = d2P + (pml$gamma)*2*d2trA #/sum(lb2mb(rs))
-i2dV <- tryCatch({solve(d2V)}, error = function(e){return(1/nY)})
+# i2dV <- tryCatch({ifelse(solve(d2V) > 0, solve(d2V), stop())}, error = function(e){return(0)})
+i2dV <- tryCatch({solve(d2V)}, error = function(e){return(0)})
 lambda2 <- c(exp(log(lambda) - i2dV%*%dV))
 es <- abs(lambda2 - lambda)
 it = it + 1 

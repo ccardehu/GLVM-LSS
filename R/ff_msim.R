@@ -8,7 +8,7 @@ splvm.sim <- function(n,fam,form,constraints,coefs){
 #         constraints (matrix of coefs. constraints), coefs (loadings)
 # Output: List of Y (simulated items), Z (simulated latent variables), b (original parameters),
 #         constraints (restrictions), coefs (coefficients for simulation)
-# Testing: n = 100; fam = fam; form = s.form; constraints = l1; coefs = lc
+# Testing: n = 100; fam = fam; form = s.form; constraints = l1.; coefs = lc.
 
 p <- length(fam)  
 parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
@@ -95,5 +95,5 @@ Y <- sapply(1:p, function(i) rFun(n,i,fam[i], Z.,borg))
 Y <- as.data.frame(Y); colnames(Y) <- paste0("Y", 1:p)
 ll <- sum(sapply(1:p, function(i) dFun(i,Y,Z.,borg,fam)))
 
-return(list("Y" = Y, "Z" = Z, "Zout" = Z., "b" = borg, "formula" = form, "constraints" = constraints, "llk" = ll))
+return(list("Y" = Y, "Z" = Z, "Zout" = Z., "b" = borg, "formula" = form, "constraints" = constraints, "llk" = ll, "fam" = fam))
 }

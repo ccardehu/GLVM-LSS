@@ -97,7 +97,7 @@ for(i in parY){ bold[[i]][-pC[[i]],] <- 0 }
 # ~~~~~~~~~~
 if(sum(lb2cb(loadmt)) > p.*(p.-1)/2 && !control$silent) cat("\n Warning: Number of free parameters is less than p(p-1)/2. Model might be under-indentified.\n")
 method <- control$method; pml.control <- control$pml.control
-if(is.null(pml.control$pen.load)) pen.load <- F else pen.load <- pml.control$pen.load
+if(is.null(pml.control$pen.load)) {if(q. > 1){ pen.load <- T } else { pen.load <- F } } else pen.load <- pml.control$pen.load
 if(is.null(control$information)) control$information <- "Fisher"
 if(is.null(control$full.hess)) control$full.hess <- F
 if(is.null(control$iter.lim)) control$iter.lim <- 1e3
@@ -106,7 +106,7 @@ stop.crit <- autoL <- F;
 olObj <- list(); iiter <- "NA" # olObj$MSE <- 
 if(!is.null(pml.control$lambda)){
  if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
- if(pml.control$lambda == "auto"){ pml.control$lambda <- 0.01; autoL <- T } # starting lambda
+ if(pml.control$lambda == "auto"){ pml.control$lambda <- 1/nrow(Y); autoL <- T } # starting lambda
  if(is.null(pml.control$gamma)){pml.control$gamma <- 1.4} 
 }
 
@@ -158,7 +158,7 @@ A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 A2a <- lb2pM(bnew,Y,pen.idx,loadmt2,pml.control)
 lln <- c(sum(log(A2)) - A2a$lp) # penalized log-likelihood new
 dlln <- round(lln,3) # penalized log-likelihood new (printing)
-eps <- abs(lln-llo) # /(0.1+abs(lln))
+eps <- abs(lln-llo) #/(0.1+abs(lln))
 iter <- iter + 1
 bold <- bnew
 mod.grad <- A4$gradient
@@ -277,7 +277,7 @@ if(autoL && (eps < tol | iter >= control$iter.lim) && eps2 > tol2){
 
 stop.crit <- (eps < tol || iter >= control$iter.lim)
 # if(cycl == 1) stop()
-# pml.control$lambda <- 0.01
+# pml.control$lambda <- 1/nrow(Y)
 
 }
 
