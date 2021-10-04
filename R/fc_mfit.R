@@ -37,7 +37,7 @@ ghQ <- mvghQ(n = control$ghQqp, formula = form)
 # Starting values
 # ~~~~~~~~~~~~~~~
 cycl <- iter <- 0
-if(!is.null(control$tol)) tol <- control$tol else tol <- sqrt(.Machine$double.eps)
+if(!is.null(control$tol)) tol <- control$tol else tol <- 1e-7 # tol <- sqrt(.Machine$double.eps)
 eps <- eps2 <- tol + 1; tol2 <- min(tol,1e-5) # max(tol,1e-5)
 icoefs <- control$start.val
 if(!is.null(icoefs)){
@@ -103,7 +103,7 @@ if(is.null(control$full.hess)) control$full.hess <- F
 if(is.null(control$iter.lim)) control$iter.lim <- 1e3
 
 stop.crit <- autoL <- F;
-olObj <- list(); iiter <- "NA" # olObj$MSE <- 
+olObj <- NULL; iiter <- "NA"
 if(!is.null(pml.control$lambda)){
  if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
  if(pml.control$lambda == "auto"){ pml.control$lambda <- 1/nrow(Y); autoL <- T } # starting lambda
@@ -124,19 +124,19 @@ A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 llo <- sum(log(A2)) # log-likelihood old
 pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 dvL <- dvY(Y,ghQ,bold,fam,control$information) # List with all the necessary derivatives
-A3 <- sche(ghQ,bold,loadmt,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
-A4 <- upB(bold,A3,loadmt) # updated betas
+A3 <- sche(ghQ,bold,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
+A4 <- upB(bold,A3,loadmt2) # updated betas
 # Compute log-likelihood for comparison, etc.
 bnew <- A4$b
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 upll <- lln <- sum(log(A2)) ; dlln <- round(lln,3) # log-likelihood new
-eps <- abs(lln-llo)
+eps <- abs(lln-llo) #/(0.1+abs(lln))
 iter <- iter + 1
 bold <- bnew
-if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), sep = "")
-mod.grad <- A4$gradient
-mod.hess <- A4$hessian
+if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), sep = "")
+mod.grad <- list(unp = A4$gradient)
+mod.hess <- list(unp = A4$hessian)
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
   
@@ -151,66 +151,82 @@ A3 <- sche(ghQ,bold,loadmt2,fam,dvL,pD,control$information,control$full.hess) # 
 A4 <- upB.pen(bold,A3,A2a,loadmt2) # updated betas
 # Compute log-likelihood for comparison, etc.
 bnew <- A4$b
-pen.idx <- pidx(bnew,loadmt2,pen.load)
 loadmt2 <- uplm(bnew,loadmt2)
+pen.idx <- pidx(bnew,loadmt2,pen.load)
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 A2a <- lb2pM(bnew,Y,pen.idx,loadmt2,pml.control)
 lln <- c(sum(log(A2)) - A2a$lp) # penalized log-likelihood new
+pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
+A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
 dlln <- round(lln,3) # penalized log-likelihood new (printing)
 eps <- abs(lln-llo) #/(0.1+abs(lln))
 iter <- iter + 1
 bold <- bnew
-mod.grad <- A4$gradient
-mod.hess <- A4$hessian
+mod.grad <- list(pen = A4$gradient, unp = A3$gradient)
+mod.hess <- list(pen = A4$hessian, unp = A3$hessian)
 upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 
 if(!control$silent){
  if(!autoL){
-  cat("\r Penalised EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), sep = "") } else {
-  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(dlln, digits = 5, nsmall = 3), ", \U0394 loglk: ", format(lln-llo, scientific = T, digits = 3, nsmall = 3), ", (\U03bb: ", format(pml.control$lambda, digits = 4, nsmall = 4), ", middle cycle: ", cycl+1, ", iters: ", iiter,")",sep = "") 
+  cat("\r Penalised EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), sep = "") } else {
+  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), ", (\U03bb: ", format(round(pml.control$lambda, digits = 5), nsmall = 5), ", mid-cycle: ", cycl+1, ", iters: ", iiter,")",sep = "") 
  } }
 }
 
 if(method == "ML"){
 b2r <- lb2cb(bold)
-btr <- b2r[lb2cb(bold) != 0]
+btr <- b2r[t(lb2mb(loadmt2))]
+# control$full.hess <- T;  control$information = "Hessian"
 if(!control$silent){
   if(exists("catmsg")) cat(paste0("\n Using trust-region algorithm to refine ML estimates ", catmsg))
-  else cat("\n Using trust-region algorithm to find ML estimates") }
+  else cat("\n Using trust-region algorithm to find ML estimates ...") }
 r1 <- trust::trust(objfun = loglkf, parinit = btr, rinit = 1, rmax = 10,
-                   iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam, info = control$information)
-b2r[lb2cb(bold) != 0] <- r1$argument
+                   iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam,
+                   info = control$information, res = loadmt2, full = control$full.hess)
+b2r[t(lb2mb(loadmt2))] <- r1$argument
 bnew <- cb2lb(b2r,bold)
 lln <- r1$value
 iter <- control$iter.lim + 1; eps <- 0
 if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
-mod.grad <- r1$gradient
-mod.hess <- r1$hessian
+mod.grad <- list(unp = r1$gradient)
+mod.hess <- list(unp = r1$hessian)
 upll <- lln
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
   
 if(method == "PML"){
 b2r <- lb2cb(bold)
-btr <- b2r[lb2cb(bold) != 0]
+btr <- b2r[t(lb2mb(loadmt2))]
+# control$full.hess <- T;  control$information = "Hessian"
 if(!control$silent){
-  if(exists("catmsg")) cat(paste0("\n Using trust-region algorithm to refine Penalised ML estimates ", catmsg))
-  else cat("\n Using trust-region algorithm to find Penalised ML estimates") }
+  if(exists("catmsg")) { cat(paste0("\n Using trust-region algorithm to refine Penalised ML estimates ", catmsg)) } else {
+    if(cycl == 0) cat("\n Using trust-region algorithm to find Penalised ML estimates ...") } }
 r1 <- trust::trust(objfun = penloglkf, parinit = btr, rinit = 1, rmax = 10,
                    iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam,
-                   pml.control = pml.control, pen.idx = pen.idx, info = control$information)
+                   pml.control = pml.control, pen.idx = pen.idx, info = control$information,
+                   res = loadmt2, full = control$full.hess)
 rep <- r1$argument; rep[abs(rep) < 1*sqrt(.Machine$double.eps)] <- 0
-b2r[lb2cb(bold) != 0] <- rep; rm(rep)
+b2r[t(lb2mb(loadmt2))] <- rep; rm(rep)
 bnew <- cb2lb(b2r,bold)
+loadmt2 <- uplm(bnew,loadmt2)
+pen.idx <- pidx(bnew,loadmt2,pen.load)
 lln <- r1$value
 iter <- control$iter.lim + 1; eps <- 0
-if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
-mod.grad <- r1$gradient
-mod.hess <- r1$hessian
+if(!control$silent){
+ if(!autoL){
+  cat("\n PMLE converged after ", r1$iter, " iterations (loglk: ", format(round(r1$value,3), nsmall = 3),")", sep = "") } else {
+  cat("\n (Automatic) PMLE converged after ", r1$iter, " iterations (loglk: ", format(round(r1$value,3), nsmall = 3), ", \U03bb: ", format(round(pml.control$lambda, digits = 5), nsmall = 5), ", mid-cycle: ", cycl+1, ", iters: ", iiter,")",sep = "")
+  } }
 A1 <- dY(Y,ghQ,bnew,fam); A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights)
 upll <- sum(log(A2))
+pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
+A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
+mod.grad <- list(pen = r1$gradient, unp = A3$gradient)
+mod.hess <- list(pen = r1$hessian, unp = A3$hessian)
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
@@ -262,7 +278,7 @@ upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
-if(autoL && (eps < tol | iter >= control$iter.lim) && eps2 > tol2){
+if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < round(control$iter.lim*0.5))){
  cycl <- cycl + 1
  pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
  dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
@@ -276,12 +292,11 @@ if(autoL && (eps < tol | iter >= control$iter.lim) && eps2 > tol2){
  iter <- 0 }
 
 stop.crit <- (eps < tol || iter >= control$iter.lim)
-# if(cycl == 1) stop()
-# pml.control$lambda <- 1/nrow(Y)
+if(cycl == round(control$iter.lim*0.5)) cat("\n Note: Automatic selection of \U03bb reached maximum number (",round(control$iter.lim*0.5),") of mid-cycles", sep = "")
 
 }
 
-return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = iter, ghQ = ghQ,
+return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = iter, iiter= cycl, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
             pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information,
             pen.idx = pen.idx, hist = hist.lambda))

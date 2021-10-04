@@ -537,7 +537,8 @@ upB <- function(bold,shObj,loadmt){
 
 cb <- lb2cb(bold)
 bu <- cb[t(lb2mb(loadmt))]
-bn <- bu - c(solve(shObj$hess)%*%matrix(shObj$gradient))
+iM <- tryCatch({solve(shObj$hess)}, error = function(e){return(-m2pdm(-shObj$hess)$inv.mat)})
+bn <- bu - c(iM%*%matrix(shObj$gradient))
 cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
      
@@ -559,13 +560,14 @@ upB.pen <- function(bold,shObj,pmObj,loadmt){
 
 cb <- lb2cb(bold)
 bu <- cb[t(lb2mb(loadmt))]
-iM <- tryCatch({solve(shObj$hess - pmObj$pM)}, error = function(e){return(-m2pdm(-shObj$hess + pmObj$pM)$inv.mat)})
+M <- shObj$hess - pmObj$pM
+iM <- tryCatch({solve(M)}, error = function(e){return(-m2pdm(-M)$inv.mat)})
 bn <- bu - c(iM%*%matrix(shObj$gradient - pmObj$pM%*%bu))
 bn[abs(bn) < 1*sqrt(.Machine$double.eps)] <- 0
 cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
 
-return(list(b = bnew,  gradient = shObj$gradient, hessian = shObj$hessian))
+return(list(b = bnew,  gradient = shObj$gradient, hessian = M))
 }
 
 penM <- function(params, type = "lasso", id = pen.idx, rs = loadmt, lambda = 1, w.alasso = NULL,a = 3.7){ 

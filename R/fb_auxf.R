@@ -84,27 +84,27 @@ pFun <- function(f){ # eval @ fam[1]
  return(pars)
 }
 
-loglkf <- function(cb,Y,ghQ,bg,fam,info){
+loglkf <- function(cb,Y,ghQ,bg,fam,info,res,full){
 
 # Goal: To compute log-likelihood function (to be used in trust function)
 # Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
 #         bg (guide matrix), fam (distributions)
 # Output: List with log-likelihood, gradient & full Hessian
-# Testing: cb = lb2cb(borg); Y = simR$Y; ghQ = gr; bg = borg; fam = fam; 
+# Testing: cb = lb2cb(bold); Y = simR$Y; ghQ = gr; bg = bold; fam = fam; res = loadmt2
 
 b1 <- lb2cb(bg)
-b1[lb2cb(bg) != 0] <- cb # complete with cb including zeros
+b1[t(lb2mb(res))] <- cb # complete with cb including zeros
 b1 <- cb2lb(b1,bg)
 A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
-pD1 <- exp(rowSums(A1,dim = 2))/A2
-ll <- sum(log(A2)) # log-likelihood
-dvL1 <- dvY(Y,ghQ,b1,fam,info)
-res <- sche(ghQ,b1,fam,dvL1,pD1,info)
-return(list(value = ll, gradient = res$gradient, hessian = res$hessian))
+ll <- sum(log(A2)) # log-likelihood old
+pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+dvL <- dvY(Y,ghQ,b1,fam,info) # List with all the necessary derivatives
+A3 <- sche(ghQ,b1,res,fam,dvL,pD,info,full) # score & Hessian object
+return(list(value = ll, gradient = A3$gradient, hessian = A3$hessian))
 }
 
-penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,info,
+penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,info,res,full,
                       pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,a = NULL)) {
 
 # Goal: To compute penalised log-likelihood function (to be used in trust function)
@@ -114,20 +114,19 @@ penloglkf <- function(cb,Y,ghQ,bg,fam,pen.idx,info,
 # Testing: cb = lb2cb(bold); Y = Y; ghQ = ghQ; bg = bold; fam = fam; 
 #          pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, gamma = 1, a = 3.7)
 
+res <- uplm(bg,res)
 b1 <- lb2cb(bg)
-b1[lb2cb(bg) != 0] <- cb # complete with cb including zeros
+b1[t(lb2mb(res))] <- cb # complete with cb including zeros
 b1 <- cb2lb(b1,bg)
 A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
-pD1 <- exp(rowSums(A1,dim = 2))/A2
-if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
-pS <- nrow(Y)*penM(cb[c(t(pen.idx))],type = pml.control$type, id = pen.idx,lambda = pml.control$lambda, w.alasso = pml.control$w.alasso,a = pml.control$a)$red
-pS. <- rep(0,length(cb)); pS.[c(t(pen.idx))] <- diag(pS)
-pS <- diag(pS.); pS <- pS[cb != 0,cb != 0]; 
-ll <- sum(log(A2)) - 0.5*crossprod(cb,pS)%*%cb # penalised log-likelihood
-dvL1 <- dvY(Y,ghQ,b1,fam,info)
-res <- sche(ghQ,b1,fam,dvL1,pD1,info)
-return(list(value = c(ll), gradient = res$gradient - c(tcrossprod(cb,pS)), hessian = res$hessian - pS))
+A2a <- lb2pM(b1,Y,pen.idx,res,pml.control)
+ll <- c(sum(log(A2)) - A2a$lp) # penalized log-likelihood old
+pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+dvL <- dvY(Y,ghQ,b1,fam,info) # List with all the necessary derivatives
+A3 <- sche(ghQ,b1,res,fam,dvL,pD,info,full) # score & Hessian object
+return(list(value = c(ll), gradient = A3$gradient - c(tcrossprod(cb,A2a$pM)), hessian = A3$hessian - A2a$pM))
+# return(list(value = c(ll), gradient = A3$gradient, hessian = A3$hessian))
 }
 
 rFun <- function(n,i,fam,Z,b){ #
@@ -290,7 +289,9 @@ ini.par <- function(Y,fam,form,pC,q.){
 # Output: List of parameters
 # Testing: Y = simR$Y; fam = fam; form = form; pC = pC; q. = q. # (get form fc_mfit first)
 
-Z. <- princomp(Y,cor = T)$scores[,q.:1,drop=F]
+# Z. <- princomp(Y,cor = T)$scores[,q.:1,drop=F]%*%diag(c(rep(-1,q.-1),1))
+
+Z. <- princomp(Y,cor = T)$scores[,1:q.,drop=F]%*%diag(c(-1,rep(ifelse(all(fam == "normal"),1,-1),q.-1)))
 colnames(Z.) <- paste0("Z", 1:q.)
 sZ <- NULL
 bstart <- NULL
@@ -343,35 +344,25 @@ return(bstart)
 
 GBIC <- function(mod){
   
-b <- mod$b
-Y <- mod$Y
-if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
-pen.idx <- pidx(b,mod$loadmt,pen.load)
 ll <- mod$uploglik
-Hm <- mod$hessian
+Hm <- mod$hessian$unp
 
 if(!is.null(mod$pml.control)){
-pml.control <- mod$pml.control
-pS <- lb2pM(b,Y,pen.idx,uplm(b,mod$loadmt),pml.control)$pM
-GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm-pS)%*%Hm)) } else {
-  GBIC <- -2*ll + log(nrow(Y))*sum(diag(solve(Hm)%*%Hm))
+pS <- mod$hessian$pen
+GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(solve(pS)%*%Hm)) } else {
+  GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(solve(Hm)%*%Hm))
 }
 return(GBIC)
 }
 
 GIC <- function(mod){
   
-b <- mod$b
-Y <- mod$Y
-if(is.null(mod$pml.control$pen.load)) pen.load <- F else pen.load <- mod$pml.control$pen.load
-pen.idx <- pidx(b,mod$loadmt,pen.load)
 ll <- mod$uploglik
-Hm <- mod$hessian
+Hm <- mod$hessian$unp
 
 if(!is.null(mod$pml.control)){
-pml.control <- mod$pml.control
-pS <- lb2pM(b,Y,pen.idx,uplm(b,mod$loadmt),pml.control)$pM
-GIC <- -2*ll + 2*sum(diag(solve(Hm-pS)%*%Hm)) } else {
+pS <- mod$hessian$pen
+GIC <- -2*ll + 2*sum(diag(solve(pS)%*%Hm)) } else {
   GIC <- -2*ll + 2*sum(diag(solve(Hm)%*%Hm))
 }
 return(GIC)
