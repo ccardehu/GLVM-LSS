@@ -4,7 +4,7 @@
 # Code written by: Camilo Cardenas-Hurtado (c.a.cardenas-hurtado@lse.ac.uk)
 
 # rm(list = ls())
-# set.seed(1234)
+set.seed(1234)
 
 # package.list <- c("MASS","abind","splines","mvtnorm","numDeriv","gamlss",
                   # "foreach","doSNOW","parallel","itertools","xtable")

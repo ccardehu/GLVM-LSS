@@ -137,7 +137,9 @@ bold <- bnew
 if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), sep = "")
 mod.grad <- list(unp = A4$gradient)
 mod.hess <- list(unp = A4$hessian)
-for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+for(r in names(bnew)){
+  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+  }
 }
   
 if(method == "PEM"){
@@ -167,7 +169,9 @@ bold <- bnew
 mod.grad <- list(pen = A4$gradient, unp = A3$gradient)
 mod.hess <- list(pen = A4$hessian, unp = A3$hessian)
 upll <- sum(log(A2))
-for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+for(r in names(bnew)){
+  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+}
 
 if(!control$silent){
  if(!autoL){
@@ -189,12 +193,14 @@ r1 <- trust::trust(objfun = loglkf, parinit = btr, rinit = 1, rmax = 10,
 b2r[t(lb2mb(loadmt2))] <- r1$argument
 bnew <- cb2lb(b2r,bold)
 lln <- r1$value
-iter <- control$iter.lim + 1; eps <- 0
+iter <- r1$iter; eps <- 0
 if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
 mod.grad <- list(unp = r1$gradient)
 mod.hess <- list(unp = r1$hessian)
 upll <- lln
-for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+for(r in names(bnew)){
+  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+  }
 }
   
 if(method == "PML"){
@@ -214,7 +220,7 @@ bnew <- cb2lb(b2r,bold)
 loadmt2 <- uplm(bnew,loadmt2)
 pen.idx <- pidx(bnew,loadmt2,pen.load)
 lln <- r1$value
-iter <- control$iter.lim + 1; eps <- 0
+iter <- r1$iter; eps <- 0
 if(!control$silent){
  if(!autoL){
   cat("\n PMLE converged after ", r1$iter, " iterations (loglk: ", format(round(r1$value,3), nsmall = 3),")", sep = "") } else {
@@ -227,7 +233,9 @@ dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary der
 A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
 mod.grad <- list(pen = r1$gradient, unp = A3$gradient)
 mod.hess <- list(pen = r1$hessian, unp = A3$hessian)
-for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+for(r in names(bnew)){
+  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+  }
 }
 
 if(method == "hybrid"){
@@ -250,7 +258,12 @@ if(!control$silent) cat("\r Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U039
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- lln
-for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+for(r in names(bnew)){
+  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+  # if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0 && sum(bnew[[r]][1,-1] != 0) == 1) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+  # if("Z2" %in% colnames(bnew[[r]]) && bnew[[r]][2,"Z2"] < 0 && sum(bnew[[r]][2,-1] != 0) == 1) bnew[[r]][,"Z2"] <- -bnew[[r]][,"Z2"]
+  # if("Z3" %in% colnames(bnew[[r]]) && bnew[[r]][3,"Z3"] < 0 && sum(bnew[[r]][3,-1] != 0) == 1) bnew[[r]][,"Z3"] <- -bnew[[r]][,"Z3"]
+  }
 }
 
 if(method == "P-hybrid"){
@@ -275,7 +288,12 @@ if(!control$silent) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", dlln
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- sum(log(A2))
-for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
+for(r in names(bnew)){
+  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+  # if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0 && sum(bnew[[r]][1,-1] != 0) == 1) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
+  # if("Z2" %in% colnames(bnew[[r]]) && bnew[[r]][2,"Z2"] < 0 && sum(bnew[[r]][2,-1] != 0) == 1) bnew[[r]][,"Z2"] <- -bnew[[r]][,"Z2"]
+  # if("Z3" %in% colnames(bnew[[r]]) && bnew[[r]][3,"Z3"] < 0 && sum(bnew[[r]][3,-1] != 0) == 1) bnew[[r]][,"Z3"] <- -bnew[[r]][,"Z3"]
+  }
 }
 
 if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < round(control$iter.lim*0.5))){
@@ -295,6 +313,10 @@ stop.crit <- (eps < tol || iter >= control$iter.lim)
 if(cycl == round(control$iter.lim*0.5)) cat("\n Note: Automatic selection of \U03bb reached maximum number (",round(control$iter.lim*0.5),") of mid-cycles", sep = "")
 
 }
+  
+for(r in names(bnew)){ for(j in 1:q.){
+  if(paste0("Z",j) %in% colnames(bnew[[r]]) && bnew[[r]][j,paste0("Z",j)] < 0 && sum(bnew[[r]][j,-1] != 0) == 1) bnew[[r]][,paste0("Z",j)] <- -bnew[[r]][,paste0("Z",j)]
+} }
 
 return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = iter, iiter= cycl, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,

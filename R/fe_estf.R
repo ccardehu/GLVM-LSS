@@ -1,6 +1,6 @@
 
 rm(list = ls())
-set.seed(1234)
+# set.seed(1234)
 # # rm(.Random.seed, envir=globalenv())
 # 
 # library(MASS)
