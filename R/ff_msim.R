@@ -1,15 +1,18 @@
 
-# set.seed(1234)
 
-simGLVM <- function(n,p,form,dist,loadmt,coefs){
+splvm.sim <- function(n,fam,form,constraints,coefs){
 
-# To evaluate 
-# n = 500; p = 6; form = form; dist = fam; 
-# loadmt = l1; coefs = lc;
-# _________________________________________________________
-parY <- unique(unlist(lapply(1:length(dist),function(i) pFun(dist[i]))))
+# Goal: Simulate semi-parametric LVM (using constraints, formulas and distributions)
+# Input : n (sample size), fam (distributions),#         
+#         form (list of formulas for measurement eqs. for each parameter),
+#         constraints (matrix of coefs. constraints), coefs (loadings)
+# Output: List of Y (simulated items), Z (simulated latent variables), b (original parameters),
+#         constraints (restrictions), coefs (coefficients for simulation)
+# Testing: n = 100; fam = fam; form = s.form; constraints = l1.; coefs = lc.
 
-if(!is.list(form)) stop("Argument `form` should be a list with elements mu, sigma, tau or nu")
+p <- length(fam)  
+parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
+if(!is.list(form)) stop("Argument `form` should be a list with elements mu, sigma, tau and/or nu")
 if(!all(names(form) == parY)) stop("Error in formula, check for mu, sigma, tau or nu")
 for(i in parY){ form[[i]] <- as.formula(form[[i]]) }
 
@@ -18,22 +21,19 @@ lvar <- lvar[grep("Z", lvar, fixed = T)]
 if(length(lvar) == 0) stop("Latent variables in formula should be represented by letter Z (capital)")
 q. <- length(lvar)
 
-# Latent variables (Z. for each mu, sigma, etc.)
-# ______________________________________________
+# Latent variables
+# ~~~~~~~~~~~~~~~~
 muZ <- c(rep(0,q.))
 sigZ <- diag(q.)
 Z <- as.data.frame(rmvnorm(n, muZ, sigZ)); colnames(Z) <- paste0("Z", 1:q.)
-Z. <- t. <- f. <- NULL
+Z. <- t. <- NULL
 for(i in parY){
  Z.[[i]] <- as.data.frame(model.matrix(form[[i]],Z))
  t.[[i]] <- ncol(Z.[[i]]) # q. + 1 if intercept = T, or q. if intercept = F
-# f.[[i]] <- nrow(attributes(terms(form[[i]]))$factors) # Number of LVs in form[[i]]
-# if(t.[[i]] != q. || sum(Z.[[i]][,1]) == n) colnames(Z.[[i]])[1] <- "Int"
 }
 
-
-# Loadings for mu and sigma (measurement equations)
-# _________________________________________________
+# Loadings 
+# ~~~~~~~~
 if(!missing(coefs)){
  if(!is.list(coefs)) stop("Provided `coefs` should be a list with dim p*(q+intercept) loading matrices for mu, sigma, tau, nu")
  names(coefs) <- parY
@@ -55,17 +55,17 @@ if(!missing(coefs)){
 
 # Restrictions on factor loadings
 # _______________________________
-if(!missing(loadmt)){
- if(!is.list(loadmt)) stop("Provided `loadmt` should be a list with dim p*(q+intercept) restriction matrices for mu, sigma, tau, nu")
- names(loadmt) <- parY
- if(length(loadmt) != length(coefs)) stop("Number of matrices in `loadmt` should match number of matrices in `coefs`")
+if(!missing(constraints)){
+ if(!is.list(constraints)) stop("Provided `constraints` should be a list with dim p*(q+intercept) restriction matrices for mu, sigma, tau, nu")
+ names(constraints) <- parY
+ if(length(constraints) != length(coefs)) stop("Number of matrices in `constraints` should match number of matrices in `coefs`")
  for(i in parY){
-  if(length(loadmt[[i]]) != p*t.[[i]]) stop("Provided `loadmt` is not lenght p*(q+intercept), revise dimension")
-  if(!is.matrix(loadmt[[i]])) loadmt[[i]] <- matrix(loadmt[[i]], nrow = p, ncol = t.[[i]])
+  if(length(constraints[[i]]) != p*t.[[i]]) stop("Provided `constraints` is not lenght p*(q+intercept), revise dimension")
+  if(!is.matrix(constraints[[i]])) constraints[[i]] <- matrix(constraints[[i]], nrow = p, ncol = t.[[i]])
  }
 } else {
- warning("Restrictions matrix not supplied, simple structure assumed", call. = F)
- loadmt <- NULL
+ warning("Constraints matrix not supplied, simple structure assumed \n", call. = F)
+ constraints <- NULL
  for(i in parY){
   if(length(all.vars(form[[i]])) > 1){
    r. <- p%/%(t.[[i]]-1)
@@ -76,24 +76,24 @@ if(!missing(loadmt)){
     if(j == length(all.vars(form[[i]])) && p%%2 != 0) tmp1[(tail(tmp2,1)+1):nrow(tmp1),all.vars(form[[i]])[j]] <- 1
    }
    tmp1[,!(colnames(tmp1) %in% all.vars(form[[i]]))] <- 1
-   loadmt[[i]] <- tmp1; rm(tmp1,tmp2,r.)
+   constraints[[i]] <- tmp1; rm(tmp1,tmp2,r.)
   } else{
-   loadmt[[i]] <- matrix(1,nrow = p, ncol = t.[[i]])
+   constraints[[i]] <- matrix(1,nrow = p, ncol = t.[[i]])
    if(t.[[i]]-1 > 1){
     warning(paste0("Nonlinear functions for ", i, ", identification restriction impossed in item 1"), call. = F)
-    loadmt[[i]][1,t.[[i]]] <- 0
+    constraints[[i]][1,t.[[i]]] <- 0
    }
   }
  }
 }
 
 borg <- NULL
-for(i in parY){borg[[i]] <- coefs[[i]]*loadmt[[i]]}
+for(i in parY){borg[[i]] <- coefs[[i]]*constraints[[i]]}
 names(borg) <- parY
 
-Y <- sapply(1:p, function(i) rFun(n,i,dist[i], Z.,borg))
+Y <- sapply(1:p, function(i) rFun(n,i,fam[i], Z.,borg))
 Y <- as.data.frame(Y); colnames(Y) <- paste0("Y", 1:p)
+ll <- sum(sapply(1:p, function(i) dFun(i,Y,Z.,borg,fam)))
 
-return(list("Y" = Y, "Z" = Z., "FRes" = loadmt, "borg" = borg, "Z.mu" = muZ, "Z.Sigma" = sigZ,
-            "formula" = form))
+return(list("Y" = Y, "Z" = Z, "Zout" = Z., "b" = borg, "formula" = form, "constraints" = constraints, "llk" = ll, "fam" = fam))
 }
