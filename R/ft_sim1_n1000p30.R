@@ -3,6 +3,7 @@
 # File ft_sim1.R: Simulation 1 (Chapter 2)
 # Code written by: Camilo Cardenas-Hurtado (c.a.cardenas-hurtado@lse.ac.uk)
 
+rm(list = ls())
 source("f0_prep.R")
 
 n = 1000     # Number of individuals
@@ -64,8 +65,8 @@ FCOL <- foreach(l = 1:nsim,
                 .combine = rbind,
                 .packages = c("mvtnorm","fastGHQuad","gamlss","trust"),#,
                 .options.snow = opts
-                ) %dopar% splvm.simfit(l,3.5)
+                ) %dopar% splvm.simfit(l)
 
 stopCluster(cl)
 # if(cleanRes) FCOL <- FCOL[FCOL[,ncol(FCOL)] %!in% c(1000,-999),-ncol(FCOL)]
-if(saveRes) save(FCOL, file = paste0("nsim",nsim,"_n",n, "_p", p,"_Ex1.RData"))
+if(saveRes) save(FCOL, file = paste0("Ex1_","nsim",nsim,"_n",n, "_p", p,".RData"))

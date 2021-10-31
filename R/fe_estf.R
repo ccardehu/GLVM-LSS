@@ -1,60 +1,36 @@
 
 rm(list = ls())
 # set.seed(1234)
-# # rm(.Random.seed, envir=globalenv())
-# 
-# library(MASS)
-# library(abind)
-# library(splines)
-# library(mvtnorm)
-# library(numDeriv)
-# library(gamlss)
-# library(foreach)
-# library(doSNOW)
-# library(parallel)
-# library(itertools)
-# library(xtable)
-# 
-# # `%!in%` <- Negate(`%in%`)
-# 
-# source("fa_main.R")
-# source("fb_auxf.R")
-# source("fc_mfit.R")
-# source("fd_mghq.R")
-# source("ff_msim.R")
-# source("fg_grph.R")
-# source("fi_esim.R")
-
 source("f0_prep.R")
 
-n = 1000     # Number of individuals
+n = 200     # Number of individuals
 nsim = 1000  # Number of simulations
 
 # Simulation 1: Heteroscedastic Normal model:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# s.form <- list("mu" = "~ Z1 + Z2", "sigma" = "~ Z1 + Z2"); p = 10
-# fam <- rep("normal",p)
-# l1 <- lc <- NULL
-# l1$mu <- lc$mu <- matrix(1,ncol = 3, nrow = p)
-# l1$sigma <- lc$sigma <- matrix(1, ncol = 3, nrow = p)
-# lc$mu[,1] <- runif(p,1,2)
-# lc$mu[,c(2,3)] <- runif(length(l1$mu[,c(2,3)]),-1.5,1.5)# * sample(c(-1,1),size = 2*p,replace = T)
-# if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3]
-# lc$sigma <- matrix(runif(length(l1$sigma),0.1,0.4), nrow = p)
-# lc$sigma[,c(2,3)] <- lc$sigma[,c(2,3)]# * sample(c(-1,1),size = 2*p,replace = T)
-# if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2]
-# if(ncol(lc$sigma) >= 2 && lc$sigma[2,3] < 0) lc$sigma[2,3] <- -lc$sigma[2,3]
+s.form <- list("mu" = "~ Z1 + Z2", "sigma" = "~ Z1 + Z2"); p = 10
+fam <- rep("normal",p)
+l1 <- lc <- NULL
+l1$mu <- lc$mu <- matrix(1,ncol = 3, nrow = p)
+l1$sigma <- lc$sigma <- matrix(1, ncol = 3, nrow = p)
+lc$mu[,1] <- runif(p,1,2)
+lc$mu[,c(2,3)] <- runif(length(l1$mu[,c(2,3)]),0.1,1.5)# * sample(c(-1,1),size = 2*p,replace = T)
+if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3]
+lc$sigma <- matrix(runif(length(l1$sigma),0.1,0.4), nrow = p)
+lc$sigma[,c(2,3)] <- lc$sigma[,c(2,3)]# * sample(c(-1,1),size = 2*p,replace = T)
+if(ncol(lc$sigma) >= 2 && lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2]
+if(ncol(lc$sigma) >= 2 && lc$sigma[2,3] < 0) lc$sigma[2,3] <- -lc$sigma[2,3]
 
 
 # Simulation 2: IRT model:
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-s.form <- list("mu" = "~ Z1+Z2"); p = 10
-fam <- rep("binomial",p)
-l1 <- lc <- NULL
-l1$mu <- lc$mu <- matrix(1,ncol = 3, nrow = p)
-lc$mu[,1] <- runif(length(l1$mu[,1]),-1,1)
-lc$mu[,c(2,3)] <- runif(length(l1$mu[,c(2,3)]),1.5,2.5) * sample(c(-1,1),size = 2*p,replace = T)
-if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3]
+# s.form <- list("mu" = "~ Z1+Z2"); p = 10
+# fam <- rep("binomial",p)
+# l1 <- lc <- NULL
+# l1$mu <- lc$mu <- matrix(1,ncol = 3, nrow = p)
+# lc$mu[,1] <- runif(length(l1$mu[,1]),-1,1)
+# lc$mu[,c(2,3)] <- runif(length(l1$mu[,c(2,3)]),1.5,2.5) * sample(c(-1,1),size = 2*p,replace = T)
+# if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3]
 
 
 # Simulation 3: ZI-Poisson:
@@ -78,18 +54,18 @@ l1. <- l1
 # Parameter restrictions:
 # Simulation 1
 # ~~~~~~~~~~~~
-# l1.$mu[1,c(3)] <- l1.$mu[2,c(2)] <- 0
-# l1.$mu[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
-# for(i in 3:nrow(l1.$mu)){ if(l1.$mu[i,2] != 0) l1.$mu[i,3] <- rbinom(1,1,0.5) }
-# l1.$sigma[1,3] <- l1.$sigma[2,2] <- 0
-# l1.$sigma[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
-# for(i in 3:nrow(l1.$sigma)){ if(l1.$sigma[i,2] == 0) l1.$sigma[i,3] <- rbinom(1,1,0.5) }
-
-# Simulation 2
-# ~~~~~~~~~~~~
 l1.$mu[1,c(3)] <- l1.$mu[2,c(2)] <- 0
 l1.$mu[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
 for(i in 3:nrow(l1.$mu)){ if(l1.$mu[i,2] != 0) l1.$mu[i,3] <- rbinom(1,1,0.5) }
+l1.$sigma[1,3] <- l1.$sigma[2,2] <- 0
+l1.$sigma[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+for(i in 3:nrow(l1.$sigma)){ if(l1.$sigma[i,2] == 0) l1.$sigma[i,3] <- rbinom(1,1,0.5) }
+
+# Simulation 2
+# ~~~~~~~~~~~~
+# l1.$mu[1,c(3)] <- l1.$mu[2,c(2)] <- 0
+# l1.$mu[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+# for(i in 3:nrow(l1.$mu)){ if(l1.$mu[i,2] != 0) l1.$mu[i,3] <- rbinom(1,1,0.5) }
 
 # Simulation 3
 # ~~~~~~~~~~~~
@@ -117,66 +93,43 @@ e.form <- s.form
 
 # Simulation 1: Quadratic heteroscedastic model
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# restr <- list(c("mu",2,"Z1",0), c("mu",3,"Z1",0), c("mu",5,"Z1",0), c("mu",8,"Z1",0), c("mu",10,"Z1",0),
-#               c("mu",1,"Z2",0), c("mu",6,"Z2",0), c("mu",9,"Z2",0),
-#               c("sigma",2,"Z1",0), c("sigma",3,"Z1",0), c("sigma",4,"Z1",0), c("sigma",5,"Z1",0), c("sigma",10,"Z1",0),
-#               c("sigma",1,"Z2",0), c("sigma",3,"Z2",0), c("sigma",5,"Z2",0), c("sigma",10,"Z2",0))
-# 
-# irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0), c("sigma",1,"Z2",0), c("sigma",2,"Z1",0))
+irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0), c("sigma",1,"Z2",0), c("sigma",2,"Z1",0))
 
 # Simulation 2: Interaction binomial
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-restr <- list(c("mu",1,"Z2",0), c("mu",3,"Z2",0), c("mu",8,"Z2",0),
-              c("mu",2,"Z1",0), c("mu",4,"Z1",0), c("mu",5,"Z1",0), c("mu",6,"Z1",0), c("mu",9,"Z1",0))
-
-irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0))
+# irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0))
                
 
 # Simulation 3: ZI-Poisson
-# restr <- list(c("mu",2,"Z1",0), c("mu",3,"Z1",0), c("mu",6,"Z1",0), c("mu",8,"Z1",0), c("mu",11,"Z1",0),
-#               c("mu",1,"Z2",0), c("mu",5,"Z2",0), c("mu",7,"Z2",0), c("mu",12,"Z2",0), c("mu",13,"Z2",0), c("mu",15,"Z2",0),
-#               c("sigma",2,"Z1",0), c("sigma",4,"Z1",0), c("sigma",7,"Z1",0), c("sigma",8,"Z1",0), c("sigma",12,"Z1",0),
-#               c("sigma",1,"Z2",0), c("sigma",5,"Z2",0), c("sigma",6,"Z2",0), c("sigma",9,"Z2",0))
-# 
+# ~~~~~~~~~~~~~~~~~~~~~~~~
 # irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0), c("sigma",1,"Z2",0), c("sigma",2,"Z1",0))
 
-testCFa <- splvm.fit(Y,fam,e.form,
-           control = list(method = "EM",constraint = restr, silent = F))
-testCFb <- splvm.fit(Y,fam,e.form,
-           control = list(method = "ML",constraint = restr, silent = F, information = "Hessian"))
-
-testUPa <- splvm.fit(Y,fam,e.form,control = list(method = "EM", silent = F, constraint = irestr))
+# testUPa <- splvm.fit(Y,fam,e.form,control = list(method = "EM", silent = F, constraint = irestr))
 testUPb <- splvm.fit(Y,fam,e.form,control = list(method = "ML", silent = F, information = "Hessian", constraint = irestr))
 
-testALa <- splvm.fit(Y,fam,e.form, control = list(method = "PEM", constraint = irestr,
-           silent = F, pml.control = list(type = "alasso", lambda = "auto", gamma = 2,
-           w.alasso = testUPa$b)))
+# testALa <- splvm.fit(Y,fam,e.form, control = list(method = "PEM", constraint = irestr,
+#            silent = F, pml.control = list(type = "alasso", lambda = "auto",
+#            w.alasso = testUPa$b)))
 testALb <- splvm.fit(Y,fam,e.form, control = list(method = "PML", information = "Hessian", constraint = irestr,
-           silent = F, pml.control = list(type = "alasso", lambda = "auto", gamma = 2,
+           silent = F, pml.control = list(type = "alasso", lambda = "auto", a = 2, gamma = 1,
            w.alasso = testUPb$b)))
 
-# testMCa <- splvm.fit(Y,fam,e.form, control = list(method = "PEM",constraint = irestr,
-#            silent = F, pml.control = list(type = "mcp", lambda = 0.05)))
-# testMCb <- splvm.fit(Y,fam,e.form, control = list(method = "PML", information = "Hessian", constraint = irestr,
-#            silent = F, pml.control = list(type = "mcp", lambda = 0.05)))
+# round(c(testUPa$log,testALa$log),3)
+round(c(testUPb$log,testALb$log),3)
+# for(i in names(s.form)){ 
+#   print(round(cbind(testUPa$b[[i]],testALa$b[[i]],borg[[i]]),4)) }
+for(i in names(s.form)){ print(round(cbind(testUPb$b[[i]],testALb$b[[i]],borg[[i]]),3)) }
 
-round(c(testCFa$log,testUPa$log,testALa$log),3)
-round(c(testCFb$log,testUPb$log,testALb$log),3)
-for(i in names(s.form)){ 
-  print(round(cbind(testCFa$b[[i]],testUPa$b[[i]],testALa$b[[i]],borg[[i]]),4)) }
-for(i in names(s.form)){ 
-  print(round(cbind(testCFb$b[[i]],testUPb$b[[i]],testALb$b[[i]],borg[[i]]),4)) }
+# GBIC(testUPa); GBIC(testALa);# GBIC(testMCa)
+GBIC(testUPb); GBIC(testALb);# GBIC(testMCb)
+# GIC(testUPa); GIC(testALa);# GIC(testMCa)
+GIC(testUPb); GIC(testALb);# GIC(testMCb)
 
-GBIC(testCFa); GBIC(testUPa); GBIC(testALa);# GBIC(testMCa)
-GBIC(testCFb); GBIC(testUPb); GBIC(testALb);# GBIC(testMCb)
-GIC(testCFa); GIC(testUPa); GIC(testALa);# GIC(testMCa)
-GIC(testCFb); GIC(testUPb); GIC(testALb);# GIC(testMCb)
-
-# syntax = 'Z1 =~ Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
-# Z2 =~ Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
+# syntax = 'Z1 =~ Y1 + 0*Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
+# Z2 =~ 0*Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ;
 # Y1 + Y2 + Y3 + Y4 + Y5 + Y6 + Y7 + Y8 + Y9 + Y10 ~ 1 ;
 # Z1 ~~ 1*Z2'
-# # library(penfa)
+# # # library(penfa)
 # alasso_fit <- penfa(model = syntax, data = Y, std.lv = TRUE,
 # pen.shrink = "lasso", information = "fisher",
 # eta = list(shrink = c("lambda" = 0.1), diff = c("none" = 0)),
@@ -185,15 +138,15 @@ GIC(testCFb); GIC(testUPb); GIC(testALb);# GIC(testMCb)
 # penfaParEstim(alasso_fit)
 # penmat(alasso_fit)
 # alasso_fit@Options$eta$shrink
-# matrm <- array(0,dim = dim(lb2mb(testa2$loadmt)))
-# matrm[lb2mb(testa2$loadmt)[,c(2,3,1,4)]] <- coef(alasso_fit)
+# matrm <- array(0,dim = dim(lb2mb(testALb$loadmt)))
+# matrm[lb2mb(testALb$loadmt)[,c(2,3,1,4)]] <- coef(alasso_fit)
 # ex.lb <- mb2lb(matrm[,c(3,1,2,4)],testa1$b) # [,c(2,1,3)]
 # ex.lb <- mb2lb(matrix(coef(alasso_fit),nrow = ncol(Y),byrow = F)[,c(2,3,1,3)],testa1$b) # [,c(2,1,3)]
 # ex.lb$sigma <- log(sqrt(ex.lb$sigma))
-# round(cbind(testa2$b$mu,ex.lb$mu,borg$mu),3)
- 
-# round(cbind(testa1$b$mu,testa2$b$mu,borg$mu),4)
-# round(cbind(testa1$b$sigma,testa2$b$sigma,borg$sig),3)
+# round(cbind(testALb$b$mu,ex.lb$mu,borg$mu),3)
+# 
+# round(cbind(testa1$b$mu,testALb$b$mu,borg$mu),4)
+# round(cbind(testa1$b$sigma,testALb$b$sigma,borg$sig),3)
 
 
 
@@ -204,10 +157,12 @@ GIC(testCFb); GIC(testUPb); GIC(testALb);# GIC(testMCb)
 library(penfa)
 data(ccdata)
 
-ccdata.subset <- ccdata[ccdata$country == "LEB",2:8]
+ccdata.subset <- ccdata[ccdata$country == "LEB",-1]
 ### Single-group analysis (no mean-structure, unit factor variances)
-syntax = 'Z1 =~ h1 + h2 + h3 + h4 + h5 + h6 + h7 
-h1 + h2 + h3 + h4 + h5 + h6 + h7 ~ 1'
+syntax = 'Z1 =~ h1 + h2 + h3 + h4 + h5 + h6 + h7 + 0*v1 + v2 + v3 + v4 + v5; 
+Z2 =~ 0*h1 + h2 + h3 + h4 + h5 + h6 + h7 + v1 + v2 + v3 + v4 + v5;
+h1 + h2 + h3 + h4 + h5 + h6 + h7 + v1 + v2 + v3 + v4 + v5 ~ 1;
+Z1 ~~ 0*Z2'
 alasso_fit <- penfa(model = syntax, data = ccdata.subset, std.lv = TRUE,
 pen.shrink = "alasso", information = "fisher",
 eta = list(shrink = c("lambda" = 0.1), diff = c("none" = 0)),
@@ -217,17 +172,16 @@ penfaParEstim(alasso_fit)
 penmat(alasso_fit)
 
 library(lavaan)
+source("f0_prep.R")
 CFA.model <- ' Z1 =~ h1 + h2 + h3 + h4 + h5 + h6 + h7 '
-rmtest <- cfa(CFA.model, data = ccdata.subset, orthogonal = T, meanstructure = T, std.lv = TRUE, estimator="ML",
-              information = "observed"); # coef(rmtest)
+rmtest <- cfa(syntax, data = ccdata.subset, orthogonal = T, meanstructure = T, std.lv = TRUE, estimator="ML"); # coef(rmtest)
 
 fam.ex <- rep("normal",ncol(ccdata.subset))
-# ex.form <- list("mu" = "~ Z1-1", "sigma" = "~ 1")
-# test <- t(t(ccdata.subset)-colMeans(ccdata.subset)) 
-ex.form <- list("mu" = "~ Z1", "sigma" = "~ 1")
+ex.form <- list("mu" = "~ Z1 + Z2", "sigma" = "~ 1")
 test <- ccdata.subset
 
-ex.test.unp <- splvm.fit(test,fam.ex,ex.form,control = list(method = "EM", silent = F))
+irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0))
+ex.test.unp <- splvm.fit(Y = test,fam = fam.ex,form = ex.form,control = list(method = "ML", silent = F, constraint = irestr))
 
 # rmtes2 <- ERP::emfa(as.matrix(ccdata.subset), 1, min.err = .Machine$double.eps, verbose = FALSE, svd.method = c("irlba")) #"irlba" "fast.svd"
 # ex.EMfa <- NULL
@@ -244,8 +198,8 @@ round(cbind(ex.ulb$sigma,ex.test.unp$b$sigma),3)
 ex.lb <- mb2lb(matrix(coef(alasso_fit),nrow = ncol(test),byrow = F)[,c(2,1,3)],ex.test.unp$b) # [,c(2,1,3)]
 ex.lb$sigma <- log(sqrt(ex.lb$sigma))
 
-ex.test.pen <- splvm.fit(test,fam.ex,ex.form,control = list(method = "PEM",
-               silent = F, pml.control = list(type = "alasso", w.alasso = ex.lb, lambda = "auto", pen.load = T)))
+ex.test.pen <- splvm.fit(Y = test,fam = fam.ex,form = ex.form,control = list(method = "PML", constraint = irestr,
+               silent = F, pml.control = list(type = "alasso", w.alasso = ex.test.unp$b, lambda = "auto")))
 
 # alasso_fit@Options$eta$shrink
 # Y = test; fam = fam.ex; form = ex.form

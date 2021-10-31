@@ -5,7 +5,7 @@ splvm.fit <- function(Y, fam, form,
                                      ghQqp = 15, iter.lim = 150, full.hess = F, EM.iter.lim = 20,
                                      tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
                                      pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
-                                         a = 3.7, pen.load = F)) )
+                                         a = NULL, pen.load = F)) )
                       {
 
 # Goal: Fits semi-parametric LVM
@@ -37,7 +37,7 @@ ghQ <- mvghQ(n = control$ghQqp, formula = form)
 # Starting values
 # ~~~~~~~~~~~~~~~
 cycl <- iter <- 0
-if(!is.null(control$tol)) tol <- control$tol else tol <- 1e-7 # tol <- sqrt(.Machine$double.eps)
+if(!is.null(control$tol)) tol <- control$tol else tol <- 1e-5 # tol <- sqrt(.Machine$double.eps)
 eps <- eps2 <- tol + 1; tol2 <- min(tol,1e-5) # max(tol,1e-5)
 icoefs <- control$start.val
 if(!is.null(icoefs)){
@@ -95,19 +95,20 @@ for(i in parY){ bold[[i]][-pC[[i]],] <- 0 }
   
 # Estimation
 # ~~~~~~~~~~
-if(sum(lb2cb(loadmt)) > p.*(p.-1)/2 && !control$silent) cat("\n Warning: Number of free parameters is less than p(p-1)/2. Model might be under-indentified.\n")
+# if(sum(lb2cb(loadmt)) > p.*(p.-1)/2 && !control$silent) cat("\n Warning: Number of free parameters is less than p(p-1)/2. Model might be under-indentified.\n")
 method <- control$method; pml.control <- control$pml.control
 if(is.null(pml.control$pen.load)) {if(q. > 1){ pen.load <- T } else { pen.load <- F } } else pen.load <- pml.control$pen.load
 if(is.null(control$information)) control$information <- "Fisher"
 if(is.null(control$full.hess)) control$full.hess <- F
-if(is.null(control$iter.lim)) control$iter.lim <- 1e3
+if(is.null(control$iter.lim)) control$iter.lim <- 3e2
 
 stop.crit <- autoL <- F;
 olObj <- NULL; iiter <- "NA"
 if(!is.null(pml.control$lambda)){
  if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
  if(pml.control$lambda == "auto"){ pml.control$lambda <- 1/nrow(Y); autoL <- T } # starting lambda
- if(is.null(pml.control$gamma)){pml.control$gamma <- 1.4} 
+ if(is.null(pml.control$gamma)){ pml.control$gamma <- 1.4 }
+ if(is.null(pml.control$a)){pml.control$a <- 2 } 
 }
 
 hist.lambda <- ifelse(autoL, pml.control$lambda, NA) # starting lambda
@@ -176,7 +177,9 @@ for(r in names(bnew)){
 if(!control$silent){
  if(!autoL){
   cat("\r Penalised EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), sep = "") } else {
-  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), ", (\U03bb: ", format(round(pml.control$lambda, digits = 5), nsmall = 5), ", mid-cycle: ", cycl+1, ", iters: ", iiter,")",sep = "") 
+    if(iter == 1){
+  cat("\n (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), ", (\U03bb: ", format(round(pml.control$lambda, digits = 5), nsmall = 5), ", mid-cycle: ", cycl+1, ", iters: ", iiter,")",sep = "") } else {
+  cat("\r (Automatic) Penalised EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), ", (\U03bb: ", format(round(pml.control$lambda, digits = 5), nsmall = 5), ", mid-cycle: ", cycl+1, ", iters: ", iiter,")",sep = "") }
  } }
 }
 
@@ -187,11 +190,11 @@ btr <- b2r[t(lb2mb(loadmt2))]
 if(!control$silent){
   if(exists("catmsg")) cat(paste0("\n Using trust-region algorithm to refine ML estimates ", catmsg))
   else cat("\n Using trust-region algorithm to find ML estimates ...") }
-r1 <- trust::trust(objfun = loglkf, parinit = btr, rinit = 1, rmax = 10,
+r1 <- trust::trust(objfun = loglkf, parinit = btr, rinit = 1, rmax = 5,fterm = tol,
                    iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam,
                    info = control$information, res = loadmt2, full = control$full.hess)
 b2r[t(lb2mb(loadmt2))] <- r1$argument
-bnew <- cb2lb(b2r,bold)
+bold <- bnew <- cb2lb(b2r,bold)
 lln <- r1$value
 iter <- r1$iter; eps <- 0
 if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
@@ -206,17 +209,16 @@ for(r in names(bnew)){
 if(method == "PML"){
 b2r <- lb2cb(bold)
 btr <- b2r[t(lb2mb(loadmt2))]
-# control$full.hess <- T;  control$information = "Hessian"
 if(!control$silent){
   if(exists("catmsg")) { cat(paste0("\n Using trust-region algorithm to refine Penalised ML estimates ", catmsg)) } else {
     if(cycl == 0) cat("\n Using trust-region algorithm to find Penalised ML estimates ...") } }
-r1 <- trust::trust(objfun = penloglkf, parinit = btr, rinit = 1, rmax = 10,
+r1 <- trust::trust(objfun = penloglkf, parinit = btr, rinit = 1, rmax = 5,fterm = tol,
                    iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam,
                    pml.control = pml.control, pen.idx = pen.idx, info = control$information,
                    res = loadmt2, full = control$full.hess)
-rep <- r1$argument; rep[abs(rep) < 1*sqrt(.Machine$double.eps)] <- 0
+rep <- r1$argument; # rep[abs(rep) < 1e5*sqrt(.Machine$double.eps)] <- 0
 b2r[t(lb2mb(loadmt2))] <- rep; rm(rep)
-bnew <- cb2lb(b2r,bold)
+bold <- bnew <- cb2lb(b2r,bold)
 loadmt2 <- uplm(bnew,loadmt2)
 pen.idx <- pidx(bnew,loadmt2,pen.load)
 lln <- r1$value
@@ -258,12 +260,7 @@ if(!control$silent) cat("\r Hybrid-EM iter: ", iter, ", loglk: ", dlln, ", \U039
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- lln
-for(r in names(bnew)){
-  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
-  # if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0 && sum(bnew[[r]][1,-1] != 0) == 1) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
-  # if("Z2" %in% colnames(bnew[[r]]) && bnew[[r]][2,"Z2"] < 0 && sum(bnew[[r]][2,-1] != 0) == 1) bnew[[r]][,"Z2"] <- -bnew[[r]][,"Z2"]
-  # if("Z3" %in% colnames(bnew[[r]]) && bnew[[r]][3,"Z3"] < 0 && sum(bnew[[r]][3,-1] != 0) == 1) bnew[[r]][,"Z3"] <- -bnew[[r]][,"Z3"]
-  }
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"] }
 }
 
 if(method == "P-hybrid"){
@@ -288,19 +285,14 @@ if(!control$silent) cat("\r Penalised Hybrid-EM iter: ", iter, ", loglk: ", dlln
 mod.grad <- A3$gradient
 mod.hess <- A3$hessian
 upll <- sum(log(A2))
-for(r in names(bnew)){
-  if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
-  # if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0 && sum(bnew[[r]][1,-1] != 0) == 1) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
-  # if("Z2" %in% colnames(bnew[[r]]) && bnew[[r]][2,"Z2"] < 0 && sum(bnew[[r]][2,-1] != 0) == 1) bnew[[r]][,"Z2"] <- -bnew[[r]][,"Z2"]
-  # if("Z3" %in% colnames(bnew[[r]]) && bnew[[r]][3,"Z3"] < 0 && sum(bnew[[r]][3,-1] != 0) == 1) bnew[[r]][,"Z3"] <- -bnew[[r]][,"Z3"]
-  }
+for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]  }
 }
 
-if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < round(control$iter.lim*0.5))){
+if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < round(control$iter.lim*0.1))){
  cycl <- cycl + 1
- pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
- dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
- A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
+ # pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+ # dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
+ # A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
  olObj <- op.lambda(bnew,Y,pen.idx,loadmt2,pml.control,A3,control$iter.lim,tol2)
  laold <- pml.control$lambda
  lanew <- pml.control$lambda <- olObj$lambda ; iiter <- olObj$iter
@@ -324,9 +316,9 @@ return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = it
             pen.idx = pen.idx, hist = hist.lambda))
 },
 error = function(e){
-cat(paste("\n Error in Estimation, proceeded with next simulation \n Error:",e))
+if(!control$silent) cat(paste("\n Error in Estimation, proceeded with next simulation \n Error: ",e))
 berr <- lapply(parY, function(i) matrix(-999, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
 names(berr) <- parY; for(i in parY){ berr[[i]] <- berr[[i]]*loadmt[[i]] ; loadmt[[i]] <- loadmt[[i]]*-999}
-return(list(b = berr, loglik = -999, loadmt = loadmt,iter = -999)) } )
+return(list(b = berr, loglik = -999, loadmt = loadmt,iter = -999, pml.control = pml.control)) } )
 }
 

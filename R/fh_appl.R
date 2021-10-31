@@ -21,10 +21,10 @@ irst.0a0 <- list(c("mu",1,"Z2",0), c("mu",1,"Z3",0),c("mu",2,"Z2",0), c("mu",2,"
 irst.0a1 <- list(c("mu",1,"Z2",0), c("mu",1,"Z3",0),
                  c("mu",4,"Z1",0), c("mu",4,"Z3",0),
                  c("mu",7,"Z1",0), c("mu",7,"Z2",0))
-fit.0au0 <- splvm.fit(data.0,fam.0,form.0a,control = list(method = "ML", silent = F, information = "Fisher", constraints = irst.0a0, ghQp = 5))
+fit.0au0 <- splvm.fit(Y=data.0,fam=fam.0,form=form.0a,control = list(method = "ML", silent = F, information = "Fisher", constraints = irst.0a0, ghQp = 5))
 fit.0au1 <- splvm.fit(data.0,fam.0,form.0a,control = list(method = "ML", silent = F, information = "Fisher", constraints = irst.0a1, ghQp = 5))
 fit.0ap1 <- splvm.fit(data.0,fam.0,form.0a,control = list(method = "PML", silent = F, information = "Fisher", constraint = irst.0a1, ghQp = 5,
-                      pml.control = list(type = "alasso", lambda = "auto", w.alasso = fit.0au1$b, gamma = 4)))
+                      pml.control = list(type = "alasso", lambda = "auto", w.alasso = fit.0au1$b, gamma = 3.5)))
 
 fit.0au0$loglik; fit.0au1$loglik; fit.0ap1$loglik
 GIC(fit.0au0); GIC(fit.0au1); GIC(fit.0ap1);

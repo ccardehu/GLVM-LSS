@@ -126,7 +126,6 @@ pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
 dvL <- dvY(Y,ghQ,b1,fam,info) # List with all the necessary derivatives
 A3 <- sche(ghQ,b1,res,fam,dvL,pD,info,full) # score & Hessian object
 return(list(value = c(ll), gradient = A3$gradient - c(tcrossprod(cb,A2a$pM)), hessian = A3$hessian - A2a$pM))
-# return(list(value = c(ll), gradient = A3$gradient, hessian = A3$hessian))
 }
 
 rFun <- function(n,i,fam,Z,b){ #
@@ -257,9 +256,8 @@ lb2pM <- function(lb,Y,pen.idx,loadmt,
 # Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, a = NULL)
    
 b <- lb2cb(lb)[t(lb2mb(loadmt))]
-# if(is.list(pml.control$w.alasso)) pml.control$w.alasso <- lb2mb(pml.control$w.alasso)[pen.idx]
 P <- nrow(Y)*penM(lb2cb(lb),type = pml.control$type, id = pen.idx, rs = loadmt, lambda = pml.control$lambda,
-                  w.alasso = pml.control$w.alasso,a = pml.control$a)$f
+                  w.alasso = pml.control$w.alasso,a = pml.control$a)$full
 return(list(lp = 0.5*crossprod(b,P)%*%b, pM = P))
 }
 
@@ -291,7 +289,7 @@ ini.par <- function(Y,fam,form,pC,q.){
 
 # Z. <- princomp(Y,cor = T)$scores[,q.:1,drop=F]%*%diag(c(rep(-1,q.-1),1))
 
-Z. <- princomp(Y,cor = T)$scores[,1:q.,drop=F]%*%diag(c(-1,rep(ifelse(all(fam == "normal"),1,-1),q.-1)))
+Z. <- princomp(Y,cor = T)$scores[,1:q.,drop=F]%*%diag(c(-1,rep(ifelse(all(fam == "normal"),1,-1),q.-1)),nrow = length(c(-1,rep(ifelse(all(fam == "normal"),1,-1),q.-1))))
 colnames(Z.) <- paste0("Z", 1:q.)
 sZ <- NULL
 bstart <- NULL
@@ -338,12 +336,16 @@ for(i in 1:ncol(Y)){
   bstart$sigma[i,] <- coef(tmp,"sigma")
  }
 }
-if("Z1" %in% colnames(bstart$mu) && bstart$mu[1,"Z1"] < 0) for(r in names(form)){ bstart[[r]][,"Z1"] <- -bstart[[r]][,"Z1"] }
+for(r in names(form)){ if("Z1" %in% colnames(bstart[[r]]) && bstart[[r]][1,"Z1"] < 0){ bstart[[r]][,"Z1"] <- -bstart[[r]][,"Z1"] } }
 return(bstart)
 }
 
 GBIC <- function(mod){
-  
+
+if(mod$loglik == -999){
+  return(-999)
+} else {
+    
 ll <- mod$uploglik
 Hm <- mod$hessian$unp
 
@@ -352,10 +354,14 @@ pS <- mod$hessian$pen
 GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(solve(pS)%*%Hm)) } else {
   GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(solve(Hm)%*%Hm))
 }
-return(GBIC)
+return(GBIC) }
 }
 
 GIC <- function(mod){
+
+if(mod$loglik == -999){
+  return(-999)
+} else {
   
 ll <- mod$uploglik
 Hm <- mod$hessian$unp
@@ -365,7 +371,7 @@ pS <- mod$hessian$pen
 GIC <- -2*ll + 2*sum(diag(solve(pS)%*%Hm)) } else {
   GIC <- -2*ll + 2*sum(diag(solve(Hm)%*%Hm))
 }
-return(GIC)
+return(GIC) }
 }
 
 fscore <- function(mod){
