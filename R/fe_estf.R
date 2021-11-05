@@ -3,7 +3,7 @@ rm(list = ls())
 # set.seed(1234)
 source("f0_prep.R")
 
-n = 200     # Number of individuals
+n = 1000     # Number of individuals
 nsim = 1000  # Number of simulations
 
 # Simulation 1: Heteroscedastic Normal model:
@@ -97,7 +97,7 @@ irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0), c("sigma",1,"Z2",0), c("sigma
 
 # Simulation 2: Interaction binomial
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0))
+irestra <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0))
                
 
 # Simulation 3: ZI-Poisson
@@ -106,13 +106,17 @@ irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0), c("sigma",1,"Z2",0), c("sigma
 
 # testUPa <- splvm.fit(Y,fam,e.form,control = list(method = "EM", silent = F, constraint = irestr))
 testUPb <- splvm.fit(Y,fam,e.form,control = list(method = "ML", silent = F, information = "Hessian", constraint = irestr))
+testUPa <- splvm.fit(Y,fam,list("mu" = "~ Z1 + Z2", "sigma" = "~1"),control = list(method = "ML", silent = F, information = "Hessian", constraint = irestra))
 
 # testALa <- splvm.fit(Y,fam,e.form, control = list(method = "PEM", constraint = irestr,
 #            silent = F, pml.control = list(type = "alasso", lambda = "auto",
 #            w.alasso = testUPa$b)))
 testALb <- splvm.fit(Y,fam,e.form, control = list(method = "PML", information = "Hessian", constraint = irestr,
-           silent = F, pml.control = list(type = "alasso", lambda = "auto", a = 2, gamma = 1,
+           silent = F, pml.control = list(type = "alasso", lambda = "auto", a = 2,
            w.alasso = testUPb$b)))
+testALa <- splvm.fit(Y,fam,list("mu" = "~ Z1 + Z2", "sigma" = "~1"), control = list(method = "PML", information = "Hessian", constraint = irestra,
+           silent = F, pml.control = list(type = "alasso", lambda = "auto", a = 2,
+           w.alasso = testUPa$b)))
 
 # round(c(testUPa$log,testALa$log),3)
 round(c(testUPb$log,testALb$log),3)
@@ -324,7 +328,10 @@ rm(modt)
 
 #######################
 
+testm <- testUPb
+testm <- testUPa
 testm <- testALb
+testm <- testALa
 
 hist(Z$Z1, breaks = 100, freq = F, xlim = c(-5,5), border = "gray", ylim = c(0,0.7))
 hist(Z$Z2, breaks = 100, freq = F, xlim = c(-5,5), border = "gray", ylim = c(0,0.7))

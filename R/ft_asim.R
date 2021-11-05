@@ -10,13 +10,13 @@ s.form <- list("mu" = "~ Z1 + Z2", "sigma" = "~ Z1 + Z2")
 
 # n = 200; p = c(10,30)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-load("OldSim/Fa/Ex1_nsim500_n200_p10.RData"); p = 10
+load("Ex1_nsim500_n200_p10.RData"); p = 10
 r200p10 <- post(FCOL,s.form,p,T)
 load("OldSim/Fa/Ex1_nsim500_n200_p30.RData"); p = 30
 r200p30 <- post(FCOL,s.form,p,T)
 # n = 500; p = 10
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-load("OldSim/Fa/Ex1_nsim500_n500_p10.RData"); p = 10
+load("Ex1_nsim500_n500_p10.RData"); p = 10
 r500p10 <- post(FCOL,s.form,p,T)
 load("OldSim/Fa/Ex1_nsim500_n500_p30.RData"); p = 30
 r500p30 <- post(FCOL,s.form,p,T)
