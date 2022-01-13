@@ -5,8 +5,8 @@
 
 probs <- function(x){
  pr <- plogis(x)
- if (any(ind <- pr == 1)) pr[ind] <- 1 - sqrt(.Machine$double.eps)
- if (any(ind <- pr == 0)) pr[ind] <- sqrt(.Machine$double.eps)
+ if (any(pr == 1)) pr[pr == 1] <- 1 - sqrt(.Machine$double.eps)
+ if (any(pr == 0)) pr[pr == 0] <- sqrt(.Machine$double.eps)
  return(pr)
 }
 
@@ -197,7 +197,6 @@ b1 <- cb2lb(b1,bg)
 A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 ll <- sum(log(A2)) # log-likelihood
-# ll <- log(prod(A2)) # log-likelihood
 return(ll)
 }
 
@@ -227,7 +226,7 @@ m2pdm <- function(mat){
 #          c(exp(rowSums(dY(Y,ghQ,b,fam),dim = 2))%*%ghQ$weights)
 #          mat = hess(i,i,ghQ,b,fam,dvL,pD,"Fisher")$hessian
 
-eS    <- eigen(mat, symmetric = TRUE)                
+eS    <- eigen(mat, symmetric = TRUE)
 e.val <- eS$values
 e.vec <- eS$vectors
 check.eigen <- any(e.val <= 0)
@@ -342,34 +341,31 @@ return(bstart)
 
 GBIC <- function(mod){
 
-if(mod$loglik == -999){
-  return(-999)
-} else {
-    
+if(mod$loglik == -999){ return(-999) } else {
 ll <- mod$uploglik
 Hm <- mod$hessian$unp
+iHm <- tryCatch({solve(mod$hessian$unp)}, error = function(e){-m2pdm(-mod$hessian$unp)$inv})
 
 if(!is.null(mod$pml.control)){
-pS <- mod$hessian$pen
-GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(solve(pS)%*%Hm)) } else {
-  GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(solve(Hm)%*%Hm))
+ipS <- tryCatch({solve(mod$hessian$pen)}, error = function(e){-m2pdm(-mod$hessian$pen)$inv})
+GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(ipS%*%Hm)) } else {
+  GBIC <- -2*ll + log(nrow(mod$Y))*sum(diag(iHm%*%Hm))
 }
 return(GBIC) }
 }
 
 GIC <- function(mod){
 
-if(mod$loglik == -999){
-  return(-999)
-} else {
+if(mod$loglik == -999){ return(-999) } else {
   
 ll <- mod$uploglik
 Hm <- mod$hessian$unp
+iHm <- tryCatch({solve(mod$hessian$unp)}, error = function(e){-m2pdm(-mod$hessian$unp)$inv})
 
 if(!is.null(mod$pml.control)){
-pS <- mod$hessian$pen
-GIC <- -2*ll + 2*sum(diag(solve(pS)%*%Hm)) } else {
-  GIC <- -2*ll + 2*sum(diag(solve(Hm)%*%Hm))
+ipS <- tryCatch({solve(mod$hessian$pen)}, error = function(e){-m2pdm(-mod$hessian$pen)$inv})
+GIC <- -2*ll + 2*sum(diag(ipS%*%Hm)) } else {
+  GIC <- -2*ll + 2*sum(diag(iHm%*%Hm))
 }
 return(GIC) }
 }

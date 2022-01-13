@@ -37,7 +37,7 @@ ghQ <- mvghQ(n = control$ghQqp, formula = form)
 # Starting values
 # ~~~~~~~~~~~~~~~
 cycl <- iter <- 0
-if(!is.null(control$tol)) tol <- control$tol else tol <- 1e-5 # tol <- sqrt(.Machine$double.eps)
+if(!is.null(control$tol)) tol <- control$tol else tol <- sqrt(.Machine$double.eps)
 eps <- eps2 <- tol + 1; tol2 <- min(tol,1e-5) # max(tol,1e-5)
 icoefs <- control$start.val
 if(!is.null(icoefs)){
@@ -103,7 +103,7 @@ if(is.null(control$full.hess)) control$full.hess <- F
 if(is.null(control$iter.lim)) control$iter.lim <- 3e2
 
 stop.crit <- autoL <- F;
-olObj <- NULL; iiter <- "NA"
+SSE <- olObj <- NULL; iiter <- "NA"
 if(!is.null(pml.control$lambda)){
  if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
  if(pml.control$lambda == "auto"){ pml.control$lambda <- 1/nrow(Y); autoL <- T } # starting lambda
@@ -138,6 +138,7 @@ bold <- bnew
 if(control$silent == F) cat("\r EM iter: ", iter, ", loglk: ", format(round(dlln, digits = 5), nsmall = 3), ", \U0394 loglk: ", format(round(lln-llo, digits = 3), scientific = T, nsmall = 3), sep = "")
 mod.grad <- list(unp = A4$gradient)
 mod.hess <- list(unp = A4$hessian)
+adsol <- A4$adsol
 for(r in names(bnew)){
   if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
   }
@@ -169,6 +170,7 @@ iter <- iter + 1
 bold <- bnew
 mod.grad <- list(pen = A4$gradient, unp = A3$gradient)
 mod.hess <- list(pen = A4$hessian, unp = A3$hessian)
+adsol <- A4$adsol
 upll <- sum(log(A2))
 for(r in names(bnew)){
   if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
@@ -201,6 +203,7 @@ if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", 
 mod.grad <- list(unp = r1$gradient)
 mod.hess <- list(unp = r1$hessian)
 upll <- lln
+adsol <- m2pdm(-mod.hess$unp)$is.PDM
 for(r in names(bnew)){
   if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
   }
@@ -235,6 +238,7 @@ dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary der
 A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
 mod.grad <- list(pen = r1$gradient, unp = A3$gradient)
 mod.hess <- list(pen = r1$hessian, unp = A3$hessian)
+adsol <- m2pdm(-mod.hess$unp)$is.PDM
 for(r in names(bnew)){
   if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]
   }
@@ -288,13 +292,15 @@ upll <- sum(log(A2))
 for(r in names(bnew)){ if("Z1" %in% colnames(bnew[[r]]) && bnew[[r]][1,"Z1"] < 0) bnew[[r]][,"Z1"] <- -bnew[[r]][,"Z1"]  }
 }
 
-if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < round(control$iter.lim*0.1))){
+if(!control$silent & cycl+1 == 20) { cat("\n Note: Automatic selection of \U03bb reached maximum number of mid-cycles (20)", sep = "") }
+
+if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < 19)){
  cycl <- cycl + 1
  # pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
  # dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
  # A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
  olObj <- op.lambda(bnew,Y,pen.idx,loadmt2,pml.control,A3,control$iter.lim,tol2)
- laold <- pml.control$lambda
+ laold <- pml.control$lambda; SSE <- olObj$sse
  lanew <- pml.control$lambda <- olObj$lambda ; iiter <- olObj$iter
  hist.lambda <- c(hist.lambda,lanew)
  eps2 <- abs(lanew - laold) # /(0.1+abs(lanew))
@@ -302,9 +308,10 @@ if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < rou
  iter <- 0 }
 
 stop.crit <- (eps < tol || iter >= control$iter.lim)
-if(cycl == round(control$iter.lim*0.5)) cat("\n Note: Automatic selection of \U03bb reached maximum number (",round(control$iter.lim*0.5),") of mid-cycles", sep = "")
 
 }
+  
+conv <- ifelse(iter == control$iter.lim | cycl == 19 | !adsol, F, T)
   
 for(r in names(bnew)){ for(j in 1:q.){
   if(paste0("Z",j) %in% colnames(bnew[[r]]) && bnew[[r]][j,paste0("Z",j)] < 0 && sum(bnew[[r]][j,-1] != 0) == 1) bnew[[r]][,paste0("Z",j)] <- -bnew[[r]][,paste0("Z",j)]
@@ -313,12 +320,12 @@ for(r in names(bnew)){ for(j in 1:q.){
 return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = iter, iiter= cycl, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
             pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information,
-            pen.idx = pen.idx, hist = hist.lambda))
+            pen.idx = pen.idx, hist = hist.lambda, conv = conv, sse = SSE))
 },
 error = function(e){
 if(!control$silent) cat(paste("\n Error in Estimation, proceeded with next simulation \n Error: ",e))
 berr <- lapply(parY, function(i) matrix(-999, nrow = ncol(Y), ncol = ncol(ghQ$out[[i]])))
 names(berr) <- parY; for(i in parY){ berr[[i]] <- berr[[i]]*loadmt[[i]] ; loadmt[[i]] <- loadmt[[i]]*-999}
-return(list(b = berr, loglik = -999, loadmt = loadmt,iter = -999, pml.control = pml.control)) } )
+return(list(b = berr, loglik = -999, loadmt = loadmt,iter = -999, pml.control = pml.control, conv = 0)) } )
 }
 

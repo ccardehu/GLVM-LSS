@@ -11,7 +11,7 @@ mvghQ <- function(n, mu, sigma, formula = "~ Z1 + Z2") {
 #         formula (list of formulas for measurement eqs. for each parameter).
 # Output: List with points, weights and design matrices with ghQs.
 # Testing: n = 15; mu = c(0,0); sigma = diag(2); prune = NULL;
-#          formula = form.
+#          formula = form
 
 nl <- unique(unlist(lapply(1:length(formula), function(i) all.vars(as.formula(formula[[i]])))))
 nl <- nl[grep("Z", nl, fixed = T)]
@@ -36,6 +36,7 @@ colnames(pts) <- nl
 out <- NULL
 for(i in names(formula)){
  out[[i]] <- as.data.frame(model.matrix(as.formula(formula[[i]]), as.data.frame(pts)))
+ # attr(out[[i]],"assign") <- NULL
 }
 return(list(points = pts, weights = wts, out = out, n = n))
 }

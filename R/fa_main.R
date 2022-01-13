@@ -9,6 +9,7 @@ dY <- function(Y,ghQ,b,fam){
 # Input : Y (item matrix), ghQ (GHQ object), b (loadings matrix), fam (distributions)
 # Output: Array n x qp x p with f(y_p|z_qp)
 # Testing: Y = simR$Y; ghQ = ghQ; b = borg; fam = fam
+# C++ alternative: DY
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 fyz <- array(NA, dim = c(nrow(Y),nrow(ghQ$points),ncol(Y)))
@@ -541,8 +542,8 @@ iM <- tryCatch({solve(shObj$hess)}, error = function(e){return(-m2pdm(-shObj$hes
 bn <- bu - c(iM%*%matrix(shObj$gradient))
 cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
-     
-return(list(b = bnew, gradient = shObj$gradient, hessian = shObj$hessian))
+adsol <- m2pdm(-shObj$hess)$is.PDM
+return(list(b = bnew, gradient = shObj$gradient, hessian = shObj$hessian, adsol = adsol))
 }
 
 upB.pen <- function(bold,shObj,pmObj,loadmt){
@@ -566,8 +567,8 @@ bn <- bu - c(iM%*%matrix(shObj$gradient - pmObj$pM%*%bu))
 # bn[abs(bn) < 1e5*sqrt(.Machine$double.eps)] <- 0
 cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
-
-return(list(b = bnew,  gradient = shObj$gradient, hessian = M))
+adsol <- m2pdm(-shObj$hess)$is.PDM
+return(list(b = bnew,  gradient = shObj$gradient, hessian = M, adsol = adsol))
 }
 
 penM <- function(params, type = "lasso", id = pen.idx, rs = loadmt, lambda = 1, w.alasso = NULL,a = NULL){ 
@@ -635,12 +636,11 @@ op.lambda <- function(b,Y,idx,rs,pml,shObj,itl,tol = 1e-3){
 it <- 0
 es <- 1
 nY <- nrow(Y)
-   
-while(it < itl && es > tol){
+iT <- T
+# step <- 1
 
 pmObj <- lb2pM(b,Y,idx,rs,pml)
-lambda <- pml$lambda
-pM <- pmObj$pM/c(nY*lambda)
+pM <- pmObj$pM/c(nY*pml$lambda)
 sJ <- m2pdm(-shObj$hessian)$sq
 Q <- qr.Q(qr(sJ))
 R <- qr.R(qr(sJ))
@@ -655,20 +655,105 @@ K = sJ%*%th + solve(t(sJ))%*%shObj$gradient
 K1 = t(U1)%*%t(Q)%*%K
 Zl = iD%*%t(V)%*%pM%*%V%*%iD
 Cl = Zl%*%crossprod(U1)
+A <- sJ%*%m2pdm(-shObj$hessian + pmObj$pM)$inv.mat%*%t(sJ)
+MSEo <- c(crossprod(K-A%*%K)) + (pml$gamma)*2*sum(diag(A)) - sum(lb2mb(rs)) # /sum(lb2mb(rs)
+   
+while(it < itl && es > tol){
 
-dtrA = -lambda*nY*sum(diag(Cl))
-d2trA = 2*(lambda*nY)^2*sum(diag(Zl%*%Cl)) + dtrA
-dP = 2*lambda*nY*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
-d2P = 2*(lambda*nY)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + dP
+lambda1 <- pml$lambda
 
-dV = dP + (pml$gamma)*2*dtrA #/sum(lb2mb(rs))
-d2V = d2P + (pml$gamma)*2*d2trA #/sum(lb2mb(rs))
-i2dV <- tryCatch({solve(d2V)}, error = function(e){return(1/it)})
-lambda2 <- c(exp(log(lambda) - i2dV%*%dV))
-es <- abs(lambda2 - lambda)
+dtrA = -pml$lambda*nY*sum(diag(Cl))
+d2trA = 2*(pml$lambda*nY)^2*sum(diag(Zl%*%Cl)) + dtrA
+dP = 2*pml$lambda*nY*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
+d2P = 2*(pml$lambda*nY)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + dP
+
+dV = (dP + (pml$gamma)*2*dtrA)#/sum(lb2mb(rs))
+d2V = (d2P + (pml$gamma)*2*d2trA)#/sum(lb2mb(rs))
+i2dV <- if(iT){ tryCatch({solve(d2V)}, error = function(e){return(1/d2V)}) } else { i2dV/2 } # 0.1*1/it
+lambda2 <- c(exp(log(pml$lambda) - i2dV%*%dV))
+es <- abs(lambda2 - pml$lambda)
 it = it + 1 
 pml$lambda <- lambda2
+
+# Test if MSE is reduced
+
+pmObj <- lb2pM(b,Y,idx,rs,pml)
+pM <- pmObj$pM/c(nY*pml$lambda)
+B <- m2pdm(pmObj$pM)$sq
+th <- t(lb2mb(b))[t(lb2mb(rs))]
+svdRB <- svd(rbind(R,B))
+U1 <- svdRB$u[1:nrow(R),]
+V <- svdRB$v
+D <- diag(svdRB$d)
+iD <- m2pdm(D)$inv.mat
+K = sJ%*%th + solve(t(sJ))%*%shObj$gradient
+K1 = t(U1)%*%t(Q)%*%K
+Zl = iD%*%t(V)%*%pM%*%V%*%iD
+Cl = Zl%*%crossprod(U1)
+A <- sJ%*%m2pdm(-shObj$hessian + pmObj$pM)$inv.mat%*%t(sJ)
+MSEn <- c(crossprod(K-A%*%K)) + (pml$gamma)*2*sum(diag(A)) - sum(lb2mb(rs)) # /sum(lb2mb(rs)
+
+if(MSEo < MSEn){
+
+if(iT){ i2dV <- 0.1 }
+iT <- F
+it = it - 1   
+pml$lambda <- lambda1
+
+pmObj <- lb2pM(b,Y,idx,rs,pml)
+pM <- pmObj$pM/c(nY*pml$lambda)
+sJ <- m2pdm(-shObj$hessian)$sq
+Q <- qr.Q(qr(sJ))
+R <- qr.R(qr(sJ))
+B <- m2pdm(pmObj$pM)$sq
+th <- t(lb2mb(b))[t(lb2mb(rs))] # t(lb2mb(b))[lb2mb(rs)]
+svdRB <- svd(rbind(R,B))
+U1 <- svdRB$u[1:nrow(R),]
+V <- svdRB$v
+D <- diag(svdRB$d)
+iD <- m2pdm(D)$inv.mat
+K = sJ%*%th + solve(t(sJ))%*%shObj$gradient
+K1 = t(U1)%*%t(Q)%*%K
+Zl = iD%*%t(V)%*%pM%*%V%*%iD
+Cl = Zl%*%crossprod(U1)
+# A <- sJ%*%m2pdm(-shObj$hessian + pmObj$pM)$inv.mat%*%t(sJ)
+# MSEo <- c(crossprod(K-A%*%K)/sum(lb2mb(rs)) + 2*sum(diag(A))/sum(lb2mb(rs)) - 1)
+
+dtrA = -pml$lambda*nY*sum(diag(Cl))
+d2trA = 2*(pml$lambda*nY)^2*sum(diag(Zl%*%Cl)) + dtrA
+dP = 2*pml$lambda*nY*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
+d2P = 2*(pml$lambda*nY)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + dP
+
+dV = (dP + (pml$gamma)*2*dtrA)#/sum(lb2mb(rs))
+d2V = (d2P + (pml$gamma)*2*d2trA)#/sum(lb2mb(rs))
+#i2dV <- 1
+lambda2 <- c(exp(log(pml$lambda) - i2dV%*%dV))
+es <- abs(lambda2 - pml$lambda)
+it = it + 1 
+pml$lambda <- lambda2 
+
+pmObj <- lb2pM(b,Y,idx,rs,pml)
+pM <- pmObj$pM/c(nY*pml$lambda)
+B <- m2pdm(pmObj$pM)$sq
+th <- t(lb2mb(b))[t(lb2mb(rs))]
+svdRB <- svd(rbind(R,B))
+U1 <- svdRB$u[1:nrow(R),]
+V <- svdRB$v
+D <- diag(svdRB$d)
+iD <- m2pdm(D)$inv.mat
+K = sJ%*%th + solve(t(sJ))%*%shObj$gradient
+K1 = t(U1)%*%t(Q)%*%K
+Zl = iD%*%t(V)%*%pM%*%V%*%iD
+Cl = Zl%*%crossprod(U1)
+A <- sJ%*%m2pdm(-shObj$hessian + pmObj$pM)$inv.mat%*%t(sJ)
+MSEn <- c(crossprod(K-A%*%K) + (pml$gamma)*2*sum(diag(A)) - sum(lb2mb(rs)))
+
 }
+
+MSEo <- MSEn
+
+}
+
 if(it == itl) it <- paste0("max ~ ",itl)
-return(list(lambda = pml$lambda, iter = it))
+return(list(lambda = pml$lambda, iter = it, sse = MSEn))
 }
