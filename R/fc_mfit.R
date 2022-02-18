@@ -4,8 +4,9 @@ splvm.fit <- function(Y, fam, form,
                                      start.val = NULL, constraint = NULL,
                                      ghQqp = 15, iter.lim = 150, full.hess = F, EM.iter.lim = 20,
                                      tol = sqrt(.Machine$double.eps), silent = F, information = "Fisher",
+                                     corr.lv = T,
                                      pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,
-                                         a = NULL, pen.load = F)) )
+                                     a = NULL, pen.load = F)) )
                       {
 
 # Goal: Fits semi-parametric LVM
@@ -14,9 +15,9 @@ splvm.fit <- function(Y, fam, form,
 #         control (list of controls)
 # Output: Estimated semi-parametric LVM
 # Testing: Y = simR$Y; fam = fam; form = e.form;
-#          control = list(method = "PEM", #start.val = lc, constraint = l1,
-#          ghQqp = 15, iter.lim = 150, tol = sqrt(.Machine$double.eps), silent = F, full.hess = F, information = "Fisher")
-#          control$pml.control = list(type = "alasso", lambda = 0.01, w.alasso = testa1$b, pen.load = F)
+#          control = list(method = "PEM", constraint = irestr, corr.lv = T, information = "Fisher", silent = F,
+#          ghQqp = 10, iter.lim = 150, tol = sqrt(.Machine$double.eps), full.hess = F, start.val = lc)
+#          control$pml.control = list(type = "alasso", lambda = "auto", w.alasso = fu$b, pen.load = T)
 
 if(!is.matrix(Y)) Y <- as.matrix(Y)
 parY <- unique(unlist(lapply(1:length(fam),function(i) pFun(fam[i]))))
@@ -31,8 +32,10 @@ for(i in parY){ for(j in 1:p.){ if(i %in% pFun(fam[j])) {pC[[i]] <- append(pC[[i
 
 # Gaussian Hermite Quadrature
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-if(is.null(control$ghQqp)) { if(q. == 1) control$ghQqp <- 25 else control$ghQqp <- 10 }
-ghQ <- mvghQ(n = control$ghQqp, formula = form)
+if(is.null(control$ghQqp)) { if(q. == 1) control$ghQqp <- 25 else {if(q. == 2) control$ghQqp <- 10 else control$ghQqp <- 7} }
+if(is.null(control$corr.lv)) control$corr.lv <- F
+if(control$corr.lv == T){ sigZ <- diag(q.); sigZ[lower.tri(sigZ)] <- sigZ[upper.tri(sigZ)] <- 0.2 } else sigZ <- diag(q.)
+ghQ <- mvghQ(n = control$ghQqp, formula = form, sigma = sigZ)
 
 # Starting values
 # ~~~~~~~~~~~~~~~
@@ -48,7 +51,7 @@ if(!is.null(icoefs)){
    colnames(icoefs[[i]]) <- colnames(ghQ$out[[i]]); rownames(icoefs[[i]]) <- colnames(Y)
    if(length(icoefs[[i]]) != p.*ncol(ghQ$out[[i]])) stop("\n Provided starting values is not lenght p*(q+intercept), revise dimension")
    if(!is.matrix(icoefs[[i]])) icoefs[[i]] <- matrix(icoefs[[i]], nrow = p., ncol = ncol(ghQ$out[[i]]))
-   icoefs[[i]] <- icoefs[[i]] + runif(length(icoefs[[i]]), min = -2*tol, max = 2*tol)
+   # icoefs[[i]] <- icoefs[[i]] + runif(length(icoefs[[i]]), min = -2*tol, max = 2*tol)
   }
   bold <- icoefs
 } else {
@@ -65,7 +68,7 @@ if(!is.null(restr)){
   loadmt <- vector(mode = "list",length = length(restr)); names(loadmt) <- names(restr)
   for(i in parY){loadmt[[i]] <- is.na(restr[[i]]); bold[[i]][!loadmt[[i]]] <- restr[[i]][!loadmt[[i]]] }
 } else {
- if(!control$silent) cat("\n Argument 'control$constraint' not supplied: No (identification) restrictions assumed.\n")
+ if(!control$silent) cat("\n Argument 'control$constraint' not supplied: No (identification) restrictions assumed. Rotate Factor Loadings.\n")
  loadmt <- vector(mode = "list", length = length(parY)); names(loadmt) <- parY
  restr <- vector(mode = "list", length = length(loadmt)); names(restr) <- parY
  for(i in parY){
@@ -101,6 +104,7 @@ if(is.null(pml.control$pen.load)) {if(q. > 1){ pen.load <- T } else { pen.load <
 if(is.null(control$information)) control$information <- "Fisher"
 if(is.null(control$full.hess)) control$full.hess <- F
 if(is.null(control$iter.lim)) control$iter.lim <- 3e2
+if(is.null(control$corr.lv)) control$corr.lv <- T
 
 stop.crit <- autoL <- F;
 SSE <- olObj <- NULL; iiter <- "NA"
@@ -108,7 +112,7 @@ if(!is.null(pml.control$lambda)){
  if(pml.control$lambda == "auto" & !pml.control$type %in% c("lasso","alasso")) stop("\n Penalty type should be 'Alasso' or 'Lasso' if lambda = 'auto'")
  if(pml.control$lambda == "auto"){ pml.control$lambda <- 1/nrow(Y); autoL <- T } # starting lambda
  if(is.null(pml.control$gamma)){ pml.control$gamma <- 1.4 }
- if(is.null(pml.control$a)){pml.control$a <- 2 } 
+ if(is.null(pml.control$a)){pml.control$a <- 1 } 
 }
 
 hist.lambda <- ifelse(autoL, pml.control$lambda, NA) # starting lambda
@@ -129,6 +133,9 @@ A3 <- sche(ghQ,bold,loadmt2,fam,dvL,pD,control$information,control$full.hess) # 
 A4 <- upB(bold,A3,loadmt2) # updated betas
 # Compute log-likelihood for comparison, etc.
 bnew <- A4$b
+if(control$corr.lv){sUp <- upS(sigZ,ghQ,pD,NULL); sigZ <- sUp$pz; ghQ <- mvghQ(n = control$ghQqp,formula = form,sigma = sigZ)}
+# if(control$corr.lv){sigZ <- upSa(sigZ,ghQ,pD,NULL); ghQ <- mvghQ(n = control$ghQqp,formula = form,sigma = sigZ)}
+# if(control$corr.lv){sigZ <- upSa(ghQ,pD); ghQ <- mvghQ(n = control$ghQqp,formula = form,sigma = sigZ)}
 A1 <- dY(Y,ghQ,bnew,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 upll <- lln <- sum(log(A2)) ; dlln <- round(lln,3) # log-likelihood new
@@ -155,6 +162,7 @@ A3 <- sche(ghQ,bold,loadmt2,fam,dvL,pD,control$information,control$full.hess) # 
 A4 <- upB.pen(bold,A3,A2a,loadmt2) # updated betas
 # Compute log-likelihood for comparison, etc.
 bnew <- A4$b
+if(control$corr.lv){sigZ <- upS(ghQ,pD); ghQ <- mvghQ(n = control$ghQqp, formula = form,sigma = sigZ)}
 loadmt2 <- uplm(bnew,loadmt2)
 pen.idx <- pidx(bnew,loadmt2,pen.load)
 A1 <- dY(Y,ghQ,bnew,fam)
@@ -194,11 +202,17 @@ if(!control$silent){
   else cat("\n Using trust-region algorithm to find ML estimates ...") }
 r1 <- trust::trust(objfun = loglkf, parinit = btr, rinit = 1, rmax = 5,fterm = tol,
                    iterlim = control$iter.lim, minimize = F, Y = Y, bg = bold, ghQ = ghQ, fam = fam,
-                   info = control$information, res = loadmt2, full = control$full.hess)
+                   info = control$information, res = loadmt2, full = control$full.hess)#,
+                   #pz = sigZ, clv = control$corr.lv, form = form) # OJO AQUI
 b2r[t(lb2mb(loadmt2))] <- r1$argument
 bold <- bnew <- cb2lb(b2r,bold)
 lln <- r1$value
 iter <- r1$iter; eps <- 0
+# if(control$corr.lv){
+# A1 <- dY(Y,ghQ,bnew,fam)
+# A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
+# pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+# sigZ <- upSa(ghQ,pD); ghQ <- mvghQ(n = control$ghQqp,formula = form,sigma = sigZ) }
 if(!control$silent) cat("\n Converged after ", r1$iter, " iterations (loglk: ", round(r1$value,3),")", sep = "")
 mod.grad <- list(unp = r1$gradient)
 mod.hess <- list(unp = r1$hessian)
@@ -299,7 +313,7 @@ if(autoL && (eps < tol | iter >= control$iter.lim) && (eps2 > tol2 && cycl < 19)
  # pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
  # dvL <- dvY(Y,ghQ,bnew,fam,control$information) # List with all the necessary derivatives
  # A3 <- sche(ghQ,bnew,loadmt2,fam,dvL,pD,control$information,control$full.hess) # score & Hessian object
- olObj <- op.lambda(bnew,Y,pen.idx,loadmt2,pml.control,A3,control$iter.lim,tol2)
+ olObj <- op.lambda(bnew,Y,pen.idx,loadmt2,sigZ,control$corr.lv,pml.control,A3,control$iter.lim,tol2)
  laold <- pml.control$lambda; SSE <- olObj$sse
  lanew <- pml.control$lambda <- olObj$lambda ; iiter <- olObj$iter
  hist.lambda <- c(hist.lambda,lanew)
@@ -317,7 +331,7 @@ for(r in names(bnew)){ for(j in 1:q.){
   if(paste0("Z",j) %in% colnames(bnew[[r]]) && bnew[[r]][j,paste0("Z",j)] < 0 && sum(bnew[[r]][j,-1] != 0) == 1) bnew[[r]][,paste0("Z",j)] <- -bnew[[r]][,paste0("Z",j)]
 } }
 
-return(list(b = bnew, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = iter, iiter= cycl, ghQ = ghQ,
+return(list(b = bnew, Pz = sigZ, loglik = lln, uploglik = upll, loadmt = loadmt2, iter = iter, iiter= cycl, ghQ = ghQ,
             Y = as.data.frame(Y), fam = fam, formula = form, eps = eps, method = method,
             pml.control = pml.control, gradient = mod.grad, hessian = mod.hess, info = control$information,
             pen.idx = pen.idx, hist = hist.lambda, conv = conv, sse = SSE))

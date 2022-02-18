@@ -1,6 +1,6 @@
 
 
-splvm.sim <- function(n,fam,form,constraints,coefs){
+splvm.sim <- function(n,fam,form,constraints,coefs,sigZ){
 
 # Goal: Simulate semi-parametric LVM (using constraints, formulas and distributions)
 # Input : n (sample size), fam (distributions),#         
@@ -24,7 +24,11 @@ q. <- length(lvar)
 # Latent variables
 # ~~~~~~~~~~~~~~~~
 muZ <- c(rep(0,q.))
-sigZ <- diag(q.)
+if(!missing(sigZ)){
+  if(sum(diag(sigZ)) != q.){warning("Argument sigZ standardised to a correlation matrix") # Check sigZ is a correlation matrix
+    sigZ <- diag(1/sqrt(diag(sigZ)))%*%sigZ%*%diag(1/sqrt(diag(sigZ)))
+  }
+} else sigZ <- diag(q.)
 Z <- as.data.frame(rmvnorm(n, muZ, sigZ)); colnames(Z) <- paste0("Z", 1:q.)
 Z. <- t. <- NULL
 for(i in parY){

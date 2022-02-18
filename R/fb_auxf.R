@@ -10,6 +10,13 @@ probs <- function(x){
  return(pr)
 }
 
+badj <- function(x){
+ pr <- x
+ if (any(pr == 1)) pr[pr == 1] <- 1 - .Machine$double.eps^(1/3)
+ if (any(pr == 0)) pr[pr == 0] <- .Machine$double.eps^1/3
+ return(pr)
+}
+
 expit <- function(x){
    exp(x)/(1+exp(x)) }
 
@@ -80,17 +87,19 @@ pFun <- function(f){ # eval @ fam[1]
  if(f == "gamma") pars <- c("mu", "sigma")
  if(f == "binomial") pars <- c("mu")
  if(f == "ZIpoisson") pars <- c("mu", "sigma")
+ if(f == "beta") pars <- c("mu","sigma")
+ if(f == "gumbel") pars <- c("mu","sigma")
  # Add other parameters for other distributions
  return(pars)
 }
 
-loglkf <- function(cb,Y,ghQ,bg,fam,info,res,full){
+loglkf <- function(cb,Y,ghQ,bg,fam,info,res,full){ # OJO AQUI ,pz,clv,form
 
 # Goal: To compute log-likelihood function (to be used in trust function)
 # Input : cb (non-zero loadings), Y (matrix of items), ghQ (GHQ object),
 #         bg (guide matrix), fam (distributions)
 # Output: List with log-likelihood, gradient & full Hessian
-# Testing: cb = lb2cb(bold); Y = simR$Y; ghQ = gr; bg = bold; fam = fam; res = loadmt2
+# Testing: cb = lb2cb(bold)[lb2cb(bold)!=0]; Y = simR$Y; ghQ = ghQ; bg = bold; fam = fam; res = loadmt2
 
 b1 <- lb2cb(bg)
 b1[t(lb2mb(res))] <- cb # complete with cb including zeros
@@ -99,6 +108,7 @@ A1 <- dY(Y,ghQ,b1,fam)
 A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights) # this is efy
 ll <- sum(log(A2)) # log-likelihood old
 pD <- exp(rowSums(A1,dim = 2))/A2 # this is EC (posterior density)
+#if(clv){pz <- upSa(ghQ,pD); ghQ <- mvghQ(n = ghQ$n, formula = form, sigma =  pz)} # OJO AQUI
 dvL <- dvY(Y,ghQ,b1,fam,info) # List with all the necessary derivatives
 A3 <- sche(ghQ,b1,res,fam,dvL,pD,info,full) # score & Hessian object
 return(list(value = ll, gradient = A3$gradient, hessian = A3$hessian))
@@ -157,6 +167,18 @@ mu = exp(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
 sigma = probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
 fyz <- ifelse(rbinom(n,1,1-sigma) == 0, 0, rpois(n,mu))
 }
+if(fam == "beta"){
+mu = probs(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
+sigma = probs(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
+a = mu*(1-sigma^2)/sigma^2
+beta = (1-mu)*(1-sigma^2)/sigma^2
+fyz <- rbeta(n,shape1 = a, shape2 = beta)
+}
+if(fam == "gumbel"){
+mu = c(as.matrix(Z$mu)%*%matrix(b$mu[i,]))
+sigma = exp(as.matrix(Z$sigma)%*%matrix(b$sigma[i,]))
+fyz <- gamlss.dist::rGU(n,mu,sigma)
+}
 # Add other distributions in SimFA::fod
 return(fyz)
 }
@@ -180,6 +202,14 @@ if(fam[i] == "ZIpoisson"){
  lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
  if(log == T) return(lf) else return(exp(lf)) }
  llg <- sum(dZIpoisson(Y[,i], c(exp(Z.$mu%*%matrix(b$mu[i,]))), c(probs(Z.$sigma%*%matrix(b$sigma[i,]))), log = T)) }
+if(fam[i] == "beta"){
+ mu = c(probs(Z.$mu%*%matrix(b$mu[i,])))
+ sigma = c(probs(Z.$sigma%*%matrix(b$sigma[i,])))
+ a = mu*(1-sigma^2)/sigma^2
+ beta = (1-mu)*(1-sigma^2)/sigma^2
+ llg <- sum(dbeta(badj(Y[,i]), shape1 = a, shape2 = beta,log = T))
+}
+if(fam[i] == "gumbel"){ llg <- sum(gamlss.dist::dGU(Y[,i], c(Z.$mu%*%matrix(b$mu[i,])), c(exp(Z.$sigma%*%matrix(b$sigma[i,]))),log = T))}
 return(llg)
 }
 
@@ -246,15 +276,18 @@ res.inv <- (res.inv + t(res.inv) ) / 2
 return(list(mat = res, inv.mat = res.inv, sqr.mat = t(res.sqr), is.PDM = !check.eigen))
 }
 
-lb2pM <- function(lb,Y,pen.idx,loadmt,
+lb2pM <- function(lb,Y,pen.idx,loadmt,#pz,clv,
                   pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL,a = NULL)){
 
 # Goal: To compute the penalty part for the log-likelihood
-# Input : lb (list betas), Y (matrix of items), pml.control (options for Penalty)
+# Input : lb (list betas), Y (matrix of items), pen.idx (penalised factor loadings), pz (factor correlation),
+#         pml.control (options for Penalty), clv (corr.lv = T)
 # Output: penalty for log-likelihood
-# Testing: lb = bold; Y = simR$Y; pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, a = NULL)
-   
-b <- lb2cb(lb)[t(lb2mb(loadmt))]
+# Testing: lb = bold; Y = simR$Y; pz = sigZ; clv = T;
+#          pml.control = list(type = "lasso", lambda = 1, w.alasso = NULL, a = NULL)
+
+#if(clv) b <- c(lb2cb(lb)[t(lb2mb(loadmt))],pz[lower.tri(pz)]) else 
+b <- c(lb2cb(lb)[t(lb2mb(loadmt))])
 P <- nrow(Y)*penM(lb2cb(lb),type = pml.control$type, id = pen.idx, rs = loadmt, lambda = pml.control$lambda,
                   w.alasso = pml.control$w.alasso,a = pml.control$a)$full
 return(list(lp = 0.5*crossprod(b,P)%*%b, pM = P))
@@ -289,6 +322,7 @@ ini.par <- function(Y,fam,form,pC,q.){
 # Z. <- princomp(Y,cor = T)$scores[,q.:1,drop=F]%*%diag(c(rep(-1,q.-1),1))
 
 Z. <- princomp(Y,cor = T)$scores[,1:q.,drop=F]%*%diag(c(-1,rep(ifelse(all(fam == "normal"),1,-1),q.-1)),nrow = length(c(-1,rep(ifelse(all(fam == "normal"),1,-1),q.-1))))
+Z. <- scale(Z.)
 colnames(Z.) <- paste0("Z", 1:q.)
 sZ <- NULL
 bstart <- NULL
@@ -307,7 +341,7 @@ for(i in 1:ncol(Y)){
  if(i %in% pC$tau) eq$tau <- update(form$tau, tmpY ~ .)
  if(i %in% pC$nu) eq$nu <- update(form$nu, tmpY ~ .)
  if(fam[i] == "normal"){
-  tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,family = NO(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
   bstart$mu[i,] <- coef(tmp,"mu")
   bstart$sigma[i,] <- coef(tmp,"sigma")
  }
@@ -331,6 +365,18 @@ for(i in 1:ncol(Y)){
  }
  if(fam[i] == "ZIpoisson"){ 
   tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,family = ZIP(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+  bstart$sigma[i,] <- coef(tmp,"sigma")
+ }
+ if(fam[i] == "beta"){
+  tmpY <- badj(tmpY)
+  tryCatch({tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,family = BE(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
+  bstart$mu[i,] <- coef(tmp,"mu")
+  bstart$sigma[i,] <- coef(tmp,"sigma")}, error = function(e){bstart$mu[i,] <- 0;
+  bstart$sigma[i,] <- 0})
+ }
+ if(fam[i] == "gumbel"){
+  tmp <- gamlss(eq$mu,sigma.fo = eq$sigma,family = GU(),data = as.data.frame(cbind(tmpY,Z.)), control = gamlss.control(trace = F))
   bstart$mu[i,] <- coef(tmp,"mu")
   bstart$sigma[i,] <- coef(tmp,"sigma")
  }

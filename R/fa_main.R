@@ -49,6 +49,18 @@ if(fam[i] == "ZIpoisson"){
  }
  fyz[,z,i] <- dZIpoisson(Y[,i], mu, sigma, log = T)
 }
+if(fam[i] == "beta"){
+ mu = c(probs(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
+ sigma = c(probs(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
+ alpha = mu*(1-sigma^2)/sigma^2
+ beta = (1-mu)*(1-sigma^2)/sigma^2
+ fyz[,z,i] <- dbeta(badj(Y[,i]),shape1 = alpha, shape2 = beta, log = T)
+}
+if(fam[i] == "gumbel"){
+ mu = c(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+ sigma = c(exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
+ fyz[,z,i] <- gamlss.dist::dGU(Y[,i], mu, sigma, log = T)
+}
   # Add other distributions
 } }
 
@@ -80,9 +92,9 @@ if(fam[i] == "normal"){ # structure(gamlss.dist::NO)
  dvY$d2mu[,z,i] = rep(-(1/sigma^2) * 1, length(Y[,i])) + 0
  dvY$d1sg[,z,i] = (((Y[,i] - mu)^2 - sigma^2)/(sigma^3)) * sigma
  if(info.F) dvY$d2sg[,z,i] = rep(-(2/(sigma^2)), length(Y[,i]))* sigma^2 else
-  dvY$d2sg[,z,i] = (-3*(Y[,i]-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 + dvY$d1sg[,z,i] # rep(-(2/(sigma^2)), length(Y))* sigma^2 # 
+  dvY$d2sg[,z,i] = (-3*(Y[,i]-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 + dvY$d1sg[,z,i]
  if(info.F) dvY$dcms[,z,i] = rep(0, length(Y[,i])) else
-  dvY$dcms[,z,i] = -2*(Y[,i]-mu)/sigma^3 * 1 * sigma # rep(0, length(Y)) # the expected cross derivative mu and sigma
+  dvY$dcms[,z,i] = -2*(Y[,i]-mu)/sigma^3 * 1 * sigma
 }
 if(fam[i] == "lognormal"){ # structure(gamlss.dist::LOGNO)
  mu = c(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
@@ -91,9 +103,9 @@ if(fam[i] == "lognormal"){ # structure(gamlss.dist::LOGNO)
  dvY$d2mu[,z,i] = rep(-(1/sigma^2) * 1, length(Y[,i])) + 0
  dvY$d1sg[,z,i] = (((log(Y[,i]) - mu)^2 - sigma^2)/(sigma^3)) * sigma
  if(info.F) dvY$d2sg[,z,i] = rep(-(2/(sigma^2)) * sigma^2, length(Y[,i])) else 
-  dvY$d2sg[,z,i] = (-3*(log(Y[,i])-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 + dvY$d1sg[,z,i] # rep(-(2/(sigma^2)) * sigma^2, length(Y)) # -3*(Y-mu)^2/sigma^4 + 1/sigma^2
+  dvY$d2sg[,z,i] = (-3*(log(Y[,i])-mu)^2/sigma^4 + 1/sigma^2) * sigma^2 + dvY$d1sg[,z,i]
  if(info.F) dvY$dcms[,z,i] = rep(0, length(Y[,i])) else
-  dvY$dcms[,z,i] = -2*(log(Y[,i])-mu)/sigma^3 * 1 * sigma # rep(0, length(Y)) # the expected cross derivative mu and sigma
+  dvY$dcms[,z,i] = -2*(log(Y[,i])-mu)/sigma^3 * 1 * sigma
 }
 if(fam[i] == "poisson"){ # structure(gamlss.dist::PO)
  mu = c(exp(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
@@ -129,6 +141,32 @@ if(fam[i] == "ZIpoisson"){ # structure(gamlss.dist::ZIP)
  if(info.F) dvY$d2sg[,z,i] = 1/(sigma*(sigma-1)) * (sigma*(1-sigma))^2 else  # CHECK THIS
   dvY$d2sg[,z,i] = -(sigma^2 - 2*u*sigma + u)/((sigma-1)*sigma)^2 * (sigma*(1-sigma))^2 + (1-2*sigma)*dvY$d1sg[,z,i] # -(u/(sigma^2) + (1-u)/((1-sigma)^2)) * (sigma*(1-sigma))^2
  dvY$dcms[,z,i] = rep(0, length(Y[,i]))
+}
+if(fam[i] == "beta"){ # structure(gamlss.dist::BEo)
+ mu = c(probs(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,])))
+ sigma = c(probs(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
+ a = mu*(1 - sigma^2)/(sigma^2)
+ beta = (1-mu)*(1 - sigma^2)/(sigma^2)
+ y. = badj(Y[,i])
+ dvY$d1mu[,z,i] = (((1 - sigma^2)/(sigma^2))*(-digamma(a) + digamma(beta) + log(y.) - log(1 - y.)))*(mu*(1-mu))
+ if(info.F) dvY$d2mu[,z,i] = rep(-(((1 - sigma^2)^2)/(sigma^4)) * (trigamma(a) + trigamma(beta))*(mu*(1-mu))^2, length(y.)) else 
+  dvY$d2mu[,z,i] = rep(-(((1 - sigma^2)^2)/(sigma^4)) * (trigamma(a) + trigamma(beta))*(mu*(1-mu))^2, length(y.)) + (1-2*mu)*dvY$d1mu[,z,i]
+ dvY$d1sg[,z,i] = -(2/(sigma^3)) * (mu * (-digamma(a) + digamma(a + beta) + log(y.)) + (1 - mu) * (-digamma(beta) + digamma(a + beta) + log(1 - y.)))*(sigma*(1-sigma))
+ if(info.F) dvY$d2sg[,z,i] = rep(-(4/(sigma^6)) * ((mu^2) * trigamma(a) + ((1 - mu)^2) * trigamma(beta) - trigamma(a + beta)) * (sigma*(1-sigma))^2, length(y.)) else
+  dvY$d2sg[,z,i] = rep(-(4/(sigma^6)) * ((mu^2) * trigamma(a) + ((1 - mu)^2) * trigamma(beta) - trigamma(a + beta)) * (sigma*(1-sigma))^2, length(y.)) + (1-2*sigma)*dvY$d1sg[,z,i]
+ dvY$dcms[,z,i] = rep((2 * (1 - sigma^2)/(sigma^5)) * (mu * trigamma(a) - (1 - mu) * trigamma(beta))*(mu*(1-mu))*(sigma*(1-sigma)), length(y.))
+}
+if(fam[i] == "gumbel"){ # structure(gamlss.dist::GU)
+ mu = c(as.matrix(Z$mu[z,])%*%matrix(b$mu[i,]))
+ sigma = c(exp(as.matrix(Z$sigma[z,])%*%matrix(b$sigma[i,])))
+ dvY$d1mu[,z,i] = (exp((Y[,i] - mu)/sigma) - 1)/sigma * 1
+ if(!info.F) dvY$d2mu[,z,i] = exp((Y[,i] - mu)/sigma)/sigma^2 + dvY$d1mu[,z,i] else
+  dvY$d2mu[,z,i] = rep(-(1/sigma^2) * 1, length(Y[,i]))
+ dvY$d1sg[,z,i] = (((Y[,i] - mu)/sigma^2) * (exp((Y[,i] - mu)/sigma) - 1) - (1/sigma)) * sigma
+ if(!info.F) dvY$d2sg[,z,i] = ((-(Y[,i] - mu)^2/sigma^4) * exp((Y[,i] - mu)/sigma) * (-2*(Y[,i] - mu)/sigma^3) * (exp((Y[,i] - mu)/sigma) - 1) + (1/sigma^2)) * sigma^2 + dvY$d1sg[,z,i] else
+  dvY$d2sg[,z,i] = rep(-1.82368/sigma^2, length(Y[,i]))* sigma^2
+ if(!info.F) dvY$dcms[,z,i] =  (-(sigma + mu + Y[,i])*exp((Y[,i] - mu)/sigma)-sigma)/sigma^3 else
+  dvY$dcms[,z,i] = rep(-0.422784/sigma^2, length(Y[,i])) * 1 * sigma # rep(0, length(Y)) # the expected cross derivative mu and sigma
 } } }
 for(i in names(dvY)){ if(all(is.na(dvY[[i]]))) dvY[[i]] <- NULL } 
 return(dvY)
@@ -162,7 +200,7 @@ if("nu" %in%  pFun(fam[i])){
  wnu <- colSums(dvL$d1nu[,,i]*pD)*c(ghQ$weights)
  ps <- cbind(ps,Z$nu * wnu)
 }
-ps <- as.matrix(colSums(unname(ps[,iN0])))
+ps <- as.matrix(colSums(unname(ps[,iN0,drop = F])))
 return(list("score" = ps, "pos" = iN0))
 }
 
@@ -180,7 +218,7 @@ hess <- function(i,j,ghQ,b,rs,fam,dvL,pD,information = "Fisher"){
 
 info.F <- match.arg(information,c("Fisher","Hessian")) == "Fisher"
 Z <- ghQ$out
-if(!info.F){
+if(!info.F){ # If Hessian
 if(i == j){
 iN0 <- jN0 <- which(lb2mb(rs)[i,])
 # For first Hessian (eq. A3, row 1)
@@ -192,9 +230,8 @@ hmu1 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,]) * wmu1[
 hess1 <- hmu1 <- rowSums(hmu1, dims = 2)
 # For second Hessian (eq. A3, row 2)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-wmu2 <- colSums(dvL$d1mu[,,i]*dvL$d1mu[,,i]*pD)
-hmu2 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,]) * 
-                  c(ghQ$weights)[z] * wmu2[z]),
+wmu2 <- colSums(dvL$d1mu[,,i]*dvL$d1mu[,,i]*pD)*c(ghQ$weights)
+hmu2 <- array(sapply(1:nrow(ghQ$points), function(z) tcrossprod(Zmu[z,]) * wmu2[z]),
             dim = c(ncol(Zmu),ncol(Zmu),length(ghQ$weights)))
 hess2 <- hmu2 <- rowSums(hmu2, dims = 2)
 # For third Hessian (eq. A3, row 3)
@@ -328,7 +365,7 @@ if("nu" %in%  pFun(fam[i])){
               dim = c(nrow(ghQ$points),ncol(Znu),nrow(pD)))
  Zhe3 <- abind::abind(Zhe3,the3,along = 2)
 }
-Zhe3 <- t(sapply(1:nrow(pD), function(m) colSums(Zhe3[,,m])))
+Zhe3 <- t(sapply(1:nrow(pD), function(m) colSums(Zhe3[,,m,drop = T])))
 hess3 <- matrix(rowSums(sapply(1:nrow(pD), function(m) tcrossprod(Zhe3[m,]))),
                 ncol(Zhe3))
 hess <- hess1 + hess2 - hess3
@@ -417,7 +454,7 @@ hess3 <- t(matrix(rowSums(sapply(1:nrow(pD), function(m) tcrossprod(Zhe3i[m,],Zh
 hess1 <- matrix(0,nrow = nrow(hess2),ncol = ncol(hess2))
 hess <- hess1 + hess2 - hess3
 }
-return(list("hessian" = hess, "posi" = iN0, "posj" = jN0))} else {
+return(list("hessian" = hess, "posi" = iN0, "posj" = jN0))} else { # If Fisher Information
 if(i == j){
 iN0 <- jN0 <- which(lb2mb(rs)[i,])
 # For first Hessian (eq. A3, row 1)
@@ -561,9 +598,9 @@ upB.pen <- function(bold,shObj,pmObj,loadmt){
 
 cb <- lb2cb(bold)
 bu <- cb[t(lb2mb(loadmt))]
-M <- shObj$hess - pmObj$pM
+M <- shObj$hess - pmObj$pM[seq_along(bu),seq_along(bu)]
 iM <- tryCatch({solve(M)}, error = function(e){return(-m2pdm(-M)$inv.mat)})
-bn <- bu - c(iM%*%matrix(shObj$gradient - pmObj$pM%*%bu))
+bn <- bu - c(iM%*%matrix(shObj$gradient - pmObj$pM[seq_along(bu),seq_along(bu)]%*%bu))
 # bn[abs(bn) < 1e5*sqrt(.Machine$double.eps)] <- 0
 cb[t(lb2mb(loadmt))] <- bn
 bnew <- cb2lb(cb,bold)
@@ -571,17 +608,98 @@ adsol <- m2pdm(-shObj$hess)$is.PDM
 return(list(b = bnew,  gradient = shObj$gradient, hessian = M, adsol = adsol))
 }
 
-penM <- function(params, type = "lasso", id = pen.idx, rs = loadmt, lambda = 1, w.alasso = NULL,a = NULL){ 
+upSa <- function(ghQ,pD){ # pz,ghQ,pD,respz
+ # if(is.null(respz)){ corlst <- which(lower.tri(pz),arr.ind = T) } else corlst <- which(lower.tri(pz),arr.ind = T)[-respz,]
+ # V <- Reduce("+",lapply(1:nrow(pD), function(m){
+ #  Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i])) }))
+ # sc <- -nrow(pD)/2*solve(pz) + 0.5*solve(pz)%*%V%*%solve(pz)
+ # sc <- 2*sc - diag(diag(sc))
+ # sc <- c(sc[lower.tri(sc)],sc[upper.tri(sc)])
+ # kR <- kronecker(solve(pz),solve(pz))
+ # for(y in 1:nrow(corlst)){
+ #  idr <- (((y-1)*nrow(pz))+nrow(pz)+1):((y)*nrow(pz)+nrow(pz))
+ #  idc <- (((y-1)*nrow(pz))+nrow(pz)+1):((y)*nrow(pz)+nrow(pz))
+ #  he <- nrow(pD)/2*(kR[id,id]) - 0.5*(solve(pz)%*%solve(pz)%*%V%*%solve(pz) - solve(pz)%*%V%*%solve(pz)%*%solve(pz)) 
+ # }
+ # 
+ # # he <- 2*he - diag(diag(he))
+ # # for(y in 1:nrow(corlst)){
+ # #  pz[corlst[y,1],corlst[y,2]] <- pz[corlst[y,1],corlst[y,2]] - solve(he)[corlst[y,1],corlst[y,2]]*sc[corlst[y,1],corlst[y,2]]
+ # # }
+ # # pz[upper.tri(pz)] <- pz[lower.tri(pz)]
+ pz <- (1/nrow(pD))*Reduce("+",lapply(1:nrow(pD), function(m){
+  Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]))}))
+ pz <- diag(1/sqrt(diag(pz)))%*%pz%*%diag(1/sqrt(diag(pz)))
+ return(pz)
+}
+
+upS <- function(pz,ghQ,pD,respz){
+ if(is.null(respz)){ corlst <- which(lower.tri(pz),arr.ind = T) } else corlst <- which(lower.tri(pz),arr.ind = T)[-respz,]
+ sv <- pz[lower.tri(pz)]
+ gra <- matrix(0,nrow = length(sv))
+ hess <- matrix(0, nrow = length(sv), ncol = length(sv))
+ Iq <- diag(nrow(pz))
+ for(y in 1:nrow(corlst)){
+  Dy <- matrix(0,nrow = nrow(pz),ncol(pz)); Dy[corlst[y,1],corlst[y,2]] <- 1
+  Dy <- Dy + t(Dy) - Dy%*%Dy
+  Gy <- solve(pz)%*%Dy%*%solve(pz)
+  # Fy <- solve(pz)%*%Dy%*%Gy + Gy%*%Dy%*%solve(pz)
+  P1 <- -nrow(pD)/2*sum(diag((2*solve(pz) - solve(pz)*Iq)%*%Dy))
+  P2 <- Reduce("+",lapply(1:nrow(pD), function(m){sum(diag(
+        Gy%*%Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i])) )) })) 
+  P3 <- Reduce("+",lapply(1:nrow(pD), function(m){
+        v <- Reduce("+",lapply(1:nrow(ghQ$points), function(i) matrix(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]));
+        t(v)%*%Gy%*%v }))
+  gra[y] <- P1+P2+P3
+  for(yy in 1:nrow(corlst)){
+   Dyy <- matrix(0,nrow = nrow(pz),ncol(pz)); Dyy[corlst[yy,1],corlst[yy,2]] <- 1
+   Dyy <- Dyy + t(Dyy) - Dyy%*%Dyy
+   alp <- sum(diag(-solve(pz)%*%solve(pz)%*%Dyy))
+   Fy <- solve(pz)%*%Dy + Dy%*%solve(pz)
+   H1 <- -nrow(pD)/2*sum(diag(alp*Dy))
+   H2 <- 0.5*alp*Reduce("+",lapply(1:nrow(pD), function(m){sum(diag(
+    Fy%*%Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i])) )) }))
+   H3 <- 0.5*alp*Reduce("+",lapply(1:nrow(pD), function(m){
+    v <- Reduce("+",lapply(1:nrow(ghQ$points), function(i) matrix(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]));
+    t(v)%*%Fy%*%v }))
+   hess[yy,y] <- hess[y,yy] <- H1+H2+H3
+  }
+ }
+ pz[lower.tri(pz)] <- matrix(sv) - solve(hess)%*%gra
+ 
+  # 
+  # H1 <- nrow(pD)/2*sum(diag(Gy%*%Dy))
+  # H2 <- -0.5*Reduce("+",lapply(1:nrow(pD), function(m){sum(diag(
+  # Fy%*%Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i])) )) }))
+  # H3 <- -0.5*Reduce("+",lapply(1:nrow(pD), function(m){
+  #   v <- Reduce("+",lapply(1:nrow(ghQ$points), function(i) matrix(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]));
+  #   t(v)%*%Fy%*%v }))
+  # pz[corlst[y,1],corlst[y,2]] <- pz[corlst[y,1],corlst[y,2]] - c(P1+P2+P3)/c(H1+H2+H3)
+  # 
+  # gradient <- c(gradient, P1+P2+P3)
+  # hessian <- c(hessian, H1+H2+H3)
+ # }
+ # if(length(hessian) == 1) hessian <- matrix(hessian) else hessian <- diag(hessian)
+ pz[upper.tri(pz)] <- pz[lower.tri(pz)]
+ return(list(pz = pz, gradient = c(gra), hessian = hess))
+}
+
+penM <- function(params, type = "lasso", id = pen.idx, rs = loadmt, lambda = 1,
+                 w.alasso = NULL,a = NULL){  # , pz, clv
 
 # Goal: To produce a Penalty matrix of parameters (params)
 # Input : model parameters (params)
 # Output: Penalty matrix
-# Testing: params = lb2cb(bold); lambda = pml.control$lambda; id = pen.idx
+# Testing: params = lb2cb(bold); lambda = pml.control$lambda; id = pen.idx; pz = sigZ; clv = T;
 #          w.alasso = pml.control$w.alasso; rs = loadmt2; type = pml.control$type; a = NULL
  
-if(!is.null(w.alasso) && is.list(w.alasso)) w.alasso <- t(lb2mb(w.alasso))[t(id)]
-S. <- diag(0,length(params))
-param <- params[c(t(id))]
+if(!is.null(w.alasso) && is.list(w.alasso)){ 
+  # if(clv) w.alasso <- c(t(lb2mb(w.alasso))[t(id)],pz[lower.tri(pz)]) else 
+  w.alasso <- c(t(lb2mb(w.alasso))[t(id)]) }
+# if(clv){S. <- diag(0,length(c(params,pz[lower.tri(pz)])))} else 
+  S. <- diag(0,length(c(params)))
+# if(clv){param <- c(params[c(t(id))],pz[lower.tri(pz)])} else 
+  param <- params[c(t(id))]
 eps = 1e-7 # sqrt(.Machine$double.eps) # protective tolerance level
 if(type == "ridge"){
  A1 <-  c(lambda)*rep(1, length(param))
@@ -609,7 +727,9 @@ if(type == "mcp"){
  A1 <- f.d / ( sqrt(param^2 + eps) )
 }
 if(length(A1) == 1) S <- matrix(A1) else S <- diag(A1)
+#if(clv){diag(S.)[c(t(id),rep(T,nrow(S.)-length(t(id))))] <- A1} else 
 diag(S.)[c(t(id))] <- A1
+#if(clv){S. <- S.[c(t(lb2mb(rs)),rep(T,nrow(S.)-length(t(id)))),c(t(lb2mb(rs)),rep(T,nrow(S.)-length(t(id))))]} else 
 S. <- S.[t(lb2mb(rs)),t(lb2mb(rs))]
 return(list(full = S., red = S))
 }
@@ -626,7 +746,7 @@ for(i in names(b)){ lmt[[i]] <- (b[[i]] != 0) & loadmt[[i]] }
 return(lmt)
 }
 
-op.lambda <- function(b,Y,idx,rs,pml,shObj,itl,tol = 1e-3){
+op.lambda <- function(b,Y,idx,rs,pz,clv,pml,shObj,itl,tol = 1e-3){
   
 # Goal: to update automatic lambda
 # Input: lambda, updated-Beta (penalised) obj, penalty object, restriction matrix (rs)
