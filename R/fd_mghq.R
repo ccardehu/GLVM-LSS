@@ -11,14 +11,12 @@ mvghQ <- function(n, mu, sigma, formula = "~ Z1 + Z2") {
 #         formula (list of formulas for measurement eqs. for each parameter).
 # Output: List with points, weights and design matrices with ghQs.
 # Testing: n = 15; mu = c(0,0); sigma = diag(2); prune = NULL;
-#          formula = form.
+#          formula = form
 
 nl <- unique(unlist(lapply(1:length(formula), function(i) all.vars(as.formula(formula[[i]])))))
 nl <- nl[grep("Z", nl, fixed = T)]
-if(missing(mu) && missing(sigma)){
- mu <- rep(0,length(nl))
- sigma <- diag(length(nl))
-}
+if(missing(mu)) mu <- rep(0,length(nl)); 
+if(missing(sigma)) sigma <- diag(length(nl))
   
 if(!all(dim(sigma) == length(mu))) stop("mu and sigma have nonconformable dimensions (in ghQ)")
 if(length(mu) > 0) dm  <- length(mu) else dm <- 1
@@ -28,6 +26,7 @@ gh$weights <-  gh$weights * (2*pi)^(-1/2)*exp(gh$points^2/2)
 idx <- as.matrix(expand.grid(rep(list(1:n),dm)))
 pts <- matrix(gh$points[idx],nrow(idx),dm)
 wts <- as.matrix(apply(matrix(gh$weights[idx],nrow(idx),dm), 1, prod))
+wts <- wts + (1-sum(wts))/(length(wts))
 # Rotating if mu & sigma != NULL
 eig <- eigen(sigma) 
 rot <- eig$vectors %*% diag(sqrt(eig$values))
@@ -36,6 +35,7 @@ colnames(pts) <- nl
 out <- NULL
 for(i in names(formula)){
  out[[i]] <- as.data.frame(model.matrix(as.formula(formula[[i]]), as.data.frame(pts)))
+ # attr(out[[i]],"assign") <- NULL
 }
 return(list(points = pts, weights = wts, out = out, n = n))
 }

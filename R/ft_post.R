@@ -3,7 +3,7 @@
 # File ft_post.R: Post-processing for Simulation examples (Chapter 2)
 # Code written by: Camilo Cardenas-Hurtado (c.a.cardenas-hurtado@lse.ac.uk)
 
-post <- function(FCOL,form,p, round = T){
+post <- function(FCOL,form,p, round = T,dgs = 1){
   
   # Labels for parameters
   # ~~~~~~~~~~~~~~~~~~~~~
@@ -22,7 +22,7 @@ post <- function(FCOL,form,p, round = T){
   # Index for penalised parameters
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  ip <- !grepl(".0",nM,fixed = T);
+  ip <- !grepl(".0",nM,fixed = T) # ii <- 
   li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1")
   li2 <- lapply(li1,function(i) !grepl(i,nM))
   for(i in 1:length(li2)){ ip <- ip & li2[[i]] }; names(ip) <- nM; rm(list=c("li1","li2"))
@@ -32,52 +32,58 @@ post <- function(FCOL,form,p, round = T){
   
   # nX <- FCOL[!complete.cases(FCOL),]
   X  <- FCOL[complete.cases(FCOL),]
-  
   ix <- mean(X[,ncol(X)])
-  a = 1; i0  <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; b0  <- X[i0,((a-1)*ix+1):(a*ix)]; colnames(b0)   <- nM
-  a = 2; iu  <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; bu  <- X[iu,((a-1)*ix+1):(a*ix)]; colnames(bu)   <- nM
-  a = 3; ip1 <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; bp1 <- X[ip1,((a-1)*ix+1):(a*ix)]; colnames(bp1) <- nM
-  a = 4; ip2 <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; bp2 <- X[ip2,((a-1)*ix+1):(a*ix)]; colnames(bp2) <- nM
-  a = 5; ip3 <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; bp3 <- X[ip3,((a-1)*ix+1):(a*ix)]; colnames(bp3) <- nM
-  a = 6; ip4 <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; bp4 <- X[ip4,((a-1)*ix+1):(a*ix)]; colnames(bp4) <- nM
-  a = 7; ip5 <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; bp5 <- X[ip5,((a-1)*ix+1):(a*ix)]; colnames(bp5) <- nM
+  R <- X[,-c(1:(7*ix))]
+  colnames(R) <- c("GBICu", "GBICp1", "GBICp2", "GBICp3","GBICp4","GBICp5",
+                   "lambda1","lambda2","lambda3","lambda4","lambda5",
+                   "cr1","cr2","cr3","cr4","cr5","ix")
   
-  if(round == T){
-   rmlist <- list(b0 = b0,bu = bu,bp1 = bp1,bp2 = bp2,bp3 = bp3,bp4 = bp4,bp5 = bp5)
-   names(rmlist) <- c("b0","bu","bp1","bp2","bp3","bp4","bp5")
-   for(i in names(rmlist)){ assign(paste0(i), round(rmlist[[i]],3)) }
-   rm(rmlist) }
+  a = 1; i0  <- apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999; b0  <- X[i0,((a-1)*ix+1):(a*ix)]; 
+  a = 2; iu  <- apply(cbind(X[,((a-1)*ix+1):(a*ix)],R[,c("GBICu")]),1,min) != -999; bu  <- X[iu,((a-1)*ix+1):(a*ix)];
+  a = 3; ip1 <- (apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999) & iu ; bp1 <- X[ip1,((a-1)*ix+1):(a*ix)]
+  a = 4; ip2 <- (apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999) & iu ; bp2 <- X[ip2,((a-1)*ix+1):(a*ix)];
+  a = 5; ip3 <- (apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999) & iu ; bp3 <- X[ip3,((a-1)*ix+1):(a*ix)] 
+  a = 6; ip4 <- (apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999) & iu ; bp4 <- X[ip4,((a-1)*ix+1):(a*ix)]; 
+  a = 7; ip5 <- (apply(X[,((a-1)*ix+1):(a*ix)],1,min) != -999) & iu ; bp5 <- X[ip5,((a-1)*ix+1):(a*ix)]
+  colnames(b0) <- colnames(bu) <- colnames(bp1) <- colnames(bp2) <- colnames(bp3) <- colnames(bp4) <- colnames(bp5) <- nM
   
   # Absolute Bias (AB) & MSE
   # ~~~~~~~~~~~~~~~~~~~~~~~~
   
-  abmle  <- colMeans(abs(b0[iu,]-bu))
-  abp1mle <- colMeans(abs(b0[ip1,]-bp1))
-  abp2mle <- colMeans(abs(b0[ip2,]-bp2))
-  abp3mle <- colMeans(abs(b0[ip3,]-bp3))
-  abp4mle <- colMeans(abs(b0[ip4,]-bp4))
-  abp5mle <- colMeans(abs(b0[ip5,]-bp5))
+  abmle   <- abs(colMeans(b0[iu,]-bu))
+  abp1mle <- abs(colMeans(b0[ip1,]-bp1))
+  abp2mle <- abs(colMeans(b0[ip2,]-bp2))
+  abp3mle <- abs(colMeans(b0[ip3,]-bp3))
+  abp4mle <- abs(colMeans(b0[ip4,]-bp4))
+  abp5mle <- abs(colMeans(b0[ip5,]-bp5))
   
-  msemle  <- colMeans((b0[iu,]-bu)^2)
+  msemle   <- colMeans((b0[iu,]-bu)^2)
   msep1mle <- colMeans((b0[ip1,]-bp1)^2)
   msep2mle <- colMeans((b0[ip2,]-bp2)^2)
   msep3mle <- colMeans((b0[ip3,]-bp3)^2)
   msep4mle <- colMeans((b0[ip4,]-bp4)^2)
   msep5mle <- colMeans((b0[ip5,]-bp5)^2)
   
-  AvABm0 <- mean(abmle[!ip]);    AvABm1 <- mean(abmle[ip])
+  AvABm0  <- mean(abmle[!ip]);    AvABm1 <- mean(abmle[ip])
   AvABp0a <- mean(abp1mle[!ip]); AvABp1a <- mean(abp1mle[ip])
   AvABp0b <- mean(abp2mle[!ip]); AvABp1b <- mean(abp2mle[ip])
   AvABp0c <- mean(abp3mle[!ip]); AvABp1c <- mean(abp3mle[ip])
   AvABp0d <- mean(abp4mle[!ip]); AvABp1d <- mean(abp4mle[ip])
   AvABp0e <- mean(abp5mle[!ip]); AvABp1e <- mean(abp5mle[ip])
   
-  AvMSEm0 <- mean(msemle[!ip]);    AvMSEm1 <- mean(msemle[ip])
+  AvMSEm0  <- mean(msemle[!ip]);    AvMSEm1 <- mean(msemle[ip])
   AvMSEp0a <- mean(msep1mle[!ip]); AvMSEp1a <- mean(msep1mle[ip])
   AvMSEp0b <- mean(msep2mle[!ip]); AvMSEp1b <- mean(msep2mle[ip])
   AvMSEp0c <- mean(msep3mle[!ip]); AvMSEp1c <- mean(msep3mle[ip])
   AvMSEp0d <- mean(msep4mle[!ip]); AvMSEp1d <- mean(msep4mle[ip])
   AvMSEp0e <- mean(msep5mle[!ip]); AvMSEp1e <- mean(msep5mle[ip])
+  
+
+  if(round == T){
+  rmlist <- list(b0 = b0,bu = bu,bp1 = bp1,bp2 = bp2,bp3 = bp3,bp4 = bp4,bp5 = bp5)
+  names(rmlist) <- c("b0","bu","bp1","bp2","bp3","bp4","bp5")
+  for(i in names(rmlist)){ assign(paste0(i), round(rmlist[[i]],dgs)) } 
+  rm(rmlist) }
   
   t0 <- unname(colMeans(b0) != 0)
   tp1 <- bp1 != 0; tp2 <- bp2 != 0; tp3 <- bp3 != 0; tp4 <- bp4 != 0; tp5 <- bp5 != 0
@@ -126,14 +132,17 @@ post <- function(FCOL,form,p, round = T){
   res[,"AvTPR"] <- c(AvTPR1,AvTPR2,AvTPR3,AvTPR4,AvTPR5)
   res[,"AvFPR"] <- c(AvFPR1,AvFPR2,AvFPR3,AvFPR4,AvFPR5)
   
-  R <- X[,-c(1:(7*ix))]
-  colnames(R) <- c("GBICu", "GBICp1", "GBICp2", "GBICp3","GBICp4","GBICp5","lambda1","lambda2","lambda3","lambda4","lambda5","ix")
+  # R <- X[,-c(1:(7*ix))]
+  # colnames(R) <- c("GBICu", "GBICp1", "GBICp2", "GBICp3","GBICp4","GBICp5","lambda1","lambda2","lambda3","lambda4","lambda5","ix")
   
   res[,"GBICu"]  <- mean(R[iu,"GBICu"])
   res[,"GBICp"]  <- sapply(1:5, function(i){ mean(R[get(paste0("ip",i)),paste0("GBICp",i)]) })
   res[,"lambda"] <- sapply(1:5, function(i){ mean(R[get(paste0("ip",i)),paste0("lambda",i)]) })
   
- return(list(res = res))
+  conv <- sapply(1:5,function(i) sum(R[,paste0("cr",i)])/nrow(X) )
+  brat <- sapply(1:5,function(i) nrow(get(paste0("bp",i)))/nrow(X) )
+  
+ return(list(res = res, cr = conv, br = brat))
   
 }
 
