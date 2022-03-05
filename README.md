@@ -1,6 +1,4 @@
-# SPLVM
-
-GLVM-LSS: Generalised Latent Variable Models for Location, Shape, and Scale
+# Generalised Latent Variable Models for for Location, Shape, and Scale (GLVM-LSS)
 
 Author: Camilo Cardenas-Hurtado (c.a.cardenas-hurtado@lse.ac.uk)
 
