@@ -314,7 +314,7 @@ glvmlss_parsimE1 <- function(nsim, saveRes = T){
   cores <- parallel::detectCores()
   cl <- parallel::makeCluster(cores)
   doSNOW::registerDoSNOW(cl)
-  progress <- function(n) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), n)
+  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
   opts <- list(progress = progress)
   FCOL <- suppressWarnings(
     foreach(l = 1:nsim,

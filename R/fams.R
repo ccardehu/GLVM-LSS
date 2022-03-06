@@ -39,7 +39,6 @@ Normal <- function(mu.link = "identity", sg.link = "log"){
                  link.mu = sta.mu$name, linkf.mu = sta.mu$linkfun,
                  link.sg = sta.sg$name, linkf.sg = sta.sg$linkfun),
             class = "dist_glvmlss")
-  
 }
 
 Binomial <- function(n = 1, mu.link = "logit"){
@@ -77,3 +76,51 @@ Binomial <- function(n = 1, mu.link = "logit"){
                  class = "dist_glvmlss")
 }
 
+ZIpoisson <- function(mu.link = "log", sg.link = "logit"){
+  
+  sta.mu <- make.link(mu.link)
+  sta.sg <- make.link(sg.link)
+  
+  dy <- function(i,y,b,ghQ){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    dZIpoisson <- function(Y,mu,sigma,log = T){
+      u <- as.numeric(Y == 0)
+      lf <- u*c(log(sigma + (1-sigma)*exp(-mu))) + (1-u)*(c(log(1-sigma)) - c(mu) + Y*c(log(mu)) - lfactorial(Y))
+      if(log == T) return(lf) else return(exp(lf)) }
+    sapply(1:nrow(ghQ$points), function(r) dZIpoisson(y,mu[r],sg[r],T))
+  }
+  
+  dvy <- function(i,y,b,ghQ,info){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    qp = length(mu)
+    u <- function(y,mu.,sg.){ifelse(y == 0, (1 + exp(-sta.sg$linkfun(sg.)-mu.))^(-1),0)}
+    dvy <- list(d1 = NULL, d2 = NULL, dc = list(mu = NULL))
+    dvy$d1$mu = sapply(1:qp, function(r){ (1-u(y,mu[r],sg[r]))*(y/mu[r]-1) * sta.mu$mu.eta(sta.mu$linkfun(mu[r])) } )
+    dvy$d1$sg = sapply(1:qp, function(r){ (u(y,mu[r],sg[r])-sg[r])/(sg[r]*(1-sg[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) } )  
+    if(info == "Fisher"){
+      dvy$d2$mu = sapply(1:qp, function(r){ (1-u(y,mu[r],sg[r])) * (-1/mu[r]) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2 } )
+      dvy$d2$sg = sapply(1:qp, function(r){ 1/(sg[r]*(sg[r]-1)) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2 } )
+    } else {
+      dvy$d2$mu = sapply(1:qp, function(r){ ( (1-u(y,mu[r],sg[r]))*(-y/mu[r]^2) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2
+                  + dvy$d1$mu[,r] ) } )
+      dvy$d2$sg = sapply(1:qp, function(r){ ( -(sg[r]^2 - 2*u(y,mu[r],sg[r])*sg[r] + u(y,mu[r],sg[r]))/((sg[r]-1)*sg[r])^2 * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2
+                  + numDeriv::grad(function(x) sta.sg$mu.eta(sta.sg$linkfun(pmin(pmax(x,0),1))), sg[r])*dvy$d1$sg[,r] ) } ) }  
+    dvy$dc$mu$sg = sapply(1:qp, function(r) rep(0, length(y)) )
+    return(dvy)
+  }
+  
+  sfun <- function(i,n,b,Z){
+    mu = sta.mu$linkinv(c(as.matrix(Z$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(Z$sig)%*%b$sig[i,]))
+    ifelse(rbinom(n,1,1-sg) == 0, 0, rpois(n,mu))
+  }
+  
+  structure(list(family = "ZIPoisson", npar = 2, pars = c("mu","sigma"),
+                 iuse = quote(ZIP()),
+                 dY = dy, dvY = dvy, sf = sfun,
+                 link.mu = sta.mu$name, linkf.mu = sta.mu$linkfun,
+                 link.sg = sta.sg$name, linkf.sg = sta.sg$linkfun),
+            class = "dist_glvmlss")
+}
