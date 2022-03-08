@@ -10,9 +10,9 @@ ll <- function(cb,Y,ghQ,bg,famL,info){
   b[b != 0] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  f1 <- d1ll(Y,ghQ,b,famL,info,f0$pD)
-  f2 <- d2ll(Y,ghQ,b,famL,info,f0$pD)
-  return(list(value = f0$ll, gradient = f1, hessian = f2))
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD)
+  f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD)
+  return(list(value = -f0$ll, gradient = f1, hessian = f2))
 }
 
 d1ll <- function(Y,ghQ,b,famL,info,pd){
@@ -130,7 +130,7 @@ lla <- function(cb,Y,ghQ,bg,famL,info){
   b[b != 0] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  return(f0$ll)
+  return(-f0$ll)
 }
 
 d1lla <- function(cb,Y,ghQ,bg,famL,info){
@@ -138,7 +138,7 @@ d1lla <- function(cb,Y,ghQ,bg,famL,info){
   b[b != 0] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  f1 <- d1ll(Y,ghQ,b,famL,info,f0$pD)
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD)
   return(f1)
 }
 
@@ -197,7 +197,7 @@ ibeta <- function(Y,famL,form){
   
   for(i in 1:ncol(Y)){
     eq <- form
-    tmpY <- Y[,i]
+    if(famL[[i]]$family == "Beta") tmpY <- y.(Y[,i]) else tmpY <- Y[,i]
     for(p in 1:length(eq)){ eq[[p]] <- update(eq[[p]], tmpY ~ .)  }
     tmp <- gamlss::gamlss(eq$mu, sigma.formula = eq$sigma, tau.formula = eq$tau, nu.formula = eq$nu,
                           family = famL[[i]]$iuse, data = as.data.frame(cbind(tmpY,Z)),
@@ -333,4 +333,69 @@ glvmlss_parsimE1 <- function(nsim, saveRes = T){
   stopCluster(cl)
   if(saveRes) saveRDS(FCOL, file = paste0("E1n",n, "p", p,".Rds"))
   return(FCOL)
+}
+
+glvmlss_parsimpost <- function(X, p, out = c("MSE","AB"),
+                               mu.eq = ~ Z1+Z2, sg.eq = NULL,
+                               ta.eq = NULL, nu.eq = NULL){
+  
+  # str <- as.character(X)
+  # p = as.integer(substr(str,(nchar(str)+1)-2,nchar(str))); rm(str)
+  environment(prep_form) <- environment()
+  form <- prep_form()
+  
+  nam <- NULL
+  for(i in names(form)){ nam <- rbind(nam,expand.grid(i,1:p,stringsAsFactors = F)) }
+  nam <- unlist(lapply(1:nrow(nam),function(i) paste0(nam[i,], collapse = "")))
+  
+  nM <- NULL
+  for(i in 1:p){
+    for(j in names(form)){
+      nM <- append(nM,paste0(nam[grepl(j,as.character(nam))][i],".",c(0,seq_len(length(all.vars(as.formula(form[[j]])))))))
+    }
+  }; rm(nam)
+  
+  ip <- !grepl(".0",nM,fixed = T)
+  li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1","tau1.2","tau2.1","nu1.2","nu2.1")
+  li2 <- lapply(li1, function(i) !grepl(i,nM))
+  for(i in 1:length(li2)){ ip <- ip & li2[[i]] }; names(ip) <- nM; rm(list=c("li1","li2"))
+  ip[grepl(".0",nM,fixed = T)] <- T; nM <- nM[ip]
+  
+  X  <- X[complete.cases(X),]; X <- X[apply(X,1,min)!=-999, ]
+  ix <- mean(X[,ncol(X)])
+  X <- X[,-ncol(X)]
+  rR <- !(X[,ncol(X)] == 1000)
+  Xb0 <- X[rR,seq_len(ix[1])[ip]]; colnames(Xb0) <- nM ;
+  Xbe <- X[rR,((ix[1]+1):(2*ix[1]))[ip]]; colnames(Xbe) <- nM
+  if("iter" %in% out) Xit <- X[, max((ix[1]+1):(2*ix[1]))+2]
+  if("time" %in% out) Xti <- X[, max((ix[1]+1):(2*ix[1]))+1]
+  
+  imu0 <- grepl("mu",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
+  imul <- grepl("mu",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
+  isg0 <- grepl("sigma",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
+  isgl <- grepl("sigma",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
+  ili <- list("mu0" = imu0, "mu1" = imul,"sg0" = isg0, "sg1" = isgl)
+  
+  res <- nam <- NULL
+  for(ii in names(ili)){
+    if("MSE" %in% out) assign(paste0("AvMSE",ii), mean(colMeans((Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]])^2)) )
+    if("AB" %in% out) assign(paste0("AvAB",ii), mean(abs(colMeans(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]]))) )
+    if("SB" %in% out) assign(paste0("AvSB",ii), mean((colMeans(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]]))^2) )
+    if("RB" %in% out) assign(paste0("AvRB",ii), mean((colMeans(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]]))/abs(colMeans(Xb0[,ili[[ii]]]))) ) } 
+  
+  if("MSE" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvMSE",ii))); nam <- c(nam, paste0("AvMSE",ii)) }
+  if("AB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvAB",ii))); nam <- c(nam, paste0("AvAB",ii)) }
+  if("SB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvSB",ii))); nam <- c(nam, paste0("AvSB",ii)) }
+  if("RB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvRB",ii))); nam <- c(nam, paste0("AvRB",ii)) }
+  names(res) <- nam
+  
+  if("iter" %in% out){ nam <- c(names(res),"AvIter"); res <- c(res,mean(Xit)); names(res) <- nam }
+  if("time" %in% out){ nam <- c(names(res),"AvTime"); res <- c(res,mean(Xti)); names(res) <- nam }
+  return(c(round(res,4)))
+}
+
+y. <- function(x){
+ if (any(x == 1)) x[x == 1] <- 1 - .Machine$double.eps^(1/3)
+ if (any(x == 0)) x[x == 0] <- .Machine$double.eps^1/3
+ return(x)
 }
