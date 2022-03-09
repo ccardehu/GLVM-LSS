@@ -21,7 +21,7 @@ d1ll <- function(Y,ghQ,b,famL,info,pd){
   w3 <- c(ghQ$weights)
   for(i in 1:ncol(Y)){
     for(k in 1:famL[[i]]$npar){
-      w1 <- famL[[i]]$dvY(i,Y[,i],b,ghQ,info)$d1[[k]]
+      w1 <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)[[k]]
       sc <- c(sc,colSums(ghQ$out[[k]]*colSums(w1*w2)*w3)[b[[k]][i,] != 0])
     }
   }
@@ -36,10 +36,9 @@ d2ll <- function(Y,ghQ,b,famL,info,pd){
   for(i in 1:ncol(Y)){
     pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(b)[i,] != 0))
     h <- matrix(NA,sum(lb2mb(b)[i,] != 0),sum(lb2mb(b)[i,] != 0))
-    dv <- famL[[i]]$dvY(i,Y[,i],b,ghQ,info)
-    dvP <- dv$d2
-    dvO <- dv$d1
-    dvC <- dv$dc
+    dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)
+    dvP <- famL[[i]]$dv2Y(i,Y[,i],b,ghQ,info,dvO)
+    dvC <- famL[[i]]$dvCY(i,Y[,i],b,ghQ,info)
     H3 <- NULL
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
@@ -101,8 +100,7 @@ ad2ll <- function(Y,ghQ,b,famL,info,pd){
   idH <- 0
   for(i in 1:ncol(Y)){
     pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(b)[i,] != 0))
-    dv <- famL[[i]]$dvY(i,Y[,i],b,ghQ,info)
-    dvO <- dv$d1
+    dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)
     H3 <- NULL
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
@@ -120,6 +118,51 @@ ad2ll <- function(Y,ghQ,b,famL,info,pd){
     h3 <- t(sapply(1:nrow(wo), function(r) colSums(H3[,,r,drop = T])))
     h3 <- Reduce("+", lapply(1:nrow(wo), function(r) tcrossprod(h3[r,])))
     H[pY,pY] <- h3
+    idH <- max(pY)
+  }
+  return(H)
+}
+
+d2llEM <- function(Y,ghQ,b,famL,info,pd){
+  w2 <- pd
+  w3 <- c(ghQ$weights)
+  H <- matrix(0,sum(lb2cb(b) != 0),sum(lb2cb(b) != 0))
+  idH <- 0
+  for(i in 1:ncol(Y)){
+    pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(b)[i,] != 0))
+    h <- matrix(NA,sum(lb2mb(b)[i,] != 0),sum(lb2mb(b)[i,] != 0))
+    if(info == "Hessian") dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ) else dvO <- NULL
+    dvP <- famL[[i]]$dv2Y(i,Y[,i],b,ghQ,info,dvO)
+    dvC <- famL[[i]]$dvCY(i,Y[,i],b,ghQ,info)
+    id0 <- 0
+    for(k in 1:famL[[i]]$npar){
+      Zk <- as.matrix(ghQ$out[[k]])[,b[[k]][i,] != 0]
+      dim(Zk) <- c(nrow(ghQ$points), sum(b[[k]][i,] != 0))
+      pk <- seq.int(from = max(id0+1,k), len = ncol(Zk))
+      w1 <- dvP[[k]]
+      wa <- colSums(w1*w2)*w3
+      h1 <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,]) * wa[r])
+      h1 <- Reduce("+", h1)
+      h[pk,pk] <- h1
+      id0 <- max(pk)
+      if(tryCatch({!is.null(dvC[[k]])}, error = function(e) F)){
+        id1 <- id0
+        for(o in 1:length(dvC[[k]])){
+          Zo <- as.matrix(ghQ$out[[k + o]])[,b[[k + o]][i,] != 0]
+          dim(Zo) <- c(nrow(ghQ$points), sum(b[[k + o]][i,] != 0))
+          po <- seq.int(from = max(id1+1,o), len = ncol(Zo))
+          w1i <- dvC[[k]][[o]]
+          w0i <- sweep(w1i*w2,2,w3,"*")
+          wai <- colSums(w0i)
+          h1i <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,],Zo[r,]) * wai[r])
+          h1i <- Reduce("+", h1i)
+          h[pk,po] <- h1i
+          h[po,pk] <- t(h1i) 
+          id1 <- max(po)
+        }
+      }
+    }
+    H[pY,pY] <- h
     idH <- max(pY)
   }
   return(H)

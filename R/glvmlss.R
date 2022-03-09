@@ -17,11 +17,12 @@ glvmlss_fit <- function(...){
     d1ll_t <- d1ll(Y,ghQ,b,famL,info,dfyz_t$pD)
     if(control$EM_use2d){
       if(!EM_appHess){
-        da2ll_t <- -d2ll(Y,ghQ,b,famL,info,dfyz_t$pD)
-        if(!m2pdm(da2ll_t)$is.P) da2ll_t <- da2ll_t - control$EM_lrate*diag(nrow(da2ll_t))
+        da2ll_t <- -d2llEM(Y,ghQ,b,famL,info,dfyz_t$pD)
+        # if(!m2pdm(da2ll_t)$is.P) da2ll_t <- da2ll_t - control$EM_lrate*diag(nrow(da2ll_t))
       } else {
         da2ll_t <- ad2ll(Y,ghQ,b,famL,info,dfyz_t$pD)
-        if(!m2pdm(da2ll_t)$is.P) da2ll_t <- da2ll_t + control$EM_lrate*diag(nrow(da2ll_t)) }
+        # if(!m2pdm(da2ll_t)$is.P) da2ll_t <- da2ll_t + control$EM_lrate*diag(nrow(da2ll_t))
+        }
       cb <- cb + solve(da2ll_t, d1ll_t)
     } else {
       cb <- cb + control$EM_lrate*exp(-0.5*iter)*d1ll_t }
@@ -30,9 +31,9 @@ glvmlss_fit <- function(...){
     llk[iter+1] <- -fyz(Y,ghQ,b,famL)$ll
     eps <- llk[iter+1] - llk[iter]
     if(eps < 0 && control$EM_use2d) EM_appHess <- T
-    convg <- ifelse(abs(eps) < control$tol*1e2 || iter == control$EM_iter , T, F)
-    if(control$verbose){ if(iter == 1) cat(paste0("\n EM iter: ",iter,", loglk: ", round(-llk[iter+1],5))) else
-      cat(paste0("\r EM iter: ",iter,", loglk: ", round(-llk[iter+1],5))) }
+    convg <- ifelse(abs(eps) < control$tol*1e4 || iter == control$EM_iter , T, F)
+    if(control$verbose){ if(iter == 1) cat(paste0("\n EM iter: ",iter,", marginal loglik.: ", round(-llk[iter+1],5))) else
+      cat(paste0("\r EM iter: ",iter,", marginal loglik.: ", round(-llk[iter+1],5))) }
     # if(iter%%control$EM_upeach) dfyz_t <- fyz(Y,ghQ,b,famL)
     dfyz_t <- fyz(Y,ghQ,b,famL)
   }
@@ -71,7 +72,7 @@ glvmlss_fit <- function(...){
     } }
   
   fyz_c <- fyz(Y,ghQ,b,famL)
-  hes_c <- -d2ll(Y,ghQ,b,famL,info,fyz_c$pD)
+  hes_c <- -d2ll(Y,ghQ,b,famL,info, pd = fyz_c$pD)
   if(!m2pdm(hes_c)$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian matrix is not positive definite at solution."))
   
   return(list(b = b, loglik = fyz_c$ll, iter = iter + cb$iter, hes = hes_c))

@@ -2,7 +2,7 @@ prep_cont <- function(){
   # Control settings
   # ~~~~~~~~~~~~~~~~
   con <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
-              EM_appHess = T, EM_lrate = 0.001,# EM_upeach = 5,
+              EM_appHess = F, EM_lrate = 0.001, # EM_upeach = 5,
               solver = "L-BFGS-B", start.val = NULL, mat.info = "Hessian",
               iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE,
               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
