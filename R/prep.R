@@ -120,7 +120,7 @@ sim_stva <- function(){
     names(control$start.val) <- names(form)
     for(i in names(control$start.val)){
       if(length(control$start.val[[i]]) != p*ncol(Z$Zmod[[i]])) stop("Provided `control$start.val` is not lenght p*(q+intercept), revise dimension")
-      if(!is.matrix(control$start.val[[i]])) control$start.val[[i]] <- matrix(control$start.val[[i]], nrow = p, ncol = ncol(Z$Zmod[[i]])[[i]])
+      if(!is.matrix(control$start.val[[i]])) control$start.val[[i]] <- matrix(control$start.val[[i]], nrow = p, ncol = ncol(Z$Zmod[[i]]))
       colnames(control$start.val[[i]]) <- colnames(Z$Zmod[[i]]); rownames(control$start.val[[i]]) <- paste0("Y", 1:p)
     }
     b <- control$start.val
@@ -145,5 +145,12 @@ sim_stva <- function(){
       for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)",paste0("Z",r))] <- 0 }
     }
   }
+  # Sign
+  # ~~~~
+  for(r in names(b)){
+    for(j in which(grepl("Z",colnames(b[[r]])))){
+      c <- as.integer(substr(colnames(b[[r]])[j],nchar(colnames(b[[r]])[j]),nchar(colnames(b[[r]])[j])))
+      if(b[[r]][c,j] < 0) b[[r]][,j] <- -b[[r]][,j]
+    } }
   return(b)
 }

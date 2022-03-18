@@ -1,3 +1,27 @@
+glvmlss <- function(data, family = list(),
+                    mu.eq = ~ Z1 + Z2, sg.eq = NULL,
+                    ta.eq = NULL, nu.eq = NULL,
+                    control = list(), pen.control = list(), ...){
+  
+  Y <- data; if(!is.matrix(Y)) Y <- as.matrix(Y)
+  p <- ncol(Y)
+  environment(prep_fam) <- environment(prep_form) <- environment()
+  famL <- prep_fam()
+  form <- prep_form()
+  environment(prep_Z) <- environment()
+  q <- prep_Z()
+  environment(prep_cont) <- environment(prep_ghq) <- environment()
+  environment(prep_stva) <- environment()
+  control <- prep_cont()
+  ghQ <- prep_ghq()
+  b <- prep_stva()
+  
+  environment(glvmlss_fit) <- environment()
+  fit <- glvmlss_fit(...)
+  
+  structure(fit, class = "glvmlss")
+}
+
 glvmlss_fit <- function(...){
   
   convg <- ifelse(control$EM_iter == 0, T, F)
@@ -30,7 +54,7 @@ glvmlss_fit <- function(...){
     b <- cb2lb(pb,b)
     llk[iter+1] <- -fyz(Y,ghQ,b,famL)$ll
     eps <- llk[iter+1] - llk[iter]
-    if(eps < 0 && control$EM_use2d) EM_appHess <- T
+    # if(eps < 0 && control$EM_use2d) EM_appHess <- T
     convg <- ifelse(abs(eps) < control$tol*1e4 || iter == control$EM_iter , T, F)
     if(control$verbose){ if(iter == 1) cat(paste0("\n EM iter: ",iter,", marginal loglik.: ", round(-llk[iter+1],5))) else
       cat(paste0("\r EM iter: ",iter,", marginal loglik.: ", round(-llk[iter+1],5))) }
@@ -67,8 +91,9 @@ glvmlss_fit <- function(...){
                         "\n (Approximate) Marginal loglikelihood: ", round(-cb$value,5))) } }
   
   for(r in names(b)){
-    for(j in 1:q){
-      if(b[[r]][j, paste0("Z",j)] < 0) b[[r]][, paste0("Z",j)] <- -b[[r]][, paste0("Z",j)]
+    for(j in which(grepl("Z",colnames(b[[r]])))){
+      c <- as.integer(substr(colnames(b[[r]])[j],nchar(colnames(b[[r]])[j]),nchar(colnames(b[[r]])[j])))
+      if(b[[r]][c,j] < 0) b[[r]][,j] <- -b[[r]][,j]
     } }
   
   fyz_c <- fyz(Y,ghQ,b,famL)
@@ -78,29 +103,7 @@ glvmlss_fit <- function(...){
   return(list(b = b, loglik = fyz_c$ll, iter = iter + cb$iter, hes = hes_c))
 }
 
-glvmlss <- function(data, family = list(),
-                    mu.eq = ~ Z1 + Z2, sg.eq = NULL,
-                    ta.eq = NULL, nu.eq = NULL,
-                    control = list(), pen.control = list(), ...){
-  
-  Y <- data; if(!is.matrix(Y)) Y <- as.matrix(Y)
-  p <- ncol(Y)
-  environment(prep_fam) <- environment(prep_form) <- environment()
-  famL <- prep_fam()
-  form <- prep_form()
-  environment(prep_Z) <- environment()
-  q <- prep_Z()
-  environment(prep_cont) <- environment(prep_ghq) <- environment()
-  environment(prep_stva) <- environment()
-  control <- prep_cont()
-  ghQ <- prep_ghq()
-  b <- prep_stva()
 
-  environment(glvmlss_fit) <- environment()
-  fit <- glvmlss_fit(...)
-  
-  structure(fit, class = "glvmlss")
-}
 
 glvmlss_sim <- function(n, family = list(),
                         mu.eq = ~ Z1 + Z2, sg.eq = NULL,

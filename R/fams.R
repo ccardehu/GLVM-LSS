@@ -244,3 +244,46 @@ Beta <- function(mu.link = "logit", sg.link = "logit"){
                  link.sg = sta.sg$name, linkf.sg = sta.sg$linkfun),
             class = "dist_glvmlss")
 }
+
+Poisson <- function(mu.link = "log"){
+  
+  sta.mu <- make.link(mu.link)
+  
+  dy <- function(i,y,b,ghQ){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sapply(1:nrow(ghQ$points), function(r) dpois(y,mu[r],log = T))
+  }
+  
+  dv1y <- function(i,y,b,ghQ){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    qp = length(mu)
+    dvy <- list(mu = NULL)
+    dvy$mu = sapply(1:qp, function(r){ (y - mu[r])/mu[r] * sta.mu$mu.eta(sta.mu$linkfun(mu[r])) } )
+    return(dvy)
+  }
+  
+  dv2y <- function(i,y,b,ghQ,info, dv1Y = NULL){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    qp = length(mu)
+    dvy <- list(mu = NULL)
+    if(info == "Fisher"){
+      dvy$mu = sapply(1:qp, function(r){ rep(-1/mu[r] * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2, length(y)) } )
+    } else {
+      dvy$mu = sapply(1:qp, function(r){ -y/mu[r] * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2 + dv1Y$mu[,r] } )
+    }
+    return(dvy)
+  }
+  
+  dvCy <- function(i,y,b,ghQ,info){ NULL }
+  
+  sfun <- function(i,n,b,Z){
+    mu = sta.mu$linkinv(c(as.matrix(Z$mu)%*%b$mu[i,]))
+    rpois(n,mu)
+  }
+  
+  structure(list(family = "Poisson", npar = 1, pars = c("mu"),
+                 iuse = quote(PO()), dY = dy, sf = sfun,
+                 dv1Y = dv1y, dv2Y = dv2y, dvCY = dvCy,
+                 link.mu = sta.mu$name, linkf.mu = sta.mu$linkfun),
+            class = "dist_glvmlss")
+}

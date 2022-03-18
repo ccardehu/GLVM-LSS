@@ -1,3 +1,9 @@
+y. <- function(x){
+ if (any(x == 1)) x[x == 1] <- 1 - .Machine$double.eps^(1/3)
+ if (any(x == 0)) x[x == 0] <- .Machine$double.eps^1/3
+ return(x)
+}
+
 fyz <- function(Y,ghQ,b,famL){
   A1 <- lapply(1:length(famL), function(i) famL[[i]]$dY(i,Y[,i],b,ghQ))
   A1 <- array(unlist(A1),dim = c(nrow(Y),nrow(ghQ$points),length(famL)))
@@ -227,7 +233,7 @@ ibeta <- function(Y,famL,form){
   lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
   lvar <- grep("Z", lvar, fixed = T, value = T)
   q <- length(lvar)
-  Z <- scale(princomp(Y,cor = T)$scores)[,1:q]
+  Z <- scale(princomp(Y,cor = T)$scores)[,1:q, drop = F]
   colnames(Z) <- paste0("Z", 1:q)
   
   sZ <- NULL
@@ -249,8 +255,9 @@ ibeta <- function(Y,famL,form){
   }
   
   for(r in names(bstart)){
-    for(j in 1:q){
-      if(bstart[[r]][j, paste0("Z",j)] < 0) bstart[[r]][, paste0("Z",j)] <- -bstart[[r]][, paste0("Z",j)]
+    for(j in which(grepl("Z",colnames(bstart[[r]])))){
+      c <- as.integer(substr(colnames(bstart[[r]])[j],nchar(colnames(bstart[[r]])[j]),nchar(colnames(bstart[[r]])[j])))
+      if(bstart[[r]][c,j] < 0) bstart[[r]][,j] <- -bstart[[r]][,j]
     } }
   return(bstart)
 }
@@ -365,9 +372,10 @@ glvmlss_parsimE1 <- function(nsim, saveRes = T){
             .options.snow = opts,
             .export = ls(parent.frame()) ) %dopar% {
               tryCatch({
-                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
+                A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
                 c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
+                             nQP = 25, solver = "trust")
                 c1 <- Sys.time()
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
                 ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
@@ -375,6 +383,58 @@ glvmlss_parsimE1 <- function(nsim, saveRes = T){
                 error = function(e) { return(NA) }  ) } )
   stopCluster(cl)
   if(saveRes) saveRDS(FCOL, file = paste0("E1n",n, "p", p,".Rds"))
+  return(FCOL)
+}
+
+glvmlss_parsimE2 <- function(nsim, saveRes = T){
+  cores <- parallel::detectCores()
+  cl <- parallel::makeCluster(cores)
+  doSNOW::registerDoSNOW(cl)
+  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
+  opts <- list(progress = progress)
+  FCOL <- suppressWarnings(
+    foreach(l = 1:nsim,
+            .combine = rbind,
+            .options.snow = opts,
+            .export = ls(parent.frame()) ) %dopar% {
+              tryCatch({
+                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
+                c0 <- Sys.time()
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
+                             nQP = 25, solver = "trust")
+                c1 <- Sys.time()
+                cof <- c(lb2cb(A$b), lb2cb(B$b))
+                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
+                return(c(cof,ex2)) },
+                error = function(e) { return(NA) }  ) } )
+  stopCluster(cl)
+  if(saveRes) saveRDS(FCOL, file = paste0("E2n",n, "p", p,".Rds"))
+  return(FCOL)
+}
+
+glvmlss_parsimE3 <- function(nsim, saveRes = T){
+  cores <- parallel::detectCores()
+  cl <- parallel::makeCluster(cores)
+  parallel::clusterExport(cl,ls(parent.frame()))
+  doSNOW::registerDoSNOW(cl)
+  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
+  opts <- list(progress = progress)
+  FCOL <- suppressWarnings(
+    foreach(l = 1:nsim,
+            .combine = rbind,
+            .options.snow = opts) %dopar% { # .export = ls(parent.frame()),
+              tryCatch({
+                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
+                c0 <- Sys.time()
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
+                             nQP = 25, solver = "trust")
+                c1 <- Sys.time()
+                cof <- c(lb2cb(A$b), lb2cb(B$b))
+                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
+                return(c(cof,ex2)) },
+                error = function(e) { return(NA) }  ) } )
+  stopCluster(cl)
+  if(saveRes) saveRDS(FCOL, file = paste0("E3n",n, "p", p,".Rds"))
   return(FCOL)
 }
 
@@ -437,8 +497,6 @@ glvmlss_parsimpost <- function(X, p, out = c("MSE","AB"),
   return(c(round(res,4)))
 }
 
-y. <- function(x){
- if (any(x == 1)) x[x == 1] <- 1 - .Machine$double.eps^(1/3)
- if (any(x == 0)) x[x == 0] <- .Machine$double.eps^1/3
- return(x)
+GAIC <- function(mod){
+  if(class(AC) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
 }
