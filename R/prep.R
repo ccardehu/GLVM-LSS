@@ -2,11 +2,12 @@ prep_cont <- function(){
   # Control settings
   # ~~~~~~~~~~~~~~~~
   con <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
-              EM_appHess = F, EM_lrate = 0.001, # EM_upeach = 5,
+              EM_appHess = F, EM_lrate = 0.001, est.ci = F,
               solver = "L-BFGS-B", start.val = NULL, mat.info = "Hessian",
               iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE,
               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
-              verbose = FALSE)
+              verbose = FALSE, autoL_iter = 30,
+              penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
   control <- c(control, list(...))
   namC <- names(con)
   con[(namc <- names(control))] <- control
@@ -75,14 +76,17 @@ prep_stva <- function(){
   # Constraints matrices (for each parameter)
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(!is.null(control$iden.res)){
-    if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
+    if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter','item','restricted variable',value)")
     b <- rmat(control$iden.res,b)
   } else {
     if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variables identification restrictions.")
+    rb <- b
     for(i in 1:length(b)){ 
-      for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
+      for(r in 1:q){
+        b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0
+        rb[[i]] <- b[[i]] != 0}
     }
-    
+    b <- list(b = b, rb = rb) 
   }
   return(b)
 }
@@ -141,16 +145,20 @@ sim_stva <- function(){
     b <- rmat(control$iden.res,b)
   } else {
     if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variables identification restrictions.")
+    rb <- b
     for(i in 1:length(b)){ 
-      for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)",paste0("Z",r))] <- 0 }
+      for(r in 1:q){
+        b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0
+        rb[[i]] <- b[[i]] != 0}
     }
+    b <- list(b = b, rb = rb) 
   }
   # Sign
   # ~~~~
-  for(r in names(b)){
-    for(j in which(grepl("Z",colnames(b[[r]])))){
-      c <- as.integer(substr(colnames(b[[r]])[j],nchar(colnames(b[[r]])[j]),nchar(colnames(b[[r]])[j])))
-      if(b[[r]][c,j] < 0) b[[r]][,j] <- -b[[r]][,j]
+  for(r in names(b$b)){
+    for(j in which(grepl("Z",colnames(b$b[[r]])))){
+      c <- as.integer(substr(colnames(b$b[[r]])[j],nchar(colnames(b$b[[r]])[j]),nchar(colnames(b$b[[r]])[j])))
+      if(b$b[[r]][c,j] < 0) b$b[[r]][,j] <- -b$b[[r]][,j]
     } }
   return(b)
 }

@@ -11,45 +11,58 @@ fyz <- function(Y,ghQ,b,famL){
   return(list(pD = exp(rowSums(A1,dim = 2))/A2, ll = sum(log(A2))))
 }
 
-ll <- function(cb,Y,ghQ,bg,famL,info){
+ll <- function(cb,Y,ghQ,bg,famL,info,rb){
   b <- lb2cb(bg)
-  b[b != 0] <- cb
+  b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD)
-  f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD)
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb)
+  f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD,rb)
   return(list(value = -f0$ll, gradient = f1, hessian = f2))
 }
 
-d1ll <- function(Y,ghQ,b,famL,info,pd){
+pll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
+  b <- lb2cb(bg)
+  b[lb2cb(rb) == T] <- cb
+  b <- cb2lb(b,bg)
+  f0 <- fyz(Y,ghQ,b,famL)
+  pMat <- pM(b,rb, penalty = pen.control$penalty,
+             lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y)*crossprod(cb,pMat$full))
+  f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD,rb) + nrow(Y)*pMat$full 
+  return(list(value = -f0$ll + 0.5*nrow(Y)*crossprod(cb,pMat$full)%*%cb,
+              gradient = f1, hessian = f2))
+}
+
+d1ll <- function(Y,ghQ,b,famL,info,pd,rb){
   sc <- NULL
   w2 <- pd
   w3 <- c(ghQ$weights)
   for(i in 1:ncol(Y)){
     for(k in 1:famL[[i]]$npar){
       w1 <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)[[k]]
-      sc <- c(sc,colSums(ghQ$out[[k]]*colSums(w1*w2)*w3)[b[[k]][i,] != 0])
+      sc <- c(sc,colSums(ghQ$out[[k]]*colSums(w1*w2)*w3)[rb[[k]][i,] == T])
     }
   }
   return(unname(sc))
 }
 
-d2ll <- function(Y,ghQ,b,famL,info,pd){
+d2ll <- function(Y,ghQ,b,famL,info,pd,rb){
   w2 <- pd
   w3 <- c(ghQ$weights)
-  H <- matrix(0,sum(lb2cb(b) != 0),sum(lb2cb(b) != 0))
+  H <- matrix(0,sum(lb2cb(rb) == T),sum(lb2cb(rb) == T))
   idH <- 0
   for(i in 1:ncol(Y)){
-    pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(b)[i,] != 0))
-    h <- matrix(NA,sum(lb2mb(b)[i,] != 0),sum(lb2mb(b)[i,] != 0))
+    pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(rb)[i,] == T))
+    h <- matrix(NA,sum(lb2mb(rb)[i,] == T),sum(lb2mb(rb)[i,] == T))
     dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)
     dvP <- famL[[i]]$dv2Y(i,Y[,i],b,ghQ,info,dvO)
     dvC <- famL[[i]]$dvCY(i,Y[,i],b,ghQ,info)
     H3 <- NULL
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
-      Zk <- as.matrix(ghQ$out[[k]])[,b[[k]][i,] != 0]
-      dim(Zk) <- c(nrow(ghQ$points), sum(b[[k]][i,] != 0))
+      Zk <- as.matrix(ghQ$out[[k]])[,rb[[k]][i,] == T]
+      dim(Zk) <- c(nrow(ghQ$points), sum(rb[[k]][i,] == T))
       pk <- seq.int(from = max(id0+1,k), len = ncol(Zk))
       w1 <- dvP[[k]]
       wa <- colSums(w1*w2)*w3
@@ -70,8 +83,8 @@ d2ll <- function(Y,ghQ,b,famL,info,pd){
       if(tryCatch({!is.null(dvC[[k]])}, error = function(e) F)){
         id1 <- id0
         for(o in 1:length(dvC[[k]])){
-          Zo <- as.matrix(ghQ$out[[k + o]])[,b[[k + o]][i,] != 0]
-          dim(Zo) <- c(nrow(ghQ$points), sum(b[[k + o]][i,] != 0))
+          Zo <- as.matrix(ghQ$out[[k + o]])[,rb[[k + o]][i,] == T]
+          dim(Zo) <- c(nrow(ghQ$points), sum(rb[[k + o]][i,] == T))
           po <- seq.int(from = max(id1+1,o), len = ncol(Zo))
           w1i <- dvC[[k]][[o]]
           w0i <- sweep(w1i*w2,2,w3,"*")
@@ -99,19 +112,19 @@ d2ll <- function(Y,ghQ,b,famL,info,pd){
   return(H)
 }
 
-ad2ll <- function(Y,ghQ,b,famL,info,pd){
+ad2ll <- function(Y,ghQ,b,famL,info,pd,rb){
   w2 <- pd
   w3 <- c(ghQ$weights)
-  H <- matrix(0,sum(lb2cb(b) != 0),sum(lb2cb(b) != 0))
+  H <- matrix(0,sum(lb2cb(rb) == T),sum(lb2cb(rb) == T))
   idH <- 0
   for(i in 1:ncol(Y)){
-    pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(b)[i,] != 0))
+    pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(rb)[i,] == T))
     dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)
     H3 <- NULL
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
-      Zk <- as.matrix(ghQ$out[[k]])[,b[[k]][i,] != 0]
-      dim(Zk) <- c(nrow(ghQ$points), sum(b[[k]][i,] != 0))
+      Zk <- as.matrix(ghQ$out[[k]])[,rb[[k]][i,] == T]
+      dim(Zk) <- c(nrow(ghQ$points), sum(rb[[k]][i,] == T))
       pk <- seq.int(from = max(id0+1,k), len = ncol(Zk))
       wo <- dvO[[k]]
       wc <- sweep(wo*w2,2,w3,"*")
@@ -129,21 +142,21 @@ ad2ll <- function(Y,ghQ,b,famL,info,pd){
   return(H)
 }
 
-d2llEM <- function(Y,ghQ,b,famL,info,pd){
+d2llEM <- function(Y,ghQ,b,famL,info,pd,rb){
   w2 <- pd
   w3 <- c(ghQ$weights)
-  H <- matrix(0,sum(lb2cb(b) != 0),sum(lb2cb(b) != 0))
+  H <- matrix(0,sum(lb2cb(rb) == T),sum(lb2cb(rb) == T))
   idH <- 0
   for(i in 1:ncol(Y)){
-    pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(b)[i,] != 0))
-    h <- matrix(NA,sum(lb2mb(b)[i,] != 0),sum(lb2mb(b)[i,] != 0))
+    pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(rb)[i,] == T))
+    h <- matrix(NA,sum(lb2mb(rb)[i,] == T),sum(lb2mb(rb)[i,] == T))
     if(info == "Hessian") dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ) else dvO <- NULL
     dvP <- famL[[i]]$dv2Y(i,Y[,i],b,ghQ,info,dvO)
     dvC <- famL[[i]]$dvCY(i,Y[,i],b,ghQ,info)
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
-      Zk <- as.matrix(ghQ$out[[k]])[,b[[k]][i,] != 0]
-      dim(Zk) <- c(nrow(ghQ$points), sum(b[[k]][i,] != 0))
+      Zk <- as.matrix(ghQ$out[[k]])[,rb[[k]][i,] == T]
+      dim(Zk) <- c(nrow(ghQ$points), sum(rb[[k]][i,] == T))
       pk <- seq.int(from = max(id0+1,k), len = ncol(Zk))
       w1 <- dvP[[k]]
       wa <- colSums(w1*w2)*w3
@@ -154,8 +167,8 @@ d2llEM <- function(Y,ghQ,b,famL,info,pd){
       if(tryCatch({!is.null(dvC[[k]])}, error = function(e) F)){
         id1 <- id0
         for(o in 1:length(dvC[[k]])){
-          Zo <- as.matrix(ghQ$out[[k + o]])[,b[[k + o]][i,] != 0]
-          dim(Zo) <- c(nrow(ghQ$points), sum(b[[k + o]][i,] != 0))
+          Zo <- as.matrix(ghQ$out[[k + o]])[,rb[[k + o]][i,] == T]
+          dim(Zo) <- c(nrow(ghQ$points), sum(rb[[k + o]][i,] == T))
           po <- seq.int(from = max(id1+1,o), len = ncol(Zo))
           w1i <- dvC[[k]][[o]]
           w0i <- sweep(w1i*w2,2,w3,"*")
@@ -174,20 +187,41 @@ d2llEM <- function(Y,ghQ,b,famL,info,pd){
   return(H)
 }
 
-lla <- function(cb,Y,ghQ,bg,famL,info){
+lla <- function(cb,Y,ghQ,bg,famL,info,rb){
   b <- lb2cb(bg)
-  b[b != 0] <- cb
+  b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
   return(-f0$ll)
 }
 
-d1lla <- function(cb,Y,ghQ,bg,famL,info){
+plla <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
   b <- lb2cb(bg)
-  b[b != 0] <- cb
+  b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD)
+  pMat <- pM(b,rb, penalty = pen.control$penalty,
+             lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
+  return(-f0$ll + 0.5*nrow(Y)*crossprod(cb,pMat$full)%*%cb)
+}
+
+d1lla <- function(cb,Y,ghQ,bg,famL,info,rb){
+  b <- lb2cb(bg)
+  b[lb2cb(rb) == T] <- cb
+  b <- cb2lb(b,bg)
+  f0 <- fyz(Y,ghQ,b,famL)
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb)
+  return(f1)
+}
+
+d1plla <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
+  b <- lb2cb(bg)
+  b[lb2cb(rb) == T] <- cb
+  b <- cb2lb(b,bg)
+  f0 <- fyz(Y,ghQ,b,famL)
+  pMat <- pM(b,rb, penalty = pen.control$penalty,
+             lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y)*crossprod(cb,pMat$full))
   return(f1)
 }
 
@@ -248,10 +282,15 @@ ibeta <- function(Y,famL,form){
     eq <- form
     if(famL[[i]]$family == "Beta") tmpY <- y.(Y[,i]) else tmpY <- Y[,i]
     for(p in 1:length(eq)){ eq[[p]] <- update(eq[[p]], tmpY ~ .)  }
-    tmp <- gamlss::gamlss(eq$mu, sigma.formula = eq$sigma, tau.formula = eq$tau, nu.formula = eq$nu,
+    tmp <- try(gamlss::gamlss(eq$mu, sigma.formula = eq$sigma, tau.formula = eq$tau, nu.formula = eq$nu,
                           family = famL[[i]]$iuse, data = as.data.frame(cbind(tmpY,Z)),
-                          control = gamlss::gamlss.control(trace = F))
-    for(p in 1:famL[[i]]$npar){ bstart[[p]][i,] <- coef(tmp,famL[[i]]$pars[p]) }
+                          control = gamlss::gamlss.control(trace = F)), silent = T)
+    for(p in 1:famL[[i]]$npar){ 
+      if(!inherits(tmp, "try-error")){ bstart[[p]][i,] <- coef(tmp,famL[[i]]$pars[p])
+      } else {
+        bstart[[p]][i,] <- 0.01
+      }
+    }
   }
   
   for(r in names(bstart)){
@@ -264,11 +303,14 @@ ibeta <- function(Y,famL,form){
 
 rmat <- function(res,b){
   rest <- l2rm(res)
-  frparm <- b
+  frparm <- rb <- b
+  for(k in names(b)){ rb[[k]] <- b[[k]]*NA  }
   for(i in 1:nrow(rest)){
-    frparm[[as.character(rest[i,1])]][as.integer(rest[i,2]),as.character(rest[i,3])] <- as.numeric(rest[i,4])
+    frparm[[as.character(rest[i,1])]][as.character(rest[i,2]),as.character(rest[i,3])] <- as.numeric(rest[i,4])
+    rb[[as.character(rest[i,1])]][as.character(rest[i,2]),as.character(rest[i,3])] <- as.numeric(rest[i,4])
   }
-  return(frparm)
+  for(k in names(rb)){ rb[[k]] <- is.na(rb[[k]])  }
+  return(list(b = frparm, rb = rb))
 }
 
 l2rm <- function(rlist){
@@ -341,11 +383,11 @@ m2pdm <- function(mat){
   e.val <- eS$values
   e.vec <- eS$vectors
   check.eigen <- any(e.val <= 0)
-  if(check.eigen == TRUE){
+  if(check.eigen == T){
     n.e.val <- e.val[e.val <= 0]
     s <- sum(e.val[n.e.val])*2  
     t <- s^2*100 + 1
-    p <- min(e.val[(e.val <= 0) == FALSE])
+    p <- min(e.val[(e.val <= 0) == F])
     e.val[e.val <= 0] <- p*(s - n.e.val)^2/t
     D <- diag(e.val)
     D.inv <- diag(1/e.val)
@@ -357,7 +399,193 @@ m2pdm <- function(mat){
   return(list(mat = res, inv.mat = res.inv, sqr.mat = t(res.sqr), is.PDM = !check.eigen))
 }
 
+pM <- function(b, rb, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL){
+  penidx <- function(rb){
+    for(i in names(rb)){ rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F }
+    return(rb)
+  }
+  lambda2lb <- function(lamlist,b){
+    for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),
+                                           dimnames = dimnames(b[[i]]))
+    return(b)
+  }
+  id <- lb2cb(penidx(rb))
+  param <- lb2cb(b)[id]
+  if(!is.null(w.alasso) && is.list(w.alasso)){ w.alasso <- lb2cb(w.alasso)[id] }
+  if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
+  lambda <- lb2cb(lambda2lb(lambda,b))[id]
+  S. <- Sraw <- diag(0,length(id))
+  eps = 1e-7 # sqrt(.Machine$double.eps) # protective tolerance level
+  if(penalty == "ridge"){
+    A1 <-  c(lambda)*rep(1, length(param))
+  }
+  if(penalty == "lasso"){
+    A1 <- c(lambda)/sqrt(param^2 + eps) 
+  }
+  if(penalty == "alasso"){
+    if(is.null(a)) a = 2
+    if( is.null(w.alasso) ) w.alasso <- 1
+    w.al <- abs(w.alasso)^a
+    A1 <- c(lambda)/(w.al*sqrt(param^2 + eps))
+  }
+  if(penalty == "scad"){
+    if(is.null(a)) a = 3.7
+    theta <- abs(param)
+    f1 <- sapply(theta, function(theta) { max(a*c(lambda) - theta, 0)/((a-1)*c(lambda) + eps) })
+    f.d <- ((theta <= c(lambda)) + f1 * (theta > c(lambda)))
+    A1 <- c(lambda)* f.d / ( sqrt(param^2 + eps) )
+  }
+  if(penalty == "mcp"){
+    if(is.null(a)) a = 2.5
+    theta <- abs(param) 
+    f.d <- (c(lambda)-theta/a)*(theta < c(lambda)*a)
+    A1 <- f.d / ( sqrt(param^2 + eps) )
+  }
+  if(length(A1) == 1) S <- matrix(A1) else S <- diag(A1)
+  diag(S.)[id] <- A1
+  diag(Sraw)[id] <- A1/lambda
+  S. <- S.[lb2cb(rb),lb2cb(rb)]
+  Sraw <- Sraw[lb2cb(rb),lb2cb(rb)]
+  return(list(full = S., red = S, raw = Sraw))
+}
+
+SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
+  lambda = exp(loglambda)
+  S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
+  th <- lb2cb(b)[lb2cb(rb)]
+  sJ <- m2pdm(hes)$sq
+  K = sJ%*%th + solve(t(sJ))%*%gra
+  A <- sJ%*%m2pdm(hes + nrow(Y)*S$full)$inv.mat%*%t(sJ)
+  sse <- c(crossprod(K-A%*%K)) + 2*pml$gamma*sum(diag(A)) - sum(lb2cb(rb))
+  return(sse)
+}
+
+dSSE <- function(loglambda,b,gra,hes,rb,pml,Y){ # CHECK THIS FUNCTION
+  lambda = exp(loglambda)
+  penidx <- function(rb){
+    for(i in names(rb)){ rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F }
+    return(rb)
+  }
+  lambda2lb <- function(lamlist,b){
+    for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),
+                                           dimnames = dimnames(b[[i]]))
+    return(b)
+  }
+  trans <- function(i,lambdaidx,Obj){
+    if(is.null(attr(Obj,"dim"))) break
+    if(dim(Obj)[2] > 1){ Obj[lambdaidx != i, lambdaidx != i] <- 0 
+    } else {
+      Obj[lambdaidx != i] <- 0
+    }
+    return(Obj)
+  }
+  
+  if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
+  lambdaidx <- seq_along(lambda)
+  lambdaidx <- lb2cb(lambda2lb(lambdaidx,b))
+  lambdaidx[!(lb2cb(rb) & lb2cb(penidx(rb)))] <- 0
+  lambdaidx <- lambdaidx[-which(lb2cb(rb) == F)]
+  
+  S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
+  th <- lb2cb(b)[lb2cb(rb)]
+  sJ <- m2pdm(hes)$sq
+  Q <- qr.Q(qr(sJ))
+  R <- qr.R(qr(sJ))
+  K = sJ%*%th + solve(t(sJ))%*%gra
+  
+  d1trA <- d1P <- d1V <- numeric(length(lambda))
+  d2trA <- d2P <- d2V <- matrix(NA,nrow = length(lambda),ncol = length(lambda))
+  
+  for(i in 1:length(lambda)){
+    B <- m2pdm(nrow(Y)*S$raw)$sq
+    svdRB <- svd(rbind(R,B))
+    U1 <- svdRB$u[1:nrow(R),]
+    V <- svdRB$v
+    D <- diag(svdRB$d)
+    iD <- m2pdm(D)$inv.mat
+    K1 = t(U1)%*%t(Q)%*%K
+    Zl = iD%*%t(V)%*%trans(i,lambdaidx,S$raw)%*%V%*%iD
+    Cl = Zl%*%crossprod(U1)
+    d1trA[i] = -lambda[i]*nrow(Y)*sum(diag(Cl))
+    d1P[i] = 2*lambda[i]*nrow(Y)*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
+    d1V[i] = (d1P[i] + (pml$gamma)*2*d1trA[i])
+    d2trA[i,i] = 2*lambda[i]*lambda[i]*nrow(Y)^2*sum(diag(Zl%*%Cl)) + d1trA[i]
+    d2P[i,i] = 2*2*lambda[i]*lambda[i]*nrow(Y)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + d1P[i]
+    
+    for(j in 1:length(lambda)){
+      if(j == i) next
+      Zlj = iD%*%t(V)%*%trans(j,lambdaidx,S$raw)%*%V%*%iD
+      Clj = Zlj%*%crossprod(U1)
+      d2trA[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*sum(diag(Zlj%*%Cl))
+      d2P[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*t(K1)%*%(Zl%*%Clj + Zlj%*%Cl - Zl%*%Zlj - Zlj%*%Zl + Cl%*%Zlj)%*%K1
+    }
+  }
+  
+  d2V = d2P + pml$gamma*2*d2trA
+  
+  return(list(d1 = d1V, d2 = d2V))
+}
+
+op.lambda <- function(Y,ghQ,b,famL,info,rb,pen.control){
+  fyz_c <- fyz(Y,ghQ,b,famL)
+  gra = d1ll(Y,ghQ,b,famL,info,fyz_c$pD,rb)
+  hes = -d2ll(Y,ghQ,b,famL,info,pd = fyz_c$pD, rb)
+  lambda = pen.control$lambda
+  if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
+  res <- nlm(f = SSE, p = log(lambda),b =b,gra = gra,hes = hes,rb = rb,pml = pen.control,Y=Y)
+  return(list(lambda = exp(res$estimate), miditer = res$iter, sse = res$minimum))
+}
+
+SSE_trust <- function(loglambda,b.,gra.,hes.,rb.,pml.){
+  SSEh =  SSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.)
+  DSSE = dSSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.)
+  return(list(value = SSEh, gradient = DSSE$d1, hessian = DSSE$d2))
+}
+
+# loglambda = log(lambda)
+# lambda = pml$lambda
+# if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
+# lambda1 <- lambda
+# trust(objfun = SSE_trust, parinit = loglambda,
+#              rinit = 1, rmax = 5, fterm = control$tol, iterlim = control$iter.lim,
+#              b. = b, gra. = gra, hes. = hes, rb. = rb, pml. = pml)
+  
+
+GAIC <- function(mod){
+  if(class(AC) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
+  ll <- mod$unploglik
+  H <- mod$hes$H
+  iH <- tryCatch({solve(H)}, error = function(e){m2pdm(H)$inv})
+  
+  if(!is.null(mod$hes$Hp)){
+    iHp <- tryCatch({solve(mod$hes$Hp)}, error = function(e){m2pdm(mod$hes$Hp)$inv})
+    GIC <- -2*ll + 2*sum(diag(iHp%*%H)) } else {
+      GIC <- -2*ll + 2*sum(diag(iH%*%H))
+    }
+  return(GIC)
+}
+
+GBIC <- function(mod){
+  if(class(AC) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
+  ll <- mod$unploglik
+  H <- mod$hes$H
+  iH <- tryCatch({solve(H)}, error = function(e){m2pdm(H)$inv})
+  
+  if(!is.null(mod$hes$Hp)){
+    iHp <- tryCatch({solve(mod$hes$Hp)}, error = function(e){m2pdm(mod$hes$Hp)$inv})
+    GIC <- -2*ll + log(mod$n)*sum(diag(iHp%*%H)) } else {
+      GIC <- -2*ll + log(mod$n)*sum(diag(iH%*%H))
+    }
+  return(GIC)
+}
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
 # Not necessary for package
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 glvmlss_parsimE1 <- function(nsim, saveRes = T){
@@ -464,6 +692,7 @@ glvmlss_parsimpost <- function(X, p, out = c("MSE","AB"),
   for(i in 1:length(li2)){ ip <- ip & li2[[i]] }; names(ip) <- nM; rm(list=c("li1","li2"))
   ip[grepl(".0",nM,fixed = T)] <- T; nM <- nM[ip]
   
+  Xor <- X
   X  <- X[complete.cases(X),]; X <- X[apply(X,1,min)!=-999, ]
   ix <- mean(X[,ncol(X)])
   X <- X[,-ncol(X)]
@@ -494,9 +723,7 @@ glvmlss_parsimpost <- function(X, p, out = c("MSE","AB"),
   
   if("iter" %in% out){ nam <- c(names(res),"AvIter"); res <- c(res,mean(Xit)); names(res) <- nam }
   if("time" %in% out){ nam <- c(names(res),"AvTime"); res <- c(res,mean(Xti)); names(res) <- nam }
-  return(c(round(res,4)))
+  if("PVS" %in% out){ nam <- c("PVS",names(res)); res <- c(nrow(X)/nrow(Xor),res); names(res) <- nam }
+  return(c(format(round(res,4),nsmall = 4,scientific = F)))
 }
 
-GAIC <- function(mod){
-  if(class(AC) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
-}

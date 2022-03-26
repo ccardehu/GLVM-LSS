@@ -9,36 +9,60 @@ source("R/glvmlss.R")
 source("R/misc.R")
 
 n = 500     # Number of individuals
-nsim = 1000  # Number of simulations
+# nsim = 1000  # Number of simulations
 
-# Simulation 1: Heteroscedastic Normal model:
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# p = 10
-# famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Normal()}
-# lc <- NULL
-# lc$mu <- matrix(1,ncol = 3, nrow = p)
-# lc$sigma <- matrix(1, ncol = 1, nrow = p)
-# lc$mu[,1] <- runif(p,1,2)
-# lc$mu[,c(2,3)] <- runif(length(lc$mu[,c(2,3)]),0.1,1.5) * sample(c(-1,1),size = 2*p,replace = T)
-# lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
-# # lc$sigma[,c(2,3)] <- lc$sigma[,c(2,3)] * sample(c(-1,1),size = 2*p,replace = T)
-# lc$mu <- lc$mu[,-1];# lc$sigma <- lc$sigma[,-1]
-# # irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0))
-# AA <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2-1, sg.eq = ~ 1, start.val = lc)
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2-1, sg.eq = ~ 1, verbose = T)
-# # rmA <- fa(scale(AA$Y), nfactors=2, fm="ml", rotate="varimax")
-# cbind(AA$b$mu,AC$b$mu);
-# cbind(AA$b$s,AC$b$s)
-# # # FCOL <- glvmlss_parsimE1(nsim, T)
-# # r1 <- NULL
-# # for(p in c(10,20)){
-# # for(n in c(200,500,1000,5000)){
-# #   r2 <- glvmlss_parsimpost(readRDS(paste0("R/E1n",n,"p",p,".Rds")), p,
-# #                            out = c("MSE","AB"),
-# #                            mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2)
-# #   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
-# # }; #r1; #r1 <- NULL
-# # }; r1; rm(r1)
+# # Simulation 1: Heteroscedastic Normal model:
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+p = 10
+famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Normal()}
+lc <- NULL
+lc$mu <- matrix(1,ncol = 3, nrow = p)
+lc$sigma <- matrix(1, ncol = 3, nrow = p)
+lc$mu[,1] <- runif(p,1,2)
+lc$mu[,c(2,3)] <- runif(length(lc$mu[,c(2,3)]),0.1,1.5) * sample(c(-1,1),size = 2*p,replace = T)
+lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
+# lc$sigma[,c(2,3)] <- lc$sigma[,c(2,3)] * sample(c(-1,1),size = 2*p,replace = T)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For sparse factor loading matrices:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+lc$mu[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.5) }
+lc$sigma[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.5) }
+# ~~~~~~~~~~~~
+# Simulations:
+# ~~~~~~~~~~~~
+AA <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
+AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, est.ci = T)
+AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T,
+              penalty = "alasso", lambda = "auto", w.alasso = AC$b, est.ci = T, solver = "trust")
+round(cbind(AA$b$mu,AC$b$mu,AD$b$m),5)
+round(cbind(AA$b$s,AC$b$s,AD$b$s),5)
+GBIC(AC); GBIC(AD)
+GAIC(AC); GAIC(AD)
+AD$lambda
+AD$sse
+
+
+# data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = ~ Z1+Z2;ta.eq = NULL; nu.eq = NULL
+# control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
+#               EM_appHess = F, EM_lrate = 0.001, est.ci = F,
+#               solver = "L-BFGS-B", start.val = NULL, mat.info = "Hessian",
+#               iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE,
+#               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
+#               verbose = FALSE,
+#               penalty = "alasso", lambda = "auto", w.alasso = AC$b, gamma = NULL, a = NULL)
+
+# # FCOL <- glvmlss_parsimE1(nsim, T)
+# r1 <- NULL
+# for(p in c(10,20)){
+# for(n in c(200,500,1000,5000)){
+#   r2 <- glvmlss_parsimpost(readRDS(paste0("R/E1n",n,"p",p,".Rds")), p,
+#                            out = c("MSE","AB","PVS"),
+#                            mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2)
+#   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
+# }; #r1; #r1 <- NULL
+# }; r1; rm(r1)
 
 
 # Simulation 2: IRT model:
@@ -52,6 +76,16 @@ nsim = 1000  # Number of simulations
 # # lc$mu[,4] <- runif(length(lc$mu[,c(4)]),-0.5,0.5) * sample(c(-1,1),size = p,replace = T)
 # if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3];
 # # irestr <- list(c("mu",1,"Z2",0), c("mu",2,"Z1",0), c("mu",3,"Z1:Z2",0), c("mu",1,"Z1:Z2",0), c("mu",2,"Z1:Z2",0))
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # For sparse factor loading matrices:
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# lc$mu[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+# for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.5) }
+# lc$sigma[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+# for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.5) }
+# # ~~~~~~~~~~~~
+# # Simulations:
+# # ~~~~~~~~~~~~
 # AA <- glvmlss_sim(n,famt, mu.eq = ~Z1+Z2, start.val = lc, iden.res = irestr)
 # AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, start.val = AA$b, verbose = T)
 # cbind(AA$b$mu,AB$b$mu)
@@ -70,30 +104,63 @@ nsim = 1000  # Number of simulations
 # lc$sigma[,1] <- runif(p,-2,-1)
 # lc$sigma[,c(2,3)] <- runif(length(lc$sigma[,c(2,3)]),1.5,2.5)
 # if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # For sparse factor loading matrices:
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# lc$mu[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+# for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.5) }
+# lc$sigma[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
+# for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.5) }
+# # ~~~~~~~~~~~~
+# # Simulations:
+# # ~~~~~~~~~~~~
 # AA <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, start.val = AA$b, nQP = 25, solver = "trust")
-# 
+# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T)
+# AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T,
+#               penalty = "alasso", lambda = 1/n, w.alasso = AC$b)
+#  
 # sum(rowSums(AA$Y) == 0)/n
 # Y <- AA$Y; b <- AA$b
-# 1 -> i; hist(Y[,i],breaks = 25); rbind(b$mu[i,],b$sigma[i,]); (colSums(apply(AA$Y,2,function(x) x == 0))/n)[i]
-# cbind(AA$b$mu,AC$b$mu)
-# cbind(AA$b$si,AC$b$si)
+# 10 -> i; hist(Y[,i],breaks = 25); rbind(b$mu[i,],b$sigma[i,]); (colSums(apply(AA$Y,2,function(x) x == 0))/n)[i]
+# round(cbind(AA$b$mu,AC$b$mu,AD$b$mu),5)
+# round(cbind(AA$b$si,AC$b$si,AD$b$si),5)
+# 
+# r1 <- NULL
+# for(p in c(10,20)){
+# for(n in c(200,500,1000,5000)){
+#   r2 <- glvmlss_parsimpost(readRDS(paste0("R/E2n",n,"p",p,".Rds")), p,
+#                            out = c("MSE","AB","PVS"),
+#                            mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2)
+#   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
+# }; #r1; #r1 <- NULL
+# }; r1; #rm(r1)
 
 # Simulation 4: Beta:
 # ~~~~~~~~~~~~~~~~~~~
-p = 10
-famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Beta()}
-lc <- NULL
-lc$mu <- matrix(1,ncol = 3, nrow = p)
-lc$sigma <- matrix(1, ncol = 3, nrow = p)
-lc$mu <- matrix(runif(length(lc$mu),-1,1),nrow = p)
-lc$sigma <- matrix(runif(length(lc$sigma),-1,1), nrow = p)
-if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2] ; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3]
-if(lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2] ; if(lc$sigma[2,3] < 0) lc$sigma[2,3] <- -lc$sigma[2,3]
-AA <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "trust", nQP = 25)
-
-Y <- AA$Y; b <- AA$b
-1 -> i; hist(Y[,i],breaks = 25); rbind(b$mu[i,],b$sigma[i,]);# (colSums(apply(AA$Y,2,function(x) x == 0))/n)[i]
-cbind(AA$b$mu,AC$b$mu)
-cbind(AA$b$si,AC$b$si)
+# p = 20
+# famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Beta()}
+# lc <- NULL
+# lc$mu <- matrix(1,ncol = 3, nrow = p)
+# lc$sigma <- matrix(1, ncol = 3, nrow = p)
+# lc$mu <- matrix(runif(length(lc$mu),0,1),nrow = p)
+# lc$sigma <- matrix(runif(length(lc$sigma),-1,1), nrow = p)
+# lc$mu[abs(lc$mu[,1]) < 0.5, 1] <- 0
+# lc$sigma[, 1] <- runif(p,-1,0)
+# if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2] ; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3]
+# if(lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2] ; if(lc$sigma[2,3] < 0) lc$sigma[2,3] <- -lc$sigma[2,3]
+# AA <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
+# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "trust", nQP = 25)
+# # 
+# Y <- AA$Y; b <- AA$b
+# 15 -> i; hist(Y[,i],breaks = 25); rbind(b$mu[i,],b$sigma[i,]);# (colSums(apply(AA$Y,2,function(x) x == 0))/n)[i]
+# cbind(AA$b$mu,AC$b$mu)
+# cbind(AA$b$si,AC$b$si)
+# r1 <- NULL
+# for(p in c(10,20)){
+# for(n in c(200,500,1000,5000)){
+#   r2 <- glvmlss_parsimpost(readRDS(paste0("R/E3n",n,"p",p,".Rds")), p,
+#                            out = c("MSE","AB","PVS"),
+#                            mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2)
+#   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
+# }; #r1; #r1 <- NULL
+# }; r1; rm(r1)
