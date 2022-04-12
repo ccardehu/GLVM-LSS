@@ -431,7 +431,7 @@ pM <- function(b, rb, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL
   if(penalty == "scad"){
     if(is.null(a)) a = 3.7
     theta <- abs(param)
-    f1 <- sapply(theta, function(theta) { max(a*c(lambda) - theta, 0)/((a-1)*c(lambda) + eps) })
+    f1 <- sapply(1:length(theta), function(i) { max(a*c(lambda[i]) - theta[i], 0)/((a-1)*c(lambda[i]) + eps) })
     f.d <- ((theta <= c(lambda)) + f1 * (theta > c(lambda)))
     A1 <- c(lambda)* f.d / ( sqrt(param^2 + eps) )
   }
@@ -460,99 +460,151 @@ SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
   return(sse)
 }
 
-dSSE <- function(loglambda,b,gra,hes,rb,pml,Y){ # CHECK THIS FUNCTION
-  lambda = exp(loglambda)
-  penidx <- function(rb){
-    for(i in names(rb)){ rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F }
-    return(rb)
-  }
-  lambda2lb <- function(lamlist,b){
-    for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),
-                                           dimnames = dimnames(b[[i]]))
-    return(b)
-  }
-  trans <- function(i,lambdaidx,Obj){
-    if(is.null(attr(Obj,"dim"))) break
-    if(dim(Obj)[2] > 1){ Obj[lambdaidx != i, lambdaidx != i] <- 0 
-    } else {
-      Obj[lambdaidx != i] <- 0
-    }
-    return(Obj)
-  }
-  
-  if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
-  lambdaidx <- seq_along(lambda)
-  lambdaidx <- lb2cb(lambda2lb(lambdaidx,b))
-  lambdaidx[!(lb2cb(rb) & lb2cb(penidx(rb)))] <- 0
-  lambdaidx <- lambdaidx[-which(lb2cb(rb) == F)]
-  
-  S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
-  th <- lb2cb(b)[lb2cb(rb)]
-  sJ <- m2pdm(hes)$sq
-  Q <- qr.Q(qr(sJ))
-  R <- qr.R(qr(sJ))
-  K = sJ%*%th + solve(t(sJ))%*%gra
-  
-  d1trA <- d1P <- d1V <- numeric(length(lambda))
-  d2trA <- d2P <- d2V <- matrix(NA,nrow = length(lambda),ncol = length(lambda))
-  
-  for(i in 1:length(lambda)){
-    B <- m2pdm(nrow(Y)*S$raw)$sq
-    svdRB <- svd(rbind(R,B))
-    U1 <- svdRB$u[1:nrow(R),]
-    V <- svdRB$v
-    D <- diag(svdRB$d)
-    iD <- m2pdm(D)$inv.mat
-    K1 = t(U1)%*%t(Q)%*%K
-    Zl = iD%*%t(V)%*%trans(i,lambdaidx,S$raw)%*%V%*%iD
-    Cl = Zl%*%crossprod(U1)
-    d1trA[i] = -lambda[i]*nrow(Y)*sum(diag(Cl))
-    d1P[i] = 2*lambda[i]*nrow(Y)*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
-    d1V[i] = (d1P[i] + (pml$gamma)*2*d1trA[i])
-    d2trA[i,i] = 2*lambda[i]*lambda[i]*nrow(Y)^2*sum(diag(Zl%*%Cl)) + d1trA[i]
-    d2P[i,i] = 2*2*lambda[i]*lambda[i]*nrow(Y)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + d1P[i]
-    
-    for(j in 1:length(lambda)){
-      if(j == i) next
-      Zlj = iD%*%t(V)%*%trans(j,lambdaidx,S$raw)%*%V%*%iD
-      Clj = Zlj%*%crossprod(U1)
-      d2trA[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*sum(diag(Zlj%*%Cl))
-      d2P[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*t(K1)%*%(Zl%*%Clj + Zlj%*%Cl - Zl%*%Zlj - Zlj%*%Zl + Cl%*%Zlj)%*%K1
-    }
-  }
-  
-  d2V = d2P + pml$gamma*2*d2trA
-  
-  return(list(d1 = d1V, d2 = d2V))
-}
+# dSSE <- function(loglambda,b,gra,hes,rb,pml,Y){ # CHECK THIS FUNCTION
+#   lambda = exp(loglambda)
+#   penidx <- function(rb){
+#     for(i in names(rb)){ rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F }
+#     return(rb)
+#   }
+#   lambda2lb <- function(lamlist,b){
+#     for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),
+#                                            dimnames = dimnames(b[[i]]))
+#     return(b)
+#   }
+#   trans <- function(i,lambdaidx,Obj){
+#     if(is.null(attr(Obj,"dim"))) break
+#     if(dim(Obj)[2] > 1){ Obj[lambdaidx != i, lambdaidx != i] <- 0 
+#     } else {
+#       Obj[lambdaidx != i] <- 0
+#     }
+#     return(Obj)
+#   }
+#   
+#   if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
+#   lambdaidx <- seq_along(lambda)
+#   lambdaidx <- lb2cb(lambda2lb(lambdaidx,b))
+#   lambdaidx[!(lb2cb(rb) & lb2cb(penidx(rb)))] <- 0
+#   lambdaidx <- lambdaidx[-which(lb2cb(rb) == F)]
+#   
+#   S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
+#   th <- lb2cb(b)[lb2cb(rb)]
+#   sJ <- m2pdm(hes)$sq
+#   Q <- qr.Q(qr(sJ))
+#   R <- qr.R(qr(sJ))
+#   K = sJ%*%th + solve(t(sJ))%*%gra
+#   
+#   d1trA <- d1P <- d1V <- numeric(length(lambda))
+#   d2trA <- d2P <- d2V <- matrix(NA,nrow = length(lambda),ncol = length(lambda))
+#   
+#   for(i in 1:length(lambda)){
+#     B <- m2pdm(nrow(Y)*S$raw)$sq
+#     svdRB <- svd(rbind(R,B))
+#     U1 <- svdRB$u[1:nrow(R),]
+#     V <- svdRB$v
+#     D <- diag(svdRB$d)
+#     iD <- m2pdm(D)$inv.mat
+#     K1 = t(U1)%*%t(Q)%*%K
+#     Zl = iD%*%t(V)%*%trans(i,lambdaidx,S$raw)%*%V%*%iD
+#     Cl = Zl%*%crossprod(U1)
+#     d1trA[i] = -lambda[i]*nrow(Y)*sum(diag(Cl))
+#     d1P[i] = 2*lambda[i]*nrow(Y)*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
+#     d1V[i] = (d1P[i] + (pml$gamma)*2*d1trA[i])
+#     d2trA[i,i] = 2*lambda[i]*lambda[i]*nrow(Y)^2*sum(diag(Zl%*%Cl)) + d1trA[i]
+#     d2P[i,i] = 2*2*lambda[i]*lambda[i]*nrow(Y)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + d1P[i]
+#     
+#     for(j in 1:length(lambda)){
+#       if(j == i) next
+#       Zlj = iD%*%t(V)%*%trans(j,lambdaidx,S$raw)%*%V%*%iD
+#       Clj = Zlj%*%crossprod(U1)
+#       d2trA[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*sum(diag(Zlj%*%Cl))
+#       d2P[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*t(K1)%*%(Zl%*%Clj + Zlj%*%Cl - Zl%*%Zlj - Zlj%*%Zl + Cl%*%Zlj)%*%K1
+#     }
+#   }
+#   
+#   d2V = d2P + pml$gamma*2*d2trA
+#   
+#   return(list(d1 = d1V, d2 = d2V))
+# }
 
 op.lambda <- function(Y,ghQ,b,famL,info,rb,pen.control){
   fyz_c <- fyz(Y,ghQ,b,famL)
-  gra = d1ll(Y,ghQ,b,famL,info,fyz_c$pD,rb)
-  hes = -d2ll(Y,ghQ,b,famL,info,pd = fyz_c$pD, rb)
-  lambda = pen.control$lambda
-  if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
-  res <- nlm(f = SSE, p = log(lambda),b =b,gra = gra,hes = hes,rb = rb,pml = pen.control,Y=Y)
-  return(list(lambda = exp(res$estimate), miditer = res$iter, sse = res$minimum))
+  gra <- d1ll(Y,ghQ,b,famL,info,fyz_c$pD,rb)
+  hes <- -d2ll(Y,ghQ,b,famL,info,pd = fyz_c$pD,rb)
+  lambda_ <- pen.control$lambda
+  if(length(lambda_) != length(b)) lambda_ <- rep(lambda_, length(b))
+  sse <- numeric(pen.control$iter.lim)
+  lambda <- matrix(NA,ncol = length(lambda_),nrow = pen.control$iter.lim)
+  i <- 1
+  sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
+  lambda[i,] <- lambda_
+  opt <- T
+  
+  while(opt){
+    i <- i + 1
+    d1sse <- numDeriv::grad(SSE,log(lambda_),b = b, gra = gra, hes = hes,
+                            rb = rb, pml = pen.control, Y = Y)
+    d2sse <- numDeriv::hessian(SSE,log(lambda_),b = b, gra = gra, hes = hes,
+                            rb = rb, pml = pen.control, Y = Y)
+    lambda[i,] <- lambda_ <- exp(log(lambda_) - solve(d2sse, d1sse))
+    sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
+    if(sse[i] - sse[i-1] > 0){ grdes <- T; opt <- F ; i <- i - 1}
+    if(i == pen.control$iter.lim){ grdes <- opt <- F }
+  }
+  
+  lambda_ <- lambda[i,]; 
+  
+  while(grdes){
+    i <- i + 1
+    d1sse <- numDeriv::grad(SSE,log(lambda_),b = b, gra = gra, hes = hes,
+                            rb = rb, pml = pen.control, Y = Y)
+    lambda[i,] <- lambda_ <- exp(log(lambda_) - (0.01/i)*c(d1sse))
+    sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
+    if(sse[i] - sse[i-1] > 0){ stdes <- T; grdes <- F ; i <- i - 1}
+    if(i == pen.control$iter.lim){ stdes <- grdes <- F }
+  }
+  
+  lambda_ <- lambda[i,]; 
+  
+  while(stdes){
+    i <- i + 1
+    d1sse <- numDeriv::grad(SSE,log(lambda_),b = b, gra = gra, hes = hes,
+                            rb = rb, pml = pen.control, Y = Y)
+    lambda[i,] <- lambda_ <- exp(log(lambda_) - c(d1sse))
+    sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
+    if(sse[i] - sse[i-1] > 0){ stdes <- F; i <- i - 1}
+    if(i == pen.control$iter.lim){ stdes <- F }
+  }
+  
+  return(list(lambda = lambda[i,], miditer = i, sse = sse[i]))
+  
+  # res <- optim(par = log(lambda), fn = SSE, b = b, gra = gra, hes = hes, rb = rb, pml = pen.control, Y=Y)
+  # return(list(lambda = exp(res$par), miditer = res$iter, sse = res$value))
+  # res <- nlm(f = SSE, p = log(lambda),b = b, gra = gra, hes = hes, rb = rb, pml = pen.control, Y=Y)
+  # return(list(lambda = exp(res$estimate), miditer = res$iter, sse = res$minimum))
+  res <- trust::trust(objfun = SSE_trust, parinit = log(lambda),
+                      rinit = 1, rmax = 5, fterm = control$tol, iterlim = control$iter.lim,
+                      b. = b, gra. = gra, hes. = hes, rb. = rb, pml. = pen.control, Y. = Y)
+  # return(list(lambda = exp(res$argument), miditer = res$iter, sse = res$value))
 }
 
-SSE_trust <- function(loglambda,b.,gra.,hes.,rb.,pml.){
-  SSEh =  SSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.)
-  DSSE = dSSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.)
-  return(list(value = SSEh, gradient = DSSE$d1, hessian = DSSE$d2))
-}
+# SSE_trust <- function(loglambda,b.,gra.,hes.,rb.,pml.,Y.){
+#   SSEh =  SSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.,Y = Y.)
+#   DSSE = dSSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.,Y = Y.)
+#   return(list(value = SSEh, gradient = DSSE$d1, hessian = DSSE$d2))
+# }
 
 # loglambda = log(lambda)
 # lambda = pml$lambda
 # if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
 # lambda1 <- lambda
-# trust(objfun = SSE_trust, parinit = loglambda,
+# trust::trust(objfun = SSE_trust, parinit = log(lambda),
 #              rinit = 1, rmax = 5, fterm = control$tol, iterlim = control$iter.lim,
-#              b. = b, gra. = gra, hes. = hes, rb. = rb, pml. = pml)
+#              b. = b, gra. = gra, hes. = hes, rb. = rb, pml. = pml, Y. = Y)
+# Check numerative derivative of SSE
   
 
 GAIC <- function(mod){
-  if(class(AC) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
+  if(class(mod) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
   ll <- mod$unploglik
   H <- mod$hes$H
   iH <- tryCatch({solve(H)}, error = function(e){m2pdm(H)$inv})
@@ -566,7 +618,7 @@ GAIC <- function(mod){
 }
 
 GBIC <- function(mod){
-  if(class(AC) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
+  if(class(mod) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
   ll <- mod$unploglik
   H <- mod$hes$H
   iH <- tryCatch({solve(H)}, error = function(e){m2pdm(H)$inv})
@@ -578,7 +630,6 @@ GBIC <- function(mod){
     }
   return(GIC)
 }
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~

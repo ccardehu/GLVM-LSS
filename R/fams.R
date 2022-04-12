@@ -287,3 +287,68 @@ Poisson <- function(mu.link = "log"){
                  link.mu = sta.mu$name, linkf.mu = sta.mu$linkfun),
             class = "dist_glvmlss")
 }
+
+Lognormal <- function(mu.link = "identity", sg.link = "log"){
+  
+  sta.mu <- make.link(mu.link)
+  sta.sg <- make.link(sg.link)
+  
+  dy <- function(i,y,b,ghQ){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    sapply(1:nrow(ghQ$points), function(r) dlnorm(y,mu[r],sg[r],log = T))
+  }
+  
+  dv1y <- function(i,y,b,ghQ){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    y = log(y)
+    qp = length(mu)
+    dvy <- list(mu = NULL, sg = NULL)
+    dvy$mu = sapply(1:qp, function(r) (y-mu[r])/(sg[r]^2) ) #  * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))
+    dvy$sg = sapply(1:qp, function(r) (((y - mu[r])^2 - sg[r]^2)/(sg[r]^3)) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])))
+    return(dvy)
+  }
+  
+  dv2y <- function(i,y,b,ghQ,info,dv1Y = NULL){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    y = log(y)
+    qp = length(mu)
+    dvy <- list(mu = NULL, sg = NULL)
+    dvy$mu = sapply(1:qp, function(r) rep(-1/sg[r]^2 , length(y)) ) # * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2
+    if(info == "Fisher"){
+      dvy$sg = sapply(1:qp, function(r) rep(-2/(sg[r]^2) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2 , length(y)) )
+    } else {
+      dvy$sg = sapply(1:qp, function(r){ (-3*(y-mu[r])^2/sg[r]^4 + 1/sg[r]^2) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2 + dv1Y$sg[,r] })
+    }
+    return(dvy)
+  }
+  
+  dvCy <- function(i,y,b,ghQ,info){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    y = log(y)
+    qp = length(mu)
+    dvy <- list(mu = list(sg = NULL))
+    if(info == "Fisher"){
+      dvy$mu$sg = sapply(1:qp, function(r) rep(0, length(y)) )
+    } else {
+      dvy$mu$sg = sapply(1:qp, function(r){ -2*(y-mu[r])/sg[r]^3 * sta.mu$mu.eta(sta.mu$linkfun(mu[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) })
+    }
+    return(dvy)
+  }
+  
+  sfun <- function(i,n,b,Z){
+    mu = sta.mu$linkinv(c(as.matrix(Z$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(Z$sig)%*%b$sig[i,]))
+    rlnorm(n,mu,sg)
+  }
+  
+  structure(list(family = "Lognormal", npar = 2, pars = c("mu","sigma"),
+                 iuse = quote(LNO()), dY = dy, sf = sfun,
+                 dv1Y = dv1y, dv2Y = dv2y, dvCY = dvCy,
+                 link.mu = sta.mu$name, linkf.mu = sta.mu$linkfun,
+                 link.sg = sta.sg$name, linkf.sg = sta.sg$linkfun),
+            class = "dist_glvmlss")
+}
