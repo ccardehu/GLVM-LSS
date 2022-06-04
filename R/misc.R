@@ -5,10 +5,11 @@ y. <- function(x){
 }
 
 fyz <- function(Y,ghQ,b,famL){
+  Y <- Y$Y
   A1 <- lapply(1:length(famL), function(i) famL[[i]]$dY(i,Y[,i],b,ghQ))
   A1 <- array(unlist(A1),dim = c(nrow(Y),nrow(ghQ$points),length(famL)))
-  A2 <- c(exp(rowSums(A1,dim = 2))%*%ghQ$weights)
-  return(list(pD = exp(rowSums(A1,dim = 2))/A2, ll = sum(log(A2))))
+  A2 <- c(exp(rowSums(A1,dim = 2,na.rm = T))%*%ghQ$weights)
+  return(list(pD = exp(rowSums(A1,dim = 2, na.rm = T))/A2, ll = sum(log(A2))))
 }
 
 ll <- function(cb,Y,ghQ,bg,famL,info,rb){
@@ -28,26 +29,30 @@ pll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
   f0 <- fyz(Y,ghQ,b,famL)
   pMat <- pM(b,rb, penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
-  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y)*crossprod(cb,pMat$full))
-  f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD,rb) + nrow(Y)*pMat$full 
-  return(list(value = -f0$ll + 0.5*nrow(Y)*crossprod(cb,pMat$full)%*%cb,
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y$Y)*crossprod(cb,pMat$full))
+  f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD,rb) + nrow(Y$Y)*pMat$full 
+  return(list(value = -f0$ll + 0.5*nrow(Y$Y)*crossprod(cb,pMat$full)%*%cb,
               gradient = f1, hessian = f2))
 }
 
 d1ll <- function(Y,ghQ,b,famL,info,pd,rb){
+  na.idx <- Y$na.idx
+  Y <- Y$Y
   sc <- NULL
   w2 <- pd
   w3 <- c(ghQ$weights)
   for(i in 1:ncol(Y)){
     for(k in 1:famL[[i]]$npar){
-      w1 <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)[[k]]
-      sc <- c(sc,colSums(ghQ$out[[k]]*colSums(w1*w2)*w3)[rb[[k]][i,] == T])
+      w1 <- famL[[i]]$dv1Y(i,Y[na.idx[,i],i],b,ghQ)[[k]]
+      sc <- c(sc,colSums(ghQ$out[[k]]*colSums(w1*w2[na.idx[,i],])*w3)[rb[[k]][i,] == T])
     }
   }
   return(unname(sc))
 }
 
 d2ll <- function(Y,ghQ,b,famL,info,pd,rb){
+  na.idx <- Y$na.idx
+  Y <- Y$Y
   w2 <- pd
   w3 <- c(ghQ$weights)
   H <- matrix(0,sum(lb2cb(rb) == T),sum(lb2cb(rb) == T))
@@ -55,9 +60,9 @@ d2ll <- function(Y,ghQ,b,famL,info,pd,rb){
   for(i in 1:ncol(Y)){
     pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(rb)[i,] == T))
     h <- matrix(NA,sum(lb2mb(rb)[i,] == T),sum(lb2mb(rb)[i,] == T))
-    dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)
-    dvP <- famL[[i]]$dv2Y(i,Y[,i],b,ghQ,info,dvO)
-    dvC <- famL[[i]]$dvCY(i,Y[,i],b,ghQ,info)
+    dvO <- famL[[i]]$dv1Y(i,Y[na.idx[,i],i],b,ghQ)
+    dvP <- famL[[i]]$dv2Y(i,Y[na.idx[,i],i],b,ghQ,info,dvO)
+    dvC <- famL[[i]]$dvCY(i,Y[na.idx[,i],i],b,ghQ,info)
     H3 <- NULL
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
@@ -65,16 +70,16 @@ d2ll <- function(Y,ghQ,b,famL,info,pd,rb){
       dim(Zk) <- c(nrow(ghQ$points), sum(rb[[k]][i,] == T))
       pk <- seq.int(from = max(id0+1,k), len = ncol(Zk))
       w1 <- dvP[[k]]
-      wa <- colSums(w1*w2)*w3
+      wa <- colSums(w1*w2[na.idx[,i],])*w3
       h1 <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,]) * wa[r])
       h1 <- Reduce("+", h1)
       # ~~~~~~~~~~~
       wo <- dvO[[k]]
-      wb <- colSums(wo^2*w2)*w3
+      wb <- colSums(wo^2*w2[na.idx[,i],])*w3
       h2 <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,]) * wb[r])
       h2 <- Reduce("+", h2)
       # ~~~~~~~~~~~
-      wc <- sweep(wo*w2,2,w3,"*")
+      wc <- sweep(wo*w2[na.idx[,i],],2,w3,"*")
       h3 <- array(sapply(1:nrow(w1), function(r) Zk * wc[r,]),
                   dim = c(nrow(ghQ$points),ncol(Zk),nrow(w1)))
       h3 <- abind::abind(H3,h3,along = 2)
@@ -87,13 +92,13 @@ d2ll <- function(Y,ghQ,b,famL,info,pd,rb){
           dim(Zo) <- c(nrow(ghQ$points), sum(rb[[k + o]][i,] == T))
           po <- seq.int(from = max(id1+1,o), len = ncol(Zo))
           w1i <- dvC[[k]][[o]]
-          w0i <- sweep(w1i*w2,2,w3,"*")
+          w0i <- sweep(w1i*w2[na.idx[,i],],2,w3,"*")
           wai <- colSums(w0i)
           h1i <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,],Zo[r,]) * wai[r])
           h1i <- Reduce("+", h1i)
           # ~~~~~~~~~~~~~~~~~~
           woi <- dvO[[k + o]]
-          wbi <- colSums(wo*woi*w2)*w3
+          wbi <- colSums(wo*woi*w2[na.idx[,i],])*w3
           h2i <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,],Zo[r,]) * wbi[r])
           h2i <- Reduce("+",h2i)
           # ~~~~~~~~~~~~~~~~~~
@@ -113,13 +118,15 @@ d2ll <- function(Y,ghQ,b,famL,info,pd,rb){
 }
 
 ad2ll <- function(Y,ghQ,b,famL,info,pd,rb){
+  na.idx <- Y$na.idx
+  Y <- Y$Y
   w2 <- pd
   w3 <- c(ghQ$weights)
   H <- matrix(0,sum(lb2cb(rb) == T),sum(lb2cb(rb) == T))
   idH <- 0
   for(i in 1:ncol(Y)){
     pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(rb)[i,] == T))
-    dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ)
+    dvO <- famL[[i]]$dv1Y(i,Y[na.idx[,i],i],b,ghQ)
     H3 <- NULL
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
@@ -127,7 +134,7 @@ ad2ll <- function(Y,ghQ,b,famL,info,pd,rb){
       dim(Zk) <- c(nrow(ghQ$points), sum(rb[[k]][i,] == T))
       pk <- seq.int(from = max(id0+1,k), len = ncol(Zk))
       wo <- dvO[[k]]
-      wc <- sweep(wo*w2,2,w3,"*")
+      wc <- sweep(wo*w2[na.idx[,i],],2,w3,"*")
       h3 <- array(sapply(1:nrow(wo), function(r) Zk * wc[r,]),
                   dim = c(nrow(ghQ$points),ncol(Zk),nrow(wo)))
       h3 <- abind::abind(H3,h3,along = 2)
@@ -143,6 +150,8 @@ ad2ll <- function(Y,ghQ,b,famL,info,pd,rb){
 }
 
 d2llEM <- function(Y,ghQ,b,famL,info,pd,rb){
+  na.idx <- Y$na.idx
+  Y <- Y$Y
   w2 <- pd
   w3 <- c(ghQ$weights)
   H <- matrix(0,sum(lb2cb(rb) == T),sum(lb2cb(rb) == T))
@@ -150,16 +159,16 @@ d2llEM <- function(Y,ghQ,b,famL,info,pd,rb){
   for(i in 1:ncol(Y)){
     pY <- seq.int(from = max(idH+1,i), len = sum(lb2mb(rb)[i,] == T))
     h <- matrix(NA,sum(lb2mb(rb)[i,] == T),sum(lb2mb(rb)[i,] == T))
-    if(info == "Hessian") dvO <- famL[[i]]$dv1Y(i,Y[,i],b,ghQ) else dvO <- NULL
-    dvP <- famL[[i]]$dv2Y(i,Y[,i],b,ghQ,info,dvO)
-    dvC <- famL[[i]]$dvCY(i,Y[,i],b,ghQ,info)
+    if(info == "Hessian") dvO <- famL[[i]]$dv1Y(i,Y[na.idx[,i],i],b,ghQ) else dvO <- NULL
+    dvP <- famL[[i]]$dv2Y(i,Y[na.idx[,i],i],b,ghQ,info,dvO)
+    dvC <- famL[[i]]$dvCY(i,Y[na.idx[,i],i],b,ghQ,info)
     id0 <- 0
     for(k in 1:famL[[i]]$npar){
       Zk <- as.matrix(ghQ$out[[k]])[,rb[[k]][i,] == T]
       dim(Zk) <- c(nrow(ghQ$points), sum(rb[[k]][i,] == T))
       pk <- seq.int(from = max(id0+1,k), len = ncol(Zk))
       w1 <- dvP[[k]]
-      wa <- colSums(w1*w2)*w3
+      wa <- colSums(w1*w2[na.idx[,i],])*w3
       h1 <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,]) * wa[r])
       h1 <- Reduce("+", h1)
       h[pk,pk] <- h1
@@ -171,7 +180,7 @@ d2llEM <- function(Y,ghQ,b,famL,info,pd,rb){
           dim(Zo) <- c(nrow(ghQ$points), sum(rb[[k + o]][i,] == T))
           po <- seq.int(from = max(id1+1,o), len = ncol(Zo))
           w1i <- dvC[[k]][[o]]
-          w0i <- sweep(w1i*w2,2,w3,"*")
+          w0i <- sweep(w1i*w2[na.idx[,i],],2,w3,"*")
           wai <- colSums(w0i)
           h1i <- lapply(1:nrow(ghQ$points), function(r) tcrossprod(Zk[r,],Zo[r,]) * wai[r])
           h1i <- Reduce("+", h1i)
@@ -202,7 +211,7 @@ plla <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
   f0 <- fyz(Y,ghQ,b,famL)
   pMat <- pM(b,rb, penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
-  return(-f0$ll + 0.5*nrow(Y)*crossprod(cb,pMat$full)%*%cb)
+  return(-f0$ll + 0.5*nrow(Y$Y)*crossprod(cb,pMat$full)%*%cb)
 }
 
 d1lla <- function(cb,Y,ghQ,bg,famL,info,rb){
@@ -221,7 +230,7 @@ d1plla <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
   f0 <- fyz(Y,ghQ,b,famL)
   pMat <- pM(b,rb, penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
-  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y)*crossprod(cb,pMat$full))
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y$Y)*crossprod(cb,pMat$full))
   return(f1)
 }
 
@@ -264,6 +273,8 @@ ghq <- function(n){ # Function from GLMMADAPTIVE (2021)
 
 ibeta <- function(Y,famL,form){
   
+  # na.idx <- Y$na.idx
+  Y <- Y$Y[complete.cases(Y$Y),]
   lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
   lvar <- grep("Z", lvar, fixed = T, value = T)
   q <- length(lvar)
@@ -280,13 +291,22 @@ ibeta <- function(Y,famL,form){
   
   for(i in 1:ncol(Y)){
     eq <- form
-    if(famL[[i]]$family == "Beta") tmpY <- y.(Y[,i]) else tmpY <- Y[,i]
+    if(famL[[i]]$family == "Beta" | famL[[i]]$family == "Beta0") tmpY <- y.(Y[,i]) else tmpY <- Y[,i]
     for(p in 1:length(eq)){ eq[[p]] <- update(eq[[p]], tmpY ~ .)  }
-    tmp <- try(gamlss::gamlss(eq$mu, sigma.formula = eq$sigma, tau.formula = eq$tau, nu.formula = eq$nu,
-                          family = famL[[i]]$iuse, data = as.data.frame(cbind(tmpY,Z)),
-                          control = gamlss::gamlss.control(trace = F)), silent = T)
+    if(famL[[i]]$family != "Beta0"){
+      tmp <- try(gamlss::gamlss(eq$mu, sigma.formula = eq$sigma, tau.formula = eq$tau, nu.formula = eq$nu,
+                                family = famL[[i]]$iuse, data = as.data.frame(cbind(tmpY,Z)),
+                                control = gamlss::gamlss.control(trace = F)), silent = T)
+    } else {
+      eqtmp <- as.formula(paste0(deparse(eq$mu), " | ", deparse(eq$sigma[[3]])))
+      tmp <- try(betareg::betareg(formula = eqtmp, data = as.data.frame(cbind(tmpY,Z)),
+                                  link = famL[[i]]$link.mu, link.phi = famL[[i]]$link.sg, type = "BC"))
+    }
     for(p in 1:famL[[i]]$npar){ 
-      if(!inherits(tmp, "try-error")){ bstart[[p]][i,] <- coef(tmp,famL[[i]]$pars[p])
+      if(!inherits(tmp, "try-error")){ 
+        if(famL[[i]]$family == "Beta0"){ 
+          bstart[[p]][i,] <- tmp$coefficients[[p]]*0
+          } else bstart[[p]][i,] <- coef(tmp,famL[[i]]$pars[p])
       } else {
         bstart[[p]][i,] <- 0.01
       }
@@ -450,6 +470,7 @@ pM <- function(b, rb, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL
 }
 
 SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
+  Y <- Y$Y
   lambda = exp(loglambda)
   S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
   th <- lb2cb(b)[lb2cb(rb)]
@@ -473,29 +494,29 @@ SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
 #   }
 #   trans <- function(i,lambdaidx,Obj){
 #     if(is.null(attr(Obj,"dim"))) break
-#     if(dim(Obj)[2] > 1){ Obj[lambdaidx != i, lambdaidx != i] <- 0 
+#     if(dim(Obj)[2] > 1){ Obj[lambdaidx != i, lambdaidx != i] <- 0
 #     } else {
 #       Obj[lambdaidx != i] <- 0
 #     }
 #     return(Obj)
 #   }
-#   
+# 
 #   if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
 #   lambdaidx <- seq_along(lambda)
 #   lambdaidx <- lb2cb(lambda2lb(lambdaidx,b))
 #   lambdaidx[!(lb2cb(rb) & lb2cb(penidx(rb)))] <- 0
 #   lambdaidx <- lambdaidx[-which(lb2cb(rb) == F)]
-#   
+# 
 #   S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
 #   th <- lb2cb(b)[lb2cb(rb)]
 #   sJ <- m2pdm(hes)$sq
 #   Q <- qr.Q(qr(sJ))
 #   R <- qr.R(qr(sJ))
 #   K = sJ%*%th + solve(t(sJ))%*%gra
-#   
+# 
 #   d1trA <- d1P <- d1V <- numeric(length(lambda))
 #   d2trA <- d2P <- d2V <- matrix(NA,nrow = length(lambda),ncol = length(lambda))
-#   
+# 
 #   for(i in 1:length(lambda)){
 #     B <- m2pdm(nrow(Y)*S$raw)$sq
 #     svdRB <- svd(rbind(R,B))
@@ -511,7 +532,7 @@ SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
 #     d1V[i] = (d1P[i] + (pml$gamma)*2*d1trA[i])
 #     d2trA[i,i] = 2*lambda[i]*lambda[i]*nrow(Y)^2*sum(diag(Zl%*%Cl)) + d1trA[i]
 #     d2P[i,i] = 2*2*lambda[i]*lambda[i]*nrow(Y)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + d1P[i]
-#     
+# 
 #     for(j in 1:length(lambda)){
 #       if(j == i) next
 #       Zlj = iD%*%t(V)%*%trans(j,lambdaidx,S$raw)%*%V%*%iD
@@ -520,9 +541,9 @@ SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
 #       d2P[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*t(K1)%*%(Zl%*%Clj + Zlj%*%Cl - Zl%*%Zlj - Zlj%*%Zl + Cl%*%Zlj)%*%K1
 #     }
 #   }
-#   
+# 
 #   d2V = d2P + pml$gamma*2*d2trA
-#   
+# 
 #   return(list(d1 = d1V, d2 = d2V))
 # }
 
@@ -576,32 +597,24 @@ op.lambda <- function(Y,ghQ,b,famL,info,rb,pen.control){
   }
   
   return(list(lambda = lambda[i,], miditer = i, sse = sse[i]))
-  
-  # res <- optim(par = log(lambda), fn = SSE, b = b, gra = gra, hes = hes, rb = rb, pml = pen.control, Y=Y)
-  # return(list(lambda = exp(res$par), miditer = res$iter, sse = res$value))
-  # res <- nlm(f = SSE, p = log(lambda),b = b, gra = gra, hes = hes, rb = rb, pml = pen.control, Y=Y)
-  # return(list(lambda = exp(res$estimate), miditer = res$iter, sse = res$minimum))
-  res <- trust::trust(objfun = SSE_trust, parinit = log(lambda),
-                      rinit = 1, rmax = 5, fterm = control$tol, iterlim = control$iter.lim,
-                      b. = b, gra. = gra, hes. = hes, rb. = rb, pml. = pen.control, Y. = Y)
-  # return(list(lambda = exp(res$argument), miditer = res$iter, sse = res$value))
 }
 
-# SSE_trust <- function(loglambda,b.,gra.,hes.,rb.,pml.,Y.){
-#   SSEh =  SSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.,Y = Y.)
-#   DSSE = dSSE(loglambda = loglambda, b = b.,gra = gra.,hes = hes.,rb = rb.,pml = pml.,Y = Y.)
-#   return(list(value = SSEh, gradient = DSSE$d1, hessian = DSSE$d2))
-# }
-
-# loglambda = log(lambda)
-# lambda = pml$lambda
-# if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
-# lambda1 <- lambda
-# trust::trust(objfun = SSE_trust, parinit = log(lambda),
-#              rinit = 1, rmax = 5, fterm = control$tol, iterlim = control$iter.lim,
-#              b. = b, gra. = gra, hes. = hes, rb. = rb, pml. = pml, Y. = Y)
-# Check numerative derivative of SSE
+op.lambda1 <- function(Y,ghQ,b,famL,info,rb,pen.control){
+  fyz_c <- fyz(Y,ghQ,b,famL)
+  gra <- d1ll(Y,ghQ,b,famL,info,fyz_c$pD,rb)
+  hes <- -d2ll(Y,ghQ,b,famL,info,pd = fyz_c$pD,rb)
+  lambda_ <- pen.control$lambda
+  if(length(lambda_) != length(b)) lambda_ <- rep(lambda_, length(b))
+  D1SSE <- function(loglambda_, b = b, gra = gra, hes = hes,
+                    rb = rb, pml = pen.control, Y = Y){
+      d1sse <- numDeriv::grad(SSE,loglambda_,b = b, gra = gra, hes = hes,
+                              rb = rb, pml = pen.control, Y = Y)
+      return(d1sse) }
   
+  out_ <- optim(par = log(lambda_), fn = SSE, gr = D1SSE, method = "L-BFGS-B",
+                b = b, gra = gra, hes = hes, rb = rb, pml = pen.control, Y = Y)
+  return(list(lambda = exp(out_$par), miditer = out_$counts[1], sse = out_$value))
+}
 
 GAIC <- function(mod){
   if(class(mod) != "glvmlss") stop("Model ('mod') object should be of class 'glvmlss'")
@@ -630,151 +643,3 @@ GBIC <- function(mod){
     }
   return(GIC)
 }
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# Not necessary for package
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-
-glvmlss_parsimE1 <- function(nsim, saveRes = T){
-  cores <- parallel::detectCores()
-  cl <- parallel::makeCluster(cores)
-  doSNOW::registerDoSNOW(cl)
-  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
-  opts <- list(progress = progress)
-  FCOL <- suppressWarnings(
-    foreach(l = 1:nsim,
-            .combine = rbind,
-            .options.snow = opts,
-            .export = ls(parent.frame()) ) %dopar% {
-              tryCatch({
-                A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-                c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
-                             nQP = 25, solver = "trust")
-                c1 <- Sys.time()
-                cof <- c(lb2cb(A$b), lb2cb(B$b))
-                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
-                return(c(cof,ex2)) },
-                error = function(e) { return(NA) }  ) } )
-  stopCluster(cl)
-  if(saveRes) saveRDS(FCOL, file = paste0("E1n",n, "p", p,".Rds"))
-  return(FCOL)
-}
-
-glvmlss_parsimE2 <- function(nsim, saveRes = T){
-  cores <- parallel::detectCores()
-  cl <- parallel::makeCluster(cores)
-  doSNOW::registerDoSNOW(cl)
-  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
-  opts <- list(progress = progress)
-  FCOL <- suppressWarnings(
-    foreach(l = 1:nsim,
-            .combine = rbind,
-            .options.snow = opts,
-            .export = ls(parent.frame()) ) %dopar% {
-              tryCatch({
-                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-                c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
-                             nQP = 25, solver = "trust")
-                c1 <- Sys.time()
-                cof <- c(lb2cb(A$b), lb2cb(B$b))
-                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
-                return(c(cof,ex2)) },
-                error = function(e) { return(NA) }  ) } )
-  stopCluster(cl)
-  if(saveRes) saveRDS(FCOL, file = paste0("E2n",n, "p", p,".Rds"))
-  return(FCOL)
-}
-
-glvmlss_parsimE3 <- function(nsim, saveRes = T){
-  cores <- parallel::detectCores()
-  cl <- parallel::makeCluster(cores)
-  parallel::clusterExport(cl,ls(parent.frame()))
-  doSNOW::registerDoSNOW(cl)
-  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
-  opts <- list(progress = progress)
-  FCOL <- suppressWarnings(
-    foreach(l = 1:nsim,
-            .combine = rbind,
-            .options.snow = opts) %dopar% { # .export = ls(parent.frame()),
-              tryCatch({
-                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-                c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
-                             nQP = 25, solver = "trust")
-                c1 <- Sys.time()
-                cof <- c(lb2cb(A$b), lb2cb(B$b))
-                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
-                return(c(cof,ex2)) },
-                error = function(e) { return(NA) }  ) } )
-  stopCluster(cl)
-  if(saveRes) saveRDS(FCOL, file = paste0("E3n",n, "p", p,".Rds"))
-  return(FCOL)
-}
-
-glvmlss_parsimpost <- function(X, p, out = c("MSE","AB"),
-                               mu.eq = ~ Z1+Z2, sg.eq = NULL,
-                               ta.eq = NULL, nu.eq = NULL){
-  
-  # str <- as.character(X)
-  # p = as.integer(substr(str,(nchar(str)+1)-2,nchar(str))); rm(str)
-  environment(prep_form) <- environment()
-  form <- prep_form()
-  
-  nam <- NULL
-  for(i in names(form)){ nam <- rbind(nam,expand.grid(i,1:p,stringsAsFactors = F)) }
-  nam <- unlist(lapply(1:nrow(nam),function(i) paste0(nam[i,], collapse = "")))
-  
-  nM <- NULL
-  for(i in 1:p){
-    for(j in names(form)){
-      nM <- append(nM,paste0(nam[grepl(j,as.character(nam))][i],".",c(0,seq_len(length(all.vars(as.formula(form[[j]])))))))
-    }
-  }; rm(nam)
-  
-  ip <- !grepl(".0",nM,fixed = T)
-  li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1","tau1.2","tau2.1","nu1.2","nu2.1")
-  li2 <- lapply(li1, function(i) !grepl(i,nM))
-  for(i in 1:length(li2)){ ip <- ip & li2[[i]] }; names(ip) <- nM; rm(list=c("li1","li2"))
-  ip[grepl(".0",nM,fixed = T)] <- T; nM <- nM[ip]
-  
-  Xor <- X
-  X  <- X[complete.cases(X),]; X <- X[apply(X,1,min)!=-999, ]
-  ix <- mean(X[,ncol(X)])
-  X <- X[,-ncol(X)]
-  rR <- !(X[,ncol(X)] == 1000)
-  Xb0 <- X[rR,seq_len(ix[1])[ip]]; colnames(Xb0) <- nM ;
-  Xbe <- X[rR,((ix[1]+1):(2*ix[1]))[ip]]; colnames(Xbe) <- nM
-  if("iter" %in% out) Xit <- X[, max((ix[1]+1):(2*ix[1]))+2]
-  if("time" %in% out) Xti <- X[, max((ix[1]+1):(2*ix[1]))+1]
-  
-  imu0 <- grepl("mu",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
-  imul <- grepl("mu",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
-  isg0 <- grepl("sigma",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
-  isgl <- grepl("sigma",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
-  ili <- list("mu0" = imu0, "mu1" = imul,"sg0" = isg0, "sg1" = isgl)
-  
-  res <- nam <- NULL
-  for(ii in names(ili)){
-    if("MSE" %in% out) assign(paste0("AvMSE",ii), mean(colMeans((Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]])^2)) )
-    if("AB" %in% out) assign(paste0("AvAB",ii), mean(abs(colMeans(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]]))) )
-    if("SB" %in% out) assign(paste0("AvSB",ii), mean((colMeans(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]]))^2) )
-    if("RB" %in% out) assign(paste0("AvRB",ii), mean((colMeans(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]]))/abs(colMeans(Xb0[,ili[[ii]]]))) ) } 
-  
-  if("MSE" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvMSE",ii))); nam <- c(nam, paste0("AvMSE",ii)) }
-  if("AB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvAB",ii))); nam <- c(nam, paste0("AvAB",ii)) }
-  if("SB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvSB",ii))); nam <- c(nam, paste0("AvSB",ii)) }
-  if("RB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvRB",ii))); nam <- c(nam, paste0("AvRB",ii)) }
-  names(res) <- nam
-  
-  if("iter" %in% out){ nam <- c(names(res),"AvIter"); res <- c(res,mean(Xit)); names(res) <- nam }
-  if("time" %in% out){ nam <- c(names(res),"AvTime"); res <- c(res,mean(Xti)); names(res) <- nam }
-  if("PVS" %in% out){ nam <- c("PVS",names(res)); res <- c(nrow(X)/nrow(Xor),res); names(res) <- nam }
-  return(c(format(round(res,4),nsmall = 4,scientific = F)))
-}
-

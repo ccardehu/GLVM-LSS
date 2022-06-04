@@ -6,7 +6,7 @@ prep_cont <- function(){
               solver = "L-BFGS-B", start.val = NULL, mat.info = "Hessian",
               iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE,
               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
-              verbose = FALSE, autoL_iter = 30,
+              verbose = FALSE, autoL_iter = 30, f.scores = F,
               penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
   control <- c(control, list(...))
   namC <- names(con)
@@ -48,6 +48,16 @@ prep_Z <- function(){
   return(length(lvar))
 }
 
+prep_Y <- function(data){
+  # Item settings
+  # ~~~~~~~~~~~~~
+  Y <-list(Y = NULL, na.idx = NULL)
+  Y$Y <- data; if(!is.matrix(Y$Y)) Y$Y <- as.matrix(Y$Y)
+  if(is.null(colnames(Y$Y))) colnames(Y$Y) <- paste0("Y",1:ncol(Y$Y))
+  Y$na.idx <- !is.na(Y$Y)
+  return(Y)
+}
+
 prep_ghq <- function(){
   # GHQ setting
   # ~~~~~~~~~~~
@@ -80,11 +90,14 @@ prep_stva <- function(){
     b <- rmat(control$iden.res,b)
   } else {
     if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variables identification restrictions.")
+    # if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
     rb <- b
     for(i in 1:length(b)){ 
       for(r in 1:q){
         b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0
-        rb[[i]] <- b[[i]] != 0}
+        # b[[i]][cbind(F,upper.tri(b[[i]][,!colnames(b[[i]]) %in% "(Intercept)"]))] <- 0
+        rb[[i]] <- b[[i]] != 0
+      }
     }
     b <- list(b = b, rb = rb) 
   }

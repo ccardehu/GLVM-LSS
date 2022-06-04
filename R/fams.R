@@ -172,10 +172,10 @@ ZIpoisson <- function(mu.link = "log", sg.link = "logit"){
 }
 
 Beta <- function(mu.link = "logit", sg.link = "logit"){
-  
+
   sta.mu <- make.link(mu.link)
   sta.sg <- make.link(sg.link)
-  
+
   dy <- function(i,y,b,ghQ){
     y <- y.(y)
     mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
@@ -184,7 +184,7 @@ Beta <- function(mu.link = "logit", sg.link = "logit"){
     bet = (1-mu)*(1-sg^2)/sg^2
     sapply(1:nrow(ghQ$points), function(r) dbeta(y, shape1 = alp[r],shape2 = bet[r],log = T))
   }
-  
+
   dv1y <- function(i,y,b,ghQ){
     mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
     sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
@@ -197,7 +197,7 @@ Beta <- function(mu.link = "logit", sg.link = "logit"){
     dvy$sg = sapply(1:qp, function(r){ -(2/(sg[r]^3)) * (mu[r] * (-digamma(alp[r]) + digamma(alp[r] + bet[r]) + log(y)) + (1 - mu[r]) * (-digamma(bet[r]) + digamma(alp[r] + bet[r]) + log(1 - y))) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) } )
     return(dvy)
   }
-  
+
   dv2y <- function(i,y,b,ghQ,info, dv1Y = NULL){
     mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
     sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
@@ -210,13 +210,13 @@ Beta <- function(mu.link = "logit", sg.link = "logit"){
       dvy$mu = sapply(1:qp, function(r){ rep(-(((1 - sg[r]^2)^2)/(sg[r]^4)) * (trigamma(alp[r]) + trigamma(bet[r])) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2, length(y)) } )
       dvy$sg = sapply(1:qp, function(r){ rep(-(4/(sg[r]^6)) * ((mu[r]^2) * trigamma(alp[r]) + ((1 - mu[r])^2) * trigamma(bet[r]) - trigamma(alp[r] + bet[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2, length(y)) } )
     } else {
-      dvy$mu = sapply(1:qp, function(r){( rep(-(((1 - sg[r]^2)^2)/(sg[r]^4)) * (trigamma(alp[r]) + trigamma(bet[r])) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2, length(y)) 
+      dvy$mu = sapply(1:qp, function(r){( rep(-(((1 - sg[r]^2)^2)/(sg[r]^4)) * (trigamma(alp[r]) + trigamma(bet[r])) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2, length(y))
                                              + numDeriv::grad(function(x) sta.mu$mu.eta(sta.mu$linkfun(pmin(pmax(x, sqrt(.Machine$double.eps)), 1-sqrt(.Machine$double.eps)))), mu[r])*dv1Y$mu[,r] ) } )
       dvy$sg = sapply(1:qp, function(r){( rep(-(4/(sg[r]^6)) * ((mu[r]^2) * trigamma(alp[r]) + ((1 - mu[r])^2) * trigamma(bet[r]) - trigamma(alp[r] + bet[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2, length(y))
                                              + numDeriv::grad(function(x) sta.sg$mu.eta(sta.sg$linkfun(pmin(pmax(x, sqrt(.Machine$double.eps)), 1-sqrt(.Machine$double.eps)))), sg[r])*dv1Y$sg[,r] ) } ) }
     return(dvy)
   }
-  
+
   dvCy <- function(i,y,b,ghQ,info){
     mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
     sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
@@ -228,7 +228,7 @@ Beta <- function(mu.link = "logit", sg.link = "logit"){
     dvy$mu$sg = sapply(1:qp, function(r){( rep((2 * (1 - sg[r]^2)/(sg[r]^5)) * (mu[r] * trigamma(alp[r]) - (1 - mu[r]) * trigamma(bet[r])) * sta.mu$mu.eta(sta.mu$linkfun(mu[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])), length(y)) ) } )
     return(dvy)
   }
-  
+
   sfun <- function(i,n,b,Z){
     mu = sta.mu$linkinv(c(as.matrix(Z$mu)%*%b$mu[i,]))
     sg = sta.sg$linkinv(c(as.matrix(Z$sig)%*%b$sig[i,]))
@@ -236,7 +236,7 @@ Beta <- function(mu.link = "logit", sg.link = "logit"){
     bet = (1-mu)*(1-sg^2)/sg^2
     rbeta(n, shape1 = alp, shape2 = bet)
   }
-  
+
   structure(list(family = "Beta", npar = 2, pars = c("mu","sigma"),
                  iuse = quote(BE()), dY = dy, sf = sfun,
                  dv1Y = dv1y, dv2Y = dv2y, dvCY = dvCy,
@@ -347,6 +347,80 @@ Lognormal <- function(mu.link = "identity", sg.link = "log"){
   
   structure(list(family = "Lognormal", npar = 2, pars = c("mu","sigma"),
                  iuse = quote(LNO()), dY = dy, sf = sfun,
+                 dv1Y = dv1y, dv2Y = dv2y, dvCY = dvCy,
+                 link.mu = sta.mu$name, linkf.mu = sta.mu$linkfun,
+                 link.sg = sta.sg$name, linkf.sg = sta.sg$linkfun),
+            class = "dist_glvmlss")
+}
+
+Beta0 <- function(mu.link = "logit", sg.link = "log"){
+
+  sta.mu <- make.link(mu.link)
+  sta.sg <- make.link(sg.link)
+
+  dy <- function(i,y,b,ghQ){
+    y <- y.(y)
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    alp = mu*sg
+    bet = (1-mu)*sg
+    sapply(1:nrow(ghQ$points), function(r) dbeta(y, shape1 = alp[r], shape2 = bet[r],log = T))
+  }
+
+  dv1y <- function(i,y,b,ghQ){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    qp = length(mu)
+    alp = mu*sg
+    bet = (1-mu)*sg
+    y <- y.(y)
+    dvy <- list(mu = NULL, sg = NULL)
+    dvy$mu = sapply(1:qp, function(r){ ( -sg[r]*(2*atanh(1-2*y) + digamma(alp[r]) + digamma(bet[r])) ) * sta.mu$mu.eta(sta.mu$linkfun(mu[r])) })
+    dvy$sg = sapply(1:qp, function(r){ ( -2*mu[r]*atanh(1-2*y) + digamma(sg[r]) - mu[r]*digamma(alp[r]) - (1-mu[r])*digamma(bet[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) } )
+    return(dvy)
+  }
+
+  dv2y <- function(i,y,b,ghQ,info, dv1Y = NULL){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    qp = length(mu)
+    alp = mu*sg
+    bet = (1-mu)*sg
+    y <- y.(y)
+    dvy <- list(mu = NULL, sg = NULL)
+    if(info == "Fisher"){
+      dvy$mu = sapply(1:qp, function(r){ rep((-sg[r]^2 * (-trigamma(alp[r]) + trigamma(bet[r]))) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2, length(y)) } )
+      dvy$sg = sapply(1:qp, function(r){ rep(( trigamma(sg[r]) - mu[r]^2*trigamma(alp[r]) - (1-mu[r])^2*trigamma(bet[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2, length(y)) } )
+    } else {
+      dvy$mu = sapply(1:qp, function(r){( rep(-sg[r]^2 * (-trigamma(alp[r]) + trigamma(bet[r])) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2, length(y))
+                                          + numDeriv::grad(function(x) sta.mu$mu.eta(sta.mu$linkfun(pmin(pmax(x, sqrt(.Machine$double.eps)), 1-sqrt(.Machine$double.eps)))), mu[r])*dv1Y$mu[,r] ) } )
+      dvy$sg = sapply(1:qp, function(r){( rep(( trigamma(sg[r]) - mu[r]^2*trigamma(alp[r]) - (1-mu[r])^2*trigamma(bet[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2, length(y)) + dv1Y$sg[,r] ) } ) }
+    return(dvy)
+  }
+
+  dvCy <- function(i,y,b,ghQ,info){
+    mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
+    qp = length(mu)
+    alp = mu*sg
+    bet = (1-mu)*sg
+    y <- y.(y)
+    dvy <- list(mu = list(sg = NULL))
+    dvy$mu$sg = sapply(1:qp, function(r){ ( -2*atanh(1-2*y) - digamma(alp[r]) - digamma(bet[r]) - alp[r]*trigamma(alp[r])
+                                            + bet[r]*trigamma(bet[r]) ) * sta.mu$mu.eta(sta.mu$linkfun(mu[r])) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) } )
+    return(dvy)
+  }
+
+  sfun <- function(i,n,b,Z){
+    mu = sta.mu$linkinv(c(as.matrix(Z$mu)%*%b$mu[i,]))
+    sg = sta.sg$linkinv(c(as.matrix(Z$sig)%*%b$sig[i,]))
+    alp = mu*sg
+    bet = (1-mu)*sg
+    rbeta(n, shape1 = alp, shape2 = bet)
+  }
+
+  structure(list(family = "Beta0", npar = 2, pars = c("mu","sigma"),
+                 iuse = quote(BEo()), dY = dy, sf = sfun,
                  dv1Y = dv1y, dv2Y = dv2y, dvCY = dvCy,
                  link.mu = sta.mu$name, linkf.mu = sta.mu$linkfun,
                  link.sg = sta.sg$name, linkf.sg = sta.sg$linkfun),
