@@ -3,7 +3,6 @@ glvmlss <- function(data, family = list(),
                     ta.eq = NULL, nu.eq = NULL,
                     control = list(), ...){
   
-  # Y <- data; if(!is.matrix(Y)) Y <- as.matrix(Y)
   Y <- prep_Y(data)
   if(!all(Y$na.idx)) cat("\n Argument 'data' has missing values (NA): Handling with full information MML.")
   p <- ncol(Y$Y)
@@ -43,8 +42,8 @@ glvmlss <- function(data, family = list(),
   }
   
   fit <- structure(fit, class = "glvmlss")
-  fit$GAIC <- GAIC(fit)
-  fit$GBIC <- GBIC(fit)
+  if(all(is.null(fit$hess))) fit$GAIC <- GAIC(fit) else fit$GAIC <- NULL
+  if(all(is.null(fit$hess))) fit$GBIC <- GBIC(fit) else fit$GBIC <- NULL
   
   if(control$f.scores){
     fit$f.scores <- as.data.frame(fyz_c$pD%*%(c(ghQ$weights)*ghQ$points)[,,drop=F]) 
@@ -80,6 +79,7 @@ glvmlss_fit <- function(){
       cb <- cb - solve(da2ll_t, d1ll_t)
     } else {
       cb <- cb - control$EM_lrate*exp(-0.5*iter)*d1ll_t }
+      # cb <- cb - control$EM_lrate*iter^(-0.5 + 0.001)*d1ll_t }
     pb[lb2cb(rb) == T] <- cb
     b <- cb2lb(pb,b)
     dfyz_t <- fyz(Y,ghQ,b,famL)
@@ -98,11 +98,13 @@ glvmlss_fit <- function(){
   
   if(control$solver == "trust"){
     if(control$verbose) cat("\n Direct MML estimation using trust-region algorithm ...")
-    cb <- trust::trust(objfun = ll, parinit = cb, rinit = 1, rmax = 5,
+    if(control$lazytrust) trustll <- lazyll else trustll <- ll
+    cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 0.5, rmax = 2,
                        fterm = control$tol, iterlim = control$iter.lim,
                        Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
     pb[lb2cb(rb) == T] <- cb$argument
     b <- cb2lb(pb,b)
+    convg <- ifelse(cb$converged,1,0)
     if(control$verbose) cat(paste0("\r Direct MML estimation using trust-region algorithm ... Converged after ",
                                    iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, ")",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$value,5))) }
@@ -112,6 +114,7 @@ glvmlss_fit <- function(){
                  Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
     pb[lb2cb(rb) == T] <- cb$par
     b <- cb2lb(pb,b)
+    convg <- ifelse(cb$convergence == 0,1,0)
     if(control$verbose) cat(paste0("\r Direct MML estimation using 'nlminb' function ... Converged after ",
                                    iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb)",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$objective,5))) } 
@@ -122,6 +125,7 @@ glvmlss_fit <- function(){
                 Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
     pb[lb2cb(rb) == T] <- cb$par
     b <- cb2lb(pb,b)
+    convg <- ifelse(cb$convergence == 0,1,0)
     if(control$verbose) cat(paste0("\r Direct MML estimation using ", control$solver, " algorithm ... Converged.",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$value,5))) }
   
@@ -146,7 +150,8 @@ glvmlss_fit <- function(){
       seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
       seb <- cb2lb(seb,b) } else seb <- hes_u <- hes_c <- NULL
   
-  return(list(b = b, loglik = fyz_c$ll, unploglik = fyz_c$ll, iter = iter + cb$iter,
+  return(list(b = b, loglik = fyz_c$ll, unploglik = fyz_c$ll,
+              convergence = convg, iter = iter + cb$iter,
               hes = list(H = hes_u, Hp = hes_c), SE = seb, n = nrow(Y$Y)))
 }
 
@@ -189,7 +194,8 @@ glvmlss_penfit <- function(){
       }
       cb <- cb - solve(da2ll_t, d1ll_t)
     } else {
-      cb <- cb - control$EM_lrate*exp(-0.5*iter)*d1ll_t }
+      cb <- cb - control$EM_lrate*exp(-0.5*iter)*d1ll_t
+      if(cycle == 0) da2ll_t <- -d2llEM(Y,ghQ,b,famL,info,dfyz_t$pD,rb) + nrow(Y$Y)*pMat$full }
     if(cycle == 0) ssehist[1] <- SSE(loglambda = log(pen.control$lambda),b = b, gra = -d1ll_t, hes = da2ll_t, rb = rb, pml = pen.control, Y = Y)
     pb[lb2cb(rb) == T] <- cb
     b <- cb2lb(pb,b)
@@ -214,18 +220,20 @@ glvmlss_penfit <- function(){
       if(!autoL) cat("\n Direct penalised MML estimation using trust-region algorithm ...") else
         if(cycle == 0) cat(paste0("\n Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ...")) else
           cat(paste0("\n Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ...")) }
-    cb <- trust::trust(objfun = pll, parinit = cb, rinit = 1, rmax = 5,
+    if(control$lazytrust) trustll <- lazypll else trustll <- pll
+    cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 0.5, rmax = 2,
                        fterm = control$tol, iterlim = control$iter.lim,
                        Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb,
                        pen.control = pen.control)
     pb[lb2cb(rb) == T] <- cb$argument
     b <- cb2lb(pb,b)
+    convg <- ifelse(cb$converged,1,0)
     if(control$verbose){ 
-      if(autoL){ cat(paste0("\r Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ... Converged in ",
+      if(autoL){ cat(paste0("\r Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ... Converged after ",
                             iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, "),",
                             " pen. margllk: ", round(-cb$value,5)))
         } else {
-          cat(paste0("\r Direct penalised MML estimation using trust-region algorithm ... Converged in ",
+          cat(paste0("\r Direct penalised MML estimation using trust-region algorithm ... Converged after ",
                      iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, ")",
                      "\n (Approximate) Penalised Marginal loglikelihood: ", round(-cb$value,5))) } }
   } else {
@@ -239,12 +247,13 @@ glvmlss_penfit <- function(){
                    pen.control = pen.control)
       pb[lb2cb(rb) == T] <- cb$par
       b <- cb2lb(pb,b)
+      convg <- ifelse(cb$convergence == 0,1,0)
       if(control$verbose){
-        if(!autoL){ cat(paste0("\r Direct penalised MML estimation 'nlminb' function ... Converged in ",
+        if(!autoL){ cat(paste0("\r Direct penalised MML estimation 'nlminb' function ... Converged after ",
                                iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb)",
                                "\n (Approximate) Penalised Marginal loglikelihood: ", round(-cb$objective,5)))
         } else {
-          cat(paste0("\r Direct penalised MML estimation ('nlminb', cycle ", cycle + 1,") ... Converged in ",
+          cat(paste0("\r Direct penalised MML estimation ('nlminb', cycle ", cycle + 1,") ... Converged after ",
                      iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb),",
                      " pen. margllk: ", round(-cb$objective,5))) } }
     } else {
@@ -258,6 +267,7 @@ glvmlss_penfit <- function(){
                   pen.control = pen.control)
       pb[lb2cb(rb) == T] <- cb$par
       b <- cb2lb(pb,b)
+      convg <- ifelse(cb$convergence == 0,1,0)
       if(control$verbose){
         if(!autoL){ cat(paste0("\r Direct penalised MML estimation using ", control$solver, " algorithm ... Converged.",
                                "\n (Approximate) Penalised Marginal loglikelihood: ", round(-cb$value,5)))
@@ -313,7 +323,7 @@ glvmlss_penfit <- function(){
     seb <- cb2lb(seb,b) } else seb <- hes_u <- hes_c <- NULL
   
   return(list(b = b, loglik = c(fyz_c$ll - 0.5*nrow(Y$Y)*crossprod(b.,pMat$full)%*%b.),
-              unploglik = fyz_c$ll,
+              unploglik = fyz_c$ll, convergence = convg,
               iter = iter + cb$iter, hes = list(H = hes_u, Hp = hes_c), SE = seb,
               cycle = cycle + 1, gamma = pen.control$gamma, n = nrow(Y$Y),
               sse = ssehist[ssehist != 0],

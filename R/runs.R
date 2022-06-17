@@ -9,7 +9,7 @@ source("R/glvmlss.R")
 source("R/misc.R")
 source("R/sims.R")
 
-# n = 500     # Number of individuals
+n = 500     # Number of individuals
 # nsim = 1000  # Number of simulations
 
 # # Simulation 1: Heteroscedastic Normal model:
@@ -34,85 +34,17 @@ source("R/sims.R")
 # # ~~~~~~~~~~~~
 # AA <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
 # Ao <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ 1, verbose = T, est.ci = T)
-# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, est.ci = T)
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T,
+# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, est.ci = T, solver = "trust")
+# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "trust",
 #               penalty = "alasso", lambda = "auto", w.alasso = AB$b, est.ci = T)
-# 
+# # 
 # round(cbind(AA$b$mu,AB$b$mu,AC$b$mu),5)
 # round(cbind(AA$b$si,AB$b$si,AC$b$si),5)
-# AB$GBIC; AC$GBIC
+# Ao$GBIC; AB$GBIC; AC$GBIC
 # AB$GAIC; AC$GAIC
 # AC$lambda;# AD$lambda
 # AC$sse;# AD$sse
 
-# Space saved for:
-# Testing what happens if we ignore heteroscedasticity
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# cor(AA$Z$Z1,Ao$f.scores$Z1, method = "kendall")
-# cor(AA$Z$Z1,AB$f.scores$Z1, method = "kendall")
-# cor(AA$Z$Z1,AC$f.scores$Z1, method = "kendall")
-# round(cbind(AA$b$mu,Ao$b$mu,cb2lb((1-pnorm(abs(lb2cb(Ao$b)/lb2cb(Ao$SE))))/2,Ao$b)$mu),3)
-# round(cbind(AA$b$si,Ao$b$si,cb2lb((1-pnorm(abs(lb2cb(Ao$b)/lb2cb(Ao$SE))))/2,Ao$b)$si),3)
-# round(cbind(AA$b$mu,AB$b$mu,cb2lb((1-pnorm(abs(lb2cb(AB$b)/lb2cb(AB$SE))))/2,AB$b)$mu),3)
-# round(cbind(AA$b$si,AB$b$si,cb2lb((1-pnorm(abs(lb2cb(AB$b)/lb2cb(AB$SE))))/2,AB$b)$si),3)
-# round(cbind(AA$b$mu,AC$b$mu,cb2lb((1-pnorm(abs(lb2cb(AC$b)/lb2cb(AC$SE))))/2,AC$b)$mu),3)
-# round(cbind(AA$b$si,AC$b$si,cb2lb((1-pnorm(abs(lb2cb(AC$b)/lb2cb(AC$SE))))/2,AC$b)$si),3)
-# cb2lb(round((1-pnorm(abs(lb2cb(AB$b)/lb2cb(AB$SE))))/2,4),AA$b)
-# (lb2cb(AB$b) - 1.96*lb2cb(AB$SE) < 0) & (0 < (lb2cb(AB$b) + 1.96*lb2cb(AB$SE)))
-
-
-# Space saved for:
-# Testing what happens with missing data
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# missing <- as.matrix(AA$Y)
-# na.idx <- sample(seq_len(sum(!is.na(missing))), size = sum(!is.na(missing))*0.1, replace = F)
-# missing[na.idx] <- NA
-# Ao <- glvmlss(data = missing, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, f.scores = T)
-
-# ~~~~~~~~~~~~~~
-# Application 1:
-# ~~~~~~~~~~~~~~
-# be <- NULL
-# be$mu <- matrix(1,ncol = 2, nrow = p)
-# be$sigma <- matrix(1, ncol = 2, nrow = p)
-# be$mu[,1] <- runif(p,1,2)
-# be$mu[,2] <- runif(length(be$mu[,2]),0.1,1.5) * sample(c(-1,1),size = p,replace = T)
-# be$sigma <- matrix(runif(length(be$sigma),0.1,0.4), nrow = p)
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# # For sparse factor loading matrices:
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# be$sigma[sample(3:p, floor((p-2)/2), replace = F),2] <- 0
-# BA <- glvmlss_sim(n,famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = be)
-# B1 <- glvmlss(data = BA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ 1, verbose = T)
-# B2 <- glvmlss(data = BA$Y, family = famt, mu.eq = ~ Z1 + Z2, sg.eq = ~ 1, verbose = T)
-# B3 <- glvmlss(data = BA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T)
-# B4 <- glvmlss(data = BA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T,
-#               penalty = "alasso", lambda = "auto", w.alasso = B3$b, solver = "trust")
-# B5 <- glvmlss(data = BA$Y, family = famt, mu.eq = ~ Z1 + Z2, sg.eq = ~ Z1 + Z2, verbose = T)
-# B6 <- glvmlss(data = BA$Y, family = famt, mu.eq = ~ Z1 + Z2, sg.eq = ~ Z1 + Z2, verbose = T,
-#               penalty = "alasso", lambda = "auto", w.alasso = B5$b, solver = "trust")
-# GBIC(B1); GBIC(B2); GBIC(B3); GBIC(B4); GBIC(B5); GBIC(B6)
-
-
-# famA <- vector("list",ncol(ais[,-c(1,2)])); for(i in 1:ncol(ais[,-c(1,2)])){ famA[[i]] <- Normal()}
-# testA1 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1, sg.eq = ~ 1, verbose = T)
-# testA2 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1 + Z2, sg.eq = ~ 1, verbose = T)
-# testB1 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T)
-# testB2 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1 + Z2, sg.eq = ~ Z1, verbose = T)
-# testC1 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1 + Z2, sg.eq = ~ Z1 + Z2, verbose = T)
-# testC2 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1 + Z2, sg.eq = ~ Z1 + Z2, verbose = T,
-#                   penalty = "alasso", lambda = "auto", w.alasso = testC1$b)
-# testD1 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1 + Z2 + Z3, sg.eq = ~ Z1 + Z2 + Z3, verbose = T)
-# testD2 <- glvmlss(data = ais[,-c(1,2)], family = famA, mu.eq = ~ Z1 + Z2 + Z3, sg.eq = ~ Z1 + Z2 + Z3, verbose = T,
-#                   penalty = "alasso", lambda = "auto", w.alasso = testD1$b)
-# GBIC(testA1); GBIC(testA2); GBIC(testB1); GBIC(testB2)
-# GBIC(testC1); GBIC(testC2); GBIC(testD1); GBIC(testD2)
-# round(cbind(testC1$b$mu, testD1$b$mu), 4)
-# round(cbind(testC2$b$mu, testD2$b$mu), 4)
-
-# 
 # data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = ~ Z1+Z2;ta.eq = NULL; nu.eq = NULL;
 # control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
 #               EM_appHess = F, EM_lrate = 0.001, est.ci = T,
@@ -132,6 +64,16 @@ source("R/sims.R")
 #   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
 # }; #r1; #r1 <- NULL
 # }; r1; rm(r1)
+
+# r1 <- NULL
+# for(p in c(10,20)){
+# for(n in c(200,500)){
+#   r2 <- glvmlss_parsimpost_pml(paste0("R/E1n",n,"p",p,"_2022-06-16_C2.Rds"),
+#                            out = c("MSE","AB","PVS","lambda"),
+#                            mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2)
+#   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
+# }; #r1; #r1 <- NULL
+# }; round(r1,4); #rm(r1)
 
 
 # # Simulation 2: IRT model:
@@ -166,7 +108,16 @@ source("R/sims.R")
 # # plot(density(AB$f.scores$Z1), col = 2)
 # # lines(density(AA$Z$Z1), col = 1)
 # # lines(density(AC$f.scores$Z1), col = 3)
-
+# 
+# r1 <- NULL
+# for(p in c(10,20)){
+# for(n in c(500)){
+#   r2 <- glvmlss_parsimpost_pml(paste0("R/E2n",n,"p",p,"_2022-06-16_C2.Rds"),
+#                            out = c("MSE","AB", "PVS", "lambda"),
+#                            mu.eq = ~ Z1+Z2)
+#   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
+# }; #r1; #r1 <- NULL
+# }; round(r1,4); #rm(r1)
 
 # Simulation 3: ZI-Poisson:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -214,7 +165,7 @@ source("R/sims.R")
 # for(p in c(5,10,20)){
 # for(n in c(200,500,1000,5000)){
 #   r2 <- glvmlss_parsimpost(paste0("R/E2n",n,"p",p,".Rds"),
-#                            out = c("MSE","AB","PVS"), trim = 0.0,
+#                            out = c("MSE","AB","PVS"), trim = 0.01,
 #                            mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, plot = F, outs = F)
 #   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
 # };
@@ -265,7 +216,7 @@ source("R/sims.R")
 # r1 <- NULL
 # for(p in c(5,10,20)){
 # for(n in c(200,500,1000,5000)){
-#   r2 <- glvmlss_parsimpost(paste0("R/E3n",n,"p",p,"_2022-06-03.Rds"),
+#   r2 <- glvmlss_parsimpost(paste0("R/E3n",n,"p",p,".Rds"),
 #                            out = c("PVS","MSE","AB"), trim = 0.0,
 #                            mu.eq = ~ Z1, sg.eq = ~ Z1, plot = F, outs = F)
 #   r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)

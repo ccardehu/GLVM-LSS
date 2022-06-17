@@ -3,7 +3,7 @@ prep_cont <- function(){
   # ~~~~~~~~~~~~~~~~
   con <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
               EM_appHess = F, EM_lrate = 0.001, est.ci = T,
-              solver = "L-BFGS-B", start.val = NULL, mat.info = "Hessian",
+              solver = "L-BFGS-B", start.val = NULL, mat.info = "Hessian", lazytrust = F,
               iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE,
               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
               verbose = FALSE, autoL_iter = 30, f.scores = F,

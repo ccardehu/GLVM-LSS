@@ -22,6 +22,16 @@ ll <- function(cb,Y,ghQ,bg,famL,info,rb){
   return(list(value = -f0$ll, gradient = f1, hessian = f2))
 }
 
+lazyll <- function(cb,Y,ghQ,bg,famL,info,rb){
+  b <- lb2cb(bg)
+  b[lb2cb(rb) == T] <- cb
+  b <- cb2lb(b,bg)
+  f0 <- fyz(Y,ghQ,b,famL)
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb)
+  f2 <- ad2ll(Y,ghQ,b,famL,info,f0$pD,rb)
+  return(list(value = -f0$ll, gradient = f1, hessian = f2))
+}
+
 pll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
@@ -31,6 +41,19 @@ pll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
   f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y$Y)*crossprod(cb,pMat$full))
   f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD,rb) + nrow(Y$Y)*pMat$full 
+  return(list(value = -f0$ll + 0.5*nrow(Y$Y)*crossprod(cb,pMat$full)%*%cb,
+              gradient = f1, hessian = f2))
+}
+
+lazypll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
+  b <- lb2cb(bg)
+  b[lb2cb(rb) == T] <- cb
+  b <- cb2lb(b,bg)
+  f0 <- fyz(Y,ghQ,b,famL)
+  pMat <- pM(b,rb, penalty = pen.control$penalty,
+             lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
+  f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y$Y)*crossprod(cb,pMat$full))
+  f2 <- ad2ll(Y,ghQ,b,famL,info,f0$pD,rb) + nrow(Y$Y)*pMat$full 
   return(list(value = -f0$ll + 0.5*nrow(Y$Y)*crossprod(cb,pMat$full)%*%cb,
               gradient = f1, hessian = f2))
 }
