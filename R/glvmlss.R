@@ -76,7 +76,7 @@ glvmlss_fit <- function(){
       } else {
         da2ll_t <- ad2ll(Y,ghQ,b,famL,info,dfyz_t$pD,rb)
       }
-      cb <- cb - solve(da2ll_t, d1ll_t)
+      tryCatch({cb <- cb - solve(da2ll_t, d1ll_t)}, error = function(e){cb <- cb - c(m2pdm(da2ll_t)$inv%*%d1ll_t)})
     } else {
       cb <- cb - control$EM_lrate*exp(-0.5*iter)*d1ll_t }
       # cb <- cb - control$EM_lrate*iter^(-0.5 + 0.001)*d1ll_t }
@@ -99,7 +99,7 @@ glvmlss_fit <- function(){
   if(control$solver == "trust"){
     if(control$verbose) cat("\n Direct MML estimation using trust-region algorithm ...")
     if(control$lazytrust) trustll <- lazyll else trustll <- ll
-    cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 0.5, rmax = 2,
+    cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 1, rmax = 5,
                        fterm = control$tol, iterlim = control$iter.lim,
                        Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
     pb[lb2cb(rb) == T] <- cb$argument
@@ -139,15 +139,15 @@ glvmlss_fit <- function(){
   if(control$est.ci){
     hes_u <- -d2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb); hes_c <- NULL
     pdMhes <- m2pdm(hes_u)
-    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian matrix is not positive definite at solution."))
+    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian is not positive definite at solution (fixed)."))
     seb <- rep(NA,length(lb2cb(b)))
-    seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
+    seb[lb2cb(rb)] <- sqrt(diag(as.matrix(Matrix::nearPD(pdMhes$inv.mat)$mat)))
     seb <- cb2lb(seb,b)
   } else if(control$solver == "trust"){ hes_u <- cb$hess; hes_c <- NULL 
       pdMhes <- m2pdm(hes_u)
-      if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian matrix is not positive definite at solution."))
+      if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian is not positive definite at solution (fixed)."))
       seb <- rep(NA,length(lb2cb(b)))
-      seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
+      seb[lb2cb(rb)] <- sqrt(diag(as.matrix(Matrix::nearPD(pdMhes$inv.mat)$mat)))
       seb <- cb2lb(seb,b) } else seb <- hes_u <- hes_c <- NULL
   
   return(list(b = b, loglik = fyz_c$ll, unploglik = fyz_c$ll,
@@ -221,7 +221,7 @@ glvmlss_penfit <- function(){
         if(cycle == 0) cat(paste0("\n Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ...")) else
           cat(paste0("\n Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ...")) }
     if(control$lazytrust) trustll <- lazypll else trustll <- pll
-    cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 0.5, rmax = 2,
+    cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 1, rmax = 5,
                        fterm = control$tol, iterlim = control$iter.lim,
                        Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb,
                        pen.control = pen.control)
@@ -309,17 +309,19 @@ glvmlss_penfit <- function(){
     hes_u <- -d2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb)
     hes_c <- hes_u + nrow(Y$Y)*pMat$full
     pdMhes <- m2pdm(hes_c)
-    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian matrix is not positive definite at solution."))
+    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian is not positive definite at solution (fixed)."))
     seb <- rep(NA,length(lb2cb(b)))
-    seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat))
+    seb[lb2cb(rb)] <- sqrt(diag(as.matrix(Matrix::nearPD(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat)$mat)))
+    # seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
     seb <- cb2lb(seb,b)
   } else if(control$solver == "trust"){ 
     hes_u <- cb$hess - nrow(Y$Y)*pMat$full
     hes_c <- cb$hess
     pdMhes <- m2pdm(hes_u)
-    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian matrix is not positive definite at solution."))
+    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian is not positive definite at solution (fixed)."))
     seb <- rep(NA,length(lb2cb(b)))
-    seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat))
+    seb[lb2cb(rb)] <- sqrt(diag(as.matrix(Matrix::nearPD(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat)$mat)))
+    # seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
     seb <- cb2lb(seb,b) } else seb <- hes_u <- hes_c <- NULL
   
   return(list(b = b, loglik = c(fyz_c$ll - 0.5*nrow(Y$Y)*crossprod(b.,pMat$full)%*%b.),

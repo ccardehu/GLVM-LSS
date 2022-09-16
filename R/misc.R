@@ -296,7 +296,6 @@ ghq <- function(n){ # Function from GLMMADAPTIVE (2021)
 
 ibeta <- function(Y,famL,form){
   
-  # na.idx <- Y$na.idx
   Y <- Y$Y[complete.cases(Y$Y),]
   lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
   lvar <- grep("Z", lvar, fixed = T, value = T)
@@ -308,7 +307,7 @@ ibeta <- function(Y,famL,form){
   bstart <- NULL
   for(r in names(form)){
     sZ[[r]] <- as.data.frame(model.matrix(form[[r]],as.data.frame(Z)))
-    bstart[[r]] <- matrix(0, nrow = ncol(Y), ncol = ncol(sZ[[r]]))
+    bstart[[r]] <- matrix(NA, nrow = ncol(Y), ncol = ncol(sZ[[r]]))
     dimnames(bstart[[r]]) <- list(colnames(Y),colnames(sZ[[r]]))
   }
   
@@ -444,7 +443,11 @@ m2pdm <- function(mat){
 
 pM <- function(b, rb, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL){
   penidx <- function(rb){
-    for(i in names(rb)){ rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F }
+    for(i in names(rb)){
+      rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F
+      nQ <- sum(grepl("Z",colnames(rb[[i]]), fixed = T))
+      rb[[i]][seq_len(nQ), ] <- F
+    }
     return(rb)
   }
   lambda2lb <- function(lamlist,b){
@@ -503,72 +506,6 @@ SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
   sse <- c(crossprod(K-A%*%K)) + 2*pml$gamma*sum(diag(A)) - sum(lb2cb(rb))
   return(sse)
 }
-
-# dSSE <- function(loglambda,b,gra,hes,rb,pml,Y){ # CHECK THIS FUNCTION
-#   lambda = exp(loglambda)
-#   penidx <- function(rb){
-#     for(i in names(rb)){ rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F }
-#     return(rb)
-#   }
-#   lambda2lb <- function(lamlist,b){
-#     for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),
-#                                            dimnames = dimnames(b[[i]]))
-#     return(b)
-#   }
-#   trans <- function(i,lambdaidx,Obj){
-#     if(is.null(attr(Obj,"dim"))) break
-#     if(dim(Obj)[2] > 1){ Obj[lambdaidx != i, lambdaidx != i] <- 0
-#     } else {
-#       Obj[lambdaidx != i] <- 0
-#     }
-#     return(Obj)
-#   }
-# 
-#   if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
-#   lambdaidx <- seq_along(lambda)
-#   lambdaidx <- lb2cb(lambda2lb(lambdaidx,b))
-#   lambdaidx[!(lb2cb(rb) & lb2cb(penidx(rb)))] <- 0
-#   lambdaidx <- lambdaidx[-which(lb2cb(rb) == F)]
-# 
-#   S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
-#   th <- lb2cb(b)[lb2cb(rb)]
-#   sJ <- m2pdm(hes)$sq
-#   Q <- qr.Q(qr(sJ))
-#   R <- qr.R(qr(sJ))
-#   K = sJ%*%th + solve(t(sJ))%*%gra
-# 
-#   d1trA <- d1P <- d1V <- numeric(length(lambda))
-#   d2trA <- d2P <- d2V <- matrix(NA,nrow = length(lambda),ncol = length(lambda))
-# 
-#   for(i in 1:length(lambda)){
-#     B <- m2pdm(nrow(Y)*S$raw)$sq
-#     svdRB <- svd(rbind(R,B))
-#     U1 <- svdRB$u[1:nrow(R),]
-#     V <- svdRB$v
-#     D <- diag(svdRB$d)
-#     iD <- m2pdm(D)$inv.mat
-#     K1 = t(U1)%*%t(Q)%*%K
-#     Zl = iD%*%t(V)%*%trans(i,lambdaidx,S$raw)%*%V%*%iD
-#     Cl = Zl%*%crossprod(U1)
-#     d1trA[i] = -lambda[i]*nrow(Y)*sum(diag(Cl))
-#     d1P[i] = 2*lambda[i]*nrow(Y)*(t(K1)%*%Zl%*%K1 - t(K1)%*%Cl%*%K1)
-#     d1V[i] = (d1P[i] + (pml$gamma)*2*d1trA[i])
-#     d2trA[i,i] = 2*lambda[i]*lambda[i]*nrow(Y)^2*sum(diag(Zl%*%Cl)) + d1trA[i]
-#     d2P[i,i] = 2*2*lambda[i]*lambda[i]*nrow(Y)^2*t(K1)%*%(Zl%*%Cl + Zl%*%Cl - Zl%*%Zl - Zl%*%Zl + Cl%*%Zl)%*%K1 + d1P[i]
-# 
-#     for(j in 1:length(lambda)){
-#       if(j == i) next
-#       Zlj = iD%*%t(V)%*%trans(j,lambdaidx,S$raw)%*%V%*%iD
-#       Clj = Zlj%*%crossprod(U1)
-#       d2trA[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*sum(diag(Zlj%*%Cl))
-#       d2P[i,j] = 2*lambda[i]*lambda[j]*nrow(Y)^2*t(K1)%*%(Zl%*%Clj + Zlj%*%Cl - Zl%*%Zlj - Zlj%*%Zl + Cl%*%Zlj)%*%K1
-#     }
-#   }
-# 
-#   d2V = d2P + pml$gamma*2*d2trA
-# 
-#   return(list(d1 = d1V, d2 = d2V))
-# }
 
 op.lambda <- function(Y,ghQ,b,famL,info,rb,pen.control){
   fyz_c <- fyz(Y,ghQ,b,famL)
@@ -634,9 +571,28 @@ op.lambda1 <- function(Y,ghQ,b,famL,info,rb,pen.control){
                               rb = rb, pml = pen.control, Y = Y)
       return(d1sse) }
   
-  out_ <- optim(par = log(lambda_), fn = SSE, gr = D1SSE, method = "L-BFGS-B",
-                b = b, gra = gra, hes = hes, rb = rb, pml = pen.control, Y = Y)
-  return(list(lambda = exp(out_$par), miditer = out_$counts[1], sse = out_$value))
+  # out_ <- optim(par = log(lambda_), fn = SSE, gr = D1SSE, method = "L-BFGS-B",
+  #               b = b, gra = gra, hes = hes, rb = rb, pml = pen.control, Y = Y)
+  # 
+  # return(list(lambda = exp(out_$par), miditer = out_$counts[1], sse = out_$value))
+  
+  D2SSE <- function(loglambda_, b = b, gra = gra, hes = hes,
+                    rb = rb, pml = pen.control, Y = Y){
+      d2sse <- numDeriv::hessian(SSE,loglambda_,b = b, gra = gra, hes = hes,
+                              rb = rb, pml = pen.control, Y = Y)
+      return(d2sse) }
+  SSEtrust <- function(loglambda_t, bt, grat, hest,
+                       rbt, pmlt, Yt){
+      valuer <- SSE(loglambda_t, bt, grat, hest, rbt, pmlt,Yt)
+      gradientr <- D1SSE(loglambda_t, bt, grat, hest, rbt, pmlt,Yt)
+      hessianr <- D2SSE(loglambda_t, bt, grat, hest, rbt, pmlt,Yt)
+      return(list(value = valuer, gradient = gradientr, hessian = hessianr)) }
+
+  out__ <- trust::trust(objfun = SSEtrust, parinit = log(lambda_), rinit = 1, rmax = 5,
+                       fterm = sqrt(.Machine$double.eps), iterlim = 100,
+                       bt = b, grat = gra, hest = hes, rbt = rb, pmlt = pen.control, Yt = Y)
+
+  return(list(lambda = exp(out__$arg), miditer = out__$iter, sse = out__$value))
 }
 
 GAIC <- function(mod){

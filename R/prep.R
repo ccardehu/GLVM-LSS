@@ -73,7 +73,7 @@ prep_stva <- function(){
     if(length(control$start.val) != length(form)) stop("\n Number of matrices in starting values should match number of parameters mu, sigma, tau, nu")
     names(control$start.val) <- names(form)
     for(i in names(control$start.val)) {
-      colnames(control$start.val[[i]]) <- colnames(ghQ$out[[i]]); rownames(control$start.val[[i]]) <- colnames(Y)
+      colnames(control$start.val[[i]]) <- colnames(ghQ$out[[i]]); rownames(control$start.val[[i]]) <- colnames(Y$Y)
       if(length(control$start.val[[i]]) != p*ncol(ghQ$out[[i]])) stop("\n Provided starting values is not lenght p*(q+intercept), revise dimension")
       if(!is.matrix(control$start.val[[i]])) control$start.val[[i]] <- matrix(control$start.val[[i]], nrow = p, ncol = ncol(ghQ$out[[i]]))
     }
@@ -86,17 +86,31 @@ prep_stva <- function(){
   # Constraints matrices (for each parameter)
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(!is.null(control$iden.res)){
-    if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter','item','restricted variable',value)")
-    b <- rmat(control$iden.res,b)
+    if(length(control$iden.res) == 1 & control$iden.res[1] == "none"){
+      rb <- b
+      for(i in 1:length(b)){
+        if(any(!grepl("(Intercept)", colnames(b[[i]]), fixed = T))){
+        tmp <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
+        b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- tmp[,ncol(tmp):1]
+        rb[[i]] <- !is.na(rb[[i]])} else {b[[i]] <- b[[i]]; rb[[i]] <- !is.na(rb[[i]])}
+      }
+      b <-  list(b = b, rb = rb)   
+    } else {
+      if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter','item','restricted variable',value)")
+      b <- rmat(control$iden.res,b) }
   } else {
     if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variables identification restrictions.")
     # if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
     rb <- b
-    for(i in 1:length(b)){ 
+    for(i in 1:length(b)){
+      rb[[i]] <- !is.na(rb[[i]])
       for(r in 1:q){
         b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0
         # b[[i]][cbind(F,upper.tri(b[[i]][,!colnames(b[[i]]) %in% "(Intercept)"]))] <- 0
-        rb[[i]] <- b[[i]] != 0
+        #? if(r == 1){ # new
+          rb[[i]][r,!grepl(paste0("Z",r), colnames(rb[[i]])) & !grepl("(Intercept)", colnames(rb[[i]]))] <- F
+        #? } else rb[[i]][r, !grepl("(Intercept)", colnames(rb[[i]]))] <- F # new
+        # rb[[i]] <- b[[i]] != 0
       }
     }
     b <- list(b = b, rb = rb) 
@@ -154,8 +168,16 @@ sim_stva <- function(){
   # Constraints matrices (for each parameter)
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(!is.null(control$iden.res)){
+    if(control$iden.res == "none"){
+      rb <- b
+      for(i in 1:length(b)){
+        # b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
+        rb[[i]] <- !is.na(rb[[i]])
+      }
+      b <-  list(b = b, rb = rb)   
+    } else {
     if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
-    b <- rmat(control$iden.res,b)
+    b <- rmat(control$iden.res,b) }
   } else {
     if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variables identification restrictions.")
     rb <- b
