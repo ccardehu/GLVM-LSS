@@ -24,8 +24,8 @@ glvmlss <- function(data, family = list(),
   } else {
     pen.control <- list(penalty = control$penalty,
                         w.alasso = control$w.alasso, a = control$a)
-    if(!is.null(control$lambda)){ 
-      if(any("auto" %in% control$lambda)){ 
+    if(!is.null(control$lambda)){
+      if(any("auto" %in% control$lambda)){
         pen.control$lambda <- rep(1/nrow(Y$Y),length(b))
         autoL <- T; cycle <- 0
       } else {
@@ -77,6 +77,7 @@ glvmlss_fit <- function(){
         da2ll_t <- ad2ll(Y,ghQ,b,famL,info,dfyz_t$pD,rb)
       }
       tryCatch({cb <- cb - solve(da2ll_t, d1ll_t)}, error = function(e){cb <- cb - c(m2pdm(da2ll_t)$inv%*%d1ll_t)})
+      # tryCatch({cb <- cb - solve(da2ll_t, d1ll_t)}, error = function(e){cb <- cb - c(as.matrix(Matrix::nearPD(m2pdm(da2ll_t)$inv)$mat)%*%d1ll_t)})
     } else {
       cb <- cb - control$EM_lrate*exp(-0.5*iter)*d1ll_t }
       # cb <- cb - control$EM_lrate*iter^(-0.5 + 0.001)*d1ll_t }

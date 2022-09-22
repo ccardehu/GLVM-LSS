@@ -327,7 +327,7 @@ ibeta <- function(Y,famL,form){
     for(p in 1:famL[[i]]$npar){ 
       if(!inherits(tmp, "try-error")){ 
         if(famL[[i]]$family == "Beta0"){ 
-          bstart[[p]][i,] <- tmp$coefficients[[p]]*0
+          bstart[[p]][i,] <- rep(tmp$coefficients[[p]],nrow(bstart[[p]][i,,drop=F]))
           } else bstart[[p]][i,] <- coef(tmp,famL[[i]]$pars[p])
       } else {
         bstart[[p]][i,] <- 0.01
@@ -427,9 +427,11 @@ m2pdm <- function(mat){
   check.eigen <- any(e.val <= 0)
   if(check.eigen == T){
     n.e.val <- e.val[e.val <= 0]
-    s <- sum(e.val[n.e.val])*2  
+    # s <- sum(e.val[!n.e.val])
+    s <- sum(e.val[n.e.val])*2
     t <- s^2*100 + 1
     p <- min(e.val[(e.val <= 0) == F])
+    # p <- min(e.val[(e.val <= 0) == F])
     e.val[e.val <= 0] <- p*(s - n.e.val)^2/t
     D <- diag(e.val)
     D.inv <- diag(1/e.val)
@@ -447,8 +449,9 @@ pM <- function(b, rb, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL
       rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F
       nQ <- sum(grepl("Z",colnames(rb[[i]]), fixed = T))
       rb[[i]][seq_len(nQ), ] <- F
-    }
-    return(rb)
+      if(i == "mu" & nQ == 1) rb[[i]][ , ] <- F
+    } 
+    return(rb) 
   }
   lambda2lb <- function(lamlist,b){
     for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),

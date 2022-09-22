@@ -402,8 +402,8 @@ glvmlss_parsimpost_pml2 <- function(file,
   Xor <- X
   ix <- mean(X[,ncol(X)], na.rm = T)
   X <- X[,-ncol(X)]
-  X  <- X[complete.cases(X),];
-  Xseed <- setdiff(1:nrow(Xor),X[,ncol(X)])
+  X  <- X[!is.na(X[,ncol(X)]),];
+  # Xseed <- setdiff(1:nrow(Xor), X[,ncol(X)])
   X <- X[,-ncol(X)] # -Xseed
   
   Xl <- X[,(ncol(X)-(length(form)*5)+1):ncol(X)]

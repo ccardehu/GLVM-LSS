@@ -108,7 +108,7 @@ prep_stva <- function(){
         b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0
         # b[[i]][cbind(F,upper.tri(b[[i]][,!colnames(b[[i]]) %in% "(Intercept)"]))] <- 0
         #? if(r == 1){ # new
-          rb[[i]][r,!grepl(paste0("Z",r), colnames(rb[[i]])) & !grepl("(Intercept)", colnames(rb[[i]]))] <- F
+        rb[[i]][r,!grepl(paste0("Z",r), colnames(rb[[i]])) & !grepl("(Intercept)", colnames(rb[[i]]))] <- F
         #? } else rb[[i]][r, !grepl("(Intercept)", colnames(rb[[i]]))] <- F # new
         # rb[[i]] <- b[[i]] != 0
       }
