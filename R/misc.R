@@ -32,12 +32,12 @@ lazyll <- function(cb,Y,ghQ,bg,famL,info,rb){
   return(list(value = -f0$ll, gradient = f1, hessian = f2))
 }
 
-pll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
+pll <- function(cb,Y,ghQ,bg,famL,info,rb,bp,pen.control){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  pMat <- pM(b,rb, penalty = pen.control$penalty,
+  pMat <- pM(b,rb,bp,penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
   f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y$Y)*crossprod(cb,pMat$full))
   f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD,rb) + nrow(Y$Y)*pMat$full 
@@ -45,12 +45,12 @@ pll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
               gradient = f1, hessian = f2))
 }
 
-lazypll <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
+lazypll <- function(cb,Y,ghQ,bg,famL,info,rb,bp,pen.control){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  pMat <- pM(b,rb, penalty = pen.control$penalty,
+  pMat <- pM(b,rb,bp,penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
   f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y$Y)*crossprod(cb,pMat$full))
   f2 <- ad2ll(Y,ghQ,b,famL,info,f0$pD,rb) + nrow(Y$Y)*pMat$full 
@@ -227,12 +227,12 @@ lla <- function(cb,Y,ghQ,bg,famL,info,rb){
   return(-f0$ll)
 }
 
-plla <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
+plla <- function(cb,Y,ghQ,bg,famL,info,rb,bp,pen.control){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  pMat <- pM(b,rb, penalty = pen.control$penalty,
+  pMat <- pM(b,rb,bp,penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
   return(-f0$ll + 0.5*nrow(Y$Y)*crossprod(cb,pMat$full)%*%cb)
 }
@@ -246,12 +246,12 @@ d1lla <- function(cb,Y,ghQ,bg,famL,info,rb){
   return(f1)
 }
 
-d1plla <- function(cb,Y,ghQ,bg,famL,info,rb,pen.control){
+d1plla <- function(cb,Y,ghQ,bg,famL,info,rb,bp,pen.control){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
   f0 <- fyz(Y,ghQ,b,famL)
-  pMat <- pM(b,rb, penalty = pen.control$penalty,
+  pMat <- pM(b,rb,bp,penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
   f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb) + c(nrow(Y$Y)*crossprod(cb,pMat$full))
   return(f1)
@@ -443,28 +443,28 @@ m2pdm <- function(mat){
   return(list(mat = res, inv.mat = res.inv, sqr.mat = t(res.sqr), is.PDM = !check.eigen))
 }
 
-pM <- function(b, rb, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL){
-  penidx <- function(rb){
-    for(i in names(rb)){
-      rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F
-      nQ <- sum(grepl("Z",colnames(rb[[i]]), fixed = T))
-      rb[[i]][seq_len(nQ), ] <- F
-      if(i == "mu" & nQ == 1) rb[[i]][ , ] <- F
-    } 
-    return(rb) 
-  }
+pM <- function(b, rb, bp, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL){
+  # penidx <- function(rb){
+  #   for(i in names(rb)){
+  #     rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F
+  #     nQ <- sum(grepl("Z", colnames(rb[[i]]), fixed = T))
+  #     rb[[i]][seq_len(nQ), ] <- F
+  #   } 
+  #   return(rb) 
+  # }
   lambda2lb <- function(lamlist,b){
     for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),
                                            dimnames = dimnames(b[[i]]))
     return(b)
   }
-  id <- lb2cb(penidx(rb))
+  # id <- lb2cb(penidx(rb))
+  id <- lb2cb(bp)
   param <- lb2cb(b)[id]
   if(!is.null(w.alasso) && is.list(w.alasso)){ w.alasso <- lb2cb(w.alasso)[id] }
   if(length(lambda) != length(b)) lambda <- rep(lambda, length(b))
   lambda <- lb2cb(lambda2lb(lambda,b))[id]
   S. <- Sraw <- diag(0,length(id))
-  eps = 1e-7 # sqrt(.Machine$double.eps) # protective tolerance level
+  eps = 1e-8
   if(penalty == "ridge"){
     A1 <-  c(lambda)*rep(1, length(param))
   }
@@ -492,16 +492,19 @@ pM <- function(b, rb, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL
   }
   if(length(A1) == 1) S <- matrix(A1) else S <- diag(A1)
   diag(S.)[id] <- A1
-  diag(Sraw)[id] <- A1/lambda
+  lambdaraw <- lambda
+  lambdaraw[lambdaraw == 0] <- 1
+  diag(Sraw)[id] <- A1/lambdaraw
   S. <- S.[lb2cb(rb),lb2cb(rb)]
   Sraw <- Sraw[lb2cb(rb),lb2cb(rb)]
   return(list(full = S., red = S, raw = Sraw))
 }
 
-SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
+SSE <- function(loglambda,b,gra,hes,rb,bp,pml,Y){
   Y <- Y$Y
-  lambda = exp(loglambda)
-  S <- pM(b = b, rb = rb, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
+  lambda <- numeric(length(b))
+  lambda[pml$lambda.auto] = exp(loglambda)
+  S <- pM(b = b, rb = rb, bp = bp, penalty = pml$penalty, lambda = lambda, w.alasso = pml$w.alasso, a = pml$a)
   th <- lb2cb(b)[lb2cb(rb)]
   sJ <- m2pdm(hes)$sq
   K = sJ%*%th + solve(t(sJ))%*%gra
@@ -510,68 +513,17 @@ SSE <- function(loglambda,b,gra,hes,rb,pml,Y){
   return(sse)
 }
 
-op.lambda <- function(Y,ghQ,b,famL,info,rb,pen.control){
+op.lambda <- function(Y,ghQ,b,famL,info,rb,bp,pen.control){
   fyz_c <- fyz(Y,ghQ,b,famL)
   gra <- d1ll(Y,ghQ,b,famL,info,fyz_c$pD,rb)
   hes <- -d2ll(Y,ghQ,b,famL,info,pd = fyz_c$pD,rb)
-  lambda_ <- pen.control$lambda
-  if(length(lambda_) != length(b)) lambda_ <- rep(lambda_, length(b))
-  sse <- numeric(pen.control$iter.lim)
-  lambda <- matrix(NA,ncol = length(lambda_),nrow = pen.control$iter.lim)
-  i <- 1
-  sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
-  lambda[i,] <- lambda_
-  opt <- T
+  lambda_ <- numeric(length(b))
+  lambda_[pen.control$lambda.auto] <- pen.control$lambda[pen.control$lambda.auto]
   
-  while(opt){
-    i <- i + 1
-    d1sse <- numDeriv::grad(SSE,log(lambda_),b = b, gra = gra, hes = hes,
-                            rb = rb, pml = pen.control, Y = Y)
-    d2sse <- numDeriv::hessian(SSE,log(lambda_),b = b, gra = gra, hes = hes,
-                            rb = rb, pml = pen.control, Y = Y)
-    lambda[i,] <- lambda_ <- exp(log(lambda_) - solve(d2sse, d1sse))
-    sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
-    if(sse[i] - sse[i-1] > 0){ grdes <- T; opt <- F ; i <- i - 1}
-    if(i == pen.control$iter.lim){ grdes <- opt <- F }
-  }
-  
-  lambda_ <- lambda[i,]; 
-  
-  while(grdes){
-    i <- i + 1
-    d1sse <- numDeriv::grad(SSE,log(lambda_),b = b, gra = gra, hes = hes,
-                            rb = rb, pml = pen.control, Y = Y)
-    lambda[i,] <- lambda_ <- exp(log(lambda_) - (0.01/i)*c(d1sse))
-    sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
-    if(sse[i] - sse[i-1] > 0){ stdes <- T; grdes <- F ; i <- i - 1}
-    if(i == pen.control$iter.lim){ stdes <- grdes <- F }
-  }
-  
-  lambda_ <- lambda[i,]; 
-  
-  while(stdes){
-    i <- i + 1
-    d1sse <- numDeriv::grad(SSE,log(lambda_),b = b, gra = gra, hes = hes,
-                            rb = rb, pml = pen.control, Y = Y)
-    lambda[i,] <- lambda_ <- exp(log(lambda_) - c(d1sse))
-    sse[i] <- SSE(log(lambda_),b,gra,hes,rb,pen.control,Y)
-    if(sse[i] - sse[i-1] > 0){ stdes <- F; i <- i - 1}
-    if(i == pen.control$iter.lim){ stdes <- F }
-  }
-  
-  return(list(lambda = lambda[i,], miditer = i, sse = sse[i]))
-}
-
-op.lambda1 <- function(Y,ghQ,b,famL,info,rb,pen.control){
-  fyz_c <- fyz(Y,ghQ,b,famL)
-  gra <- d1ll(Y,ghQ,b,famL,info,fyz_c$pD,rb)
-  hes <- -d2ll(Y,ghQ,b,famL,info,pd = fyz_c$pD,rb)
-  lambda_ <- pen.control$lambda
-  if(length(lambda_) != length(b)) lambda_ <- rep(lambda_, length(b))
-  D1SSE <- function(loglambda_, b = b, gra = gra, hes = hes,
-                    rb = rb, pml = pen.control, Y = Y){
+  d1SSE <- function(loglambda_, b = b, gra = gra, hes = hes,
+                    rb = rb, bp = bp, pml = pen.control, Y = Y){
       d1sse <- numDeriv::grad(SSE,loglambda_,b = b, gra = gra, hes = hes,
-                              rb = rb, pml = pen.control, Y = Y)
+                              rb = rb, bp = bp, pml = pen.control, Y = Y)
       return(d1sse) }
   
   # out_ <- optim(par = log(lambda_), fn = SSE, gr = D1SSE, method = "L-BFGS-B",
@@ -579,23 +531,25 @@ op.lambda1 <- function(Y,ghQ,b,famL,info,rb,pen.control){
   # 
   # return(list(lambda = exp(out_$par), miditer = out_$counts[1], sse = out_$value))
   
-  D2SSE <- function(loglambda_, b = b, gra = gra, hes = hes,
-                    rb = rb, pml = pen.control, Y = Y){
+  d2SSE <- function(loglambda_, b = b, gra = gra, hes = hes,
+                    rb = rb, bp = bp, pml = pen.control, Y = Y){
       d2sse <- numDeriv::hessian(SSE,loglambda_,b = b, gra = gra, hes = hes,
-                              rb = rb, pml = pen.control, Y = Y)
+                              rb = rb, bp = bp, pml = pen.control, Y = Y)
       return(d2sse) }
+  
   SSEtrust <- function(loglambda_t, bt, grat, hest,
-                       rbt, pmlt, Yt){
-      valuer <- SSE(loglambda_t, bt, grat, hest, rbt, pmlt,Yt)
-      gradientr <- D1SSE(loglambda_t, bt, grat, hest, rbt, pmlt,Yt)
-      hessianr <- D2SSE(loglambda_t, bt, grat, hest, rbt, pmlt,Yt)
+                       rbt, bpt, pmlt, Yt){
+      valuer <- SSE(loglambda_t, bt, grat, hest, rbt, bpt, pmlt,Yt)
+      gradientr <- d1SSE(loglambda_t, bt, grat, hest, rbt, bpt, pmlt,Yt)
+      hessianr <- d2SSE(loglambda_t, bt, grat, hest, rbt, bpt, pmlt,Yt)
       return(list(value = valuer, gradient = gradientr, hessian = hessianr)) }
 
-  out__ <- trust::trust(objfun = SSEtrust, parinit = log(lambda_), rinit = 1, rmax = 5,
+  out_ <- trust::trust(objfun = SSEtrust, parinit = log(lambda_[pen.control$lambda.auto]), rinit = 1, rmax = 5,
                        fterm = sqrt(.Machine$double.eps), iterlim = 100,
-                       bt = b, grat = gra, hest = hes, rbt = rb, pmlt = pen.control, Yt = Y)
+                       bt = b, grat = gra, hest = hes, rbt = rb, bpt = bp, pmlt = pen.control, Yt = Y)
 
-  return(list(lambda = exp(out__$arg), miditer = out__$iter, sse = out__$value))
+  lambda_[pen.control$lambda.auto] <- exp(out_$arg)
+  return(list(lambda = lambda_, miditer = out_$iter, sse = out_$value))
 }
 
 GAIC <- function(mod){
@@ -624,4 +578,11 @@ GBIC <- function(mod){
       GIC <- -2*ll + log(mod$n)*sum(diag(iH%*%H))
     }
   return(GIC)
+}
+
+fixrb <- function(rb,b,tolb){
+  for(i in names(b)){
+    rb[[i]] <- (rb[[i]] & !(abs(b[[i]]) <= tolb))
+  }
+  return(rb)
 }

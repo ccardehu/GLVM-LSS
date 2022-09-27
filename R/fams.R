@@ -138,7 +138,7 @@ ZIpoisson <- function(mu.link = "log", sg.link = "logit"){
     dvy <- list(mu = NULL, sg = NULL)
     if(info == "Fisher"){
       dvy$mu = sapply(1:qp, function(r){ (1-u(y,mu[r],sg[r])) * (-1/mu[r]) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2 } )
-      dvy$sg = sapply(1:qp, function(r){ 1/(sg[r]*(sg[r]-1)) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2 } )
+      dvy$sg = sapply(1:qp, function(r){ rep(1/(sg[r]*(sg[r]-1)) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2 , length(y)) } )
     } else {
       dvy$mu = sapply(1:qp, function(r){ ( (1-u(y,mu[r],sg[r]))*(-y/mu[r]^2) * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2
                                             + dv1Y$mu[,r] ) } )

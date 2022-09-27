@@ -3,8 +3,9 @@ prep_cont <- function(){
   # ~~~~~~~~~~~~~~~~
   con <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
               EM_appHess = F, EM_lrate = 0.001, est.ci = T,
-              solver = "L-BFGS-B", start.val = NULL, mat.info = "Hessian", lazytrust = F,
-              iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE,
+              solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
+              iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
+              corr.lv = FALSE,
               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
               verbose = FALSE, autoL_iter = 30, f.scores = F,
               penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
@@ -44,7 +45,7 @@ prep_Z <- function(){
   # ~~~~~~~~~~~~~~~
   lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
   lvar <- grep("Z", lvar, fixed = T, value = T)
-  if(length(lvar) == 0) stop("\n Latent variables in formula should be represented by letter Z (capital)")
+  if(length(lvar) == 0) stop("\n Latent variables in formula should be represented by capital letter Z")
   return(length(lvar))
 }
 
@@ -85,35 +86,58 @@ prep_stva <- function(){
   
   # Constraints matrices (for each parameter)
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  if(!is.null(control$iden.res)){
-    if(length(control$iden.res) == 1 & control$iden.res[1] == "none"){
-      rb <- b
+  if(is.null(control$iden.res)){
+    if(q == 1){
+      rb <- penb <- b
       for(i in 1:length(b)){
-        if(any(!grepl("(Intercept)", colnames(b[[i]]), fixed = T))){
-        tmp <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
-        b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- tmp[,ncol(tmp):1]
-        rb[[i]] <- !is.na(rb[[i]])} else {b[[i]] <- b[[i]]; rb[[i]] <- !is.na(rb[[i]])}
-      }
-      b <-  list(b = b, rb = rb)   
-    } else {
-      if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter','item','restricted variable',value)")
-      b <- rmat(control$iden.res,b) }
+        rb[[i]] <- penb[[i]] <- !is.na(rb[[i]])
+        penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F 
+        penb[[i]][1,2] <- F }
+      b <-  list(b = b, rb = rb, penb = penb)
+      return(b) }
+    if(control$verbose & q != 1) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
+    control$iden.res <- "recursive" }
+  if(is.character(control$iden.res)){
+    if(!control$iden.res %in% c("orthogonal", "eiv", "recursive")) stop("Argument 'control$iden.res' should be one of c(orthogonal, eiv, recursive).")
+    if(control$iden.res == "orthogonal"){
+      rb <- penb <- b
+      for(i in 1:length(b)){
+        b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
+        rb[[i]] <- penb[[i]] <- !is.na(rb[[i]])
+        penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F } }
+    if(control$iden.res == "eiv"){
+      rb <- penb <- b
+      for(i in 1:length(b)){
+        for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
+        rb[[i]] <- penb[[i]] <- b[[i]] != 0 
+        penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F 
+        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F } }
+    if(control$iden.res == "recursive"){
+      rb <- penb <- b
+      for(i in 1:length(b)){
+        b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")][upper.tri(b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")])] <- 0
+        rb[[i]] <- penb[[i]] <- b[[i]] != 0 
+        penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F
+        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F} }
+    b <-  list(b = b, rb = rb, penb = penb)
   } else {
-    if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variables identification restrictions.")
-    # if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
-    rb <- b
-    for(i in 1:length(b)){
-      rb[[i]] <- !is.na(rb[[i]])
-      for(r in 1:q){
-        b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0
-        # b[[i]][cbind(F,upper.tri(b[[i]][,!colnames(b[[i]]) %in% "(Intercept)"]))] <- 0
-        #? if(r == 1){ # new
-        rb[[i]][r,!grepl(paste0("Z",r), colnames(rb[[i]])) & !grepl("(Intercept)", colnames(rb[[i]]))] <- F
-        #? } else rb[[i]][r, !grepl("(Intercept)", colnames(rb[[i]]))] <- F # new
-        # rb[[i]] <- b[[i]] != 0
-      }
+    if(q == 1){
+      if(control$verbose) cat("\n Argument 'control$iden.res' not needed for one-factor models (q == 1).")
+      rb <- penb <- b
+      for(i in 1:length(b)){
+        rb[[i]] <- penb[[i]] <- !is.na(rb[[i]])
+        penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F 
+        penb[[i]][1,2] <- F }
+      b <-  list(b = b, rb = rb, penb = penb)
+      return(b) }
+    if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
+    b <- rmat(control$iden.res,b) }
+  # Sign
+  # ~~~~
+  for(r in names(b$b)){
+    for(j in which(grepl("Z",colnames(b$b[[r]])))){
+      if(b$b[[r]][,j][b$b[[r]][,j] != 0][1] < 0) b$b[[r]][,j] <- -b$b[[r]][,j]
     }
-    b <- list(b = b, rb = rb) 
   }
   return(b)
 }
@@ -167,33 +191,36 @@ sim_stva <- function(){
     b <- control$start.val }
   # Constraints matrices (for each parameter)
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  if(!is.null(control$iden.res)){
-    if(control$iden.res == "none"){
+  if(is.null(control$iden.res)){
+    if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
+    control$iden.res <- "recursive" }
+  if(is.character(control$iden.res)){
+    if(!control$iden.res %in% c("orthogonal", "eiv", "recursive")) stop("Argument 'control$iden.res' should be one of c(orthogonal, eiv, recursive).")
+    if(control$iden.res == "orthogonal"){
       rb <- b
       for(i in 1:length(b)){
-        # b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
-        rb[[i]] <- !is.na(rb[[i]])
-      }
-      b <-  list(b = b, rb = rb)   
-    } else {
+        b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
+        rb[[i]] <- !is.na(rb[[i]]) } }
+    if(control$iden.res == "eiv"){
+      rb <- b
+      for(i in 1:length(b)){
+        for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
+        rb[[i]] <- b[[i]] != 0 } }
+    if(control$iden.res == "recursive"){
+      rb <- b
+      for(i in 1:length(b)){
+        b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")][upper.tri(b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")])] <- 0
+        rb[[i]] <- b[[i]] != 0 } }
+    b <-  list(b = b, rb = rb)
+  } else {
     if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
     b <- rmat(control$iden.res,b) }
-  } else {
-    if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variables identification restrictions.")
-    rb <- b
-    for(i in 1:length(b)){ 
-      for(r in 1:q){
-        b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0
-        rb[[i]] <- b[[i]] != 0}
-    }
-    b <- list(b = b, rb = rb) 
-  }
   # Sign
   # ~~~~
   for(r in names(b$b)){
-    for(j in which(grepl("Z",colnames(b$b[[r]])))){
-      c <- as.integer(substr(colnames(b$b[[r]])[j],nchar(colnames(b$b[[r]])[j]),nchar(colnames(b$b[[r]])[j])))
-      if(b$b[[r]][c,j] < 0) b$b[[r]][,j] <- -b$b[[r]][,j]
-    } }
+   for(j in which(grepl("Z",colnames(b$b[[r]])))){
+     if(b$b[[r]][,j][b$b[[r]][,j] != 0][1] < 0) b$b[[r]][,j] <- -b$b[[r]][,j]
+   }
+  }
   return(b)
 }
