@@ -10,36 +10,48 @@ source("R/misc.R")
 source("R/simC1.R")
 source("R/simC2.R")
 
-n = 500     # Number of individuals
-# nsim = 1000  # Number of simulations
-
+n = 1000     # Number of individuals
+# # nsim = 1000  # Number of simulations
+# 
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # Simulation 1: Heteroscedastic Normal model:
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# p = 10
-# famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Normal()}
-# lc <- NULL
-# lc$mu <- matrix(1,ncol = 3, nrow = p)
-# lc$sigma <- matrix(1, ncol = 3, nrow = p)
-# lc$mu[,1] <- runif(p,1,2)
-# lc$mu[,c(2,3)] <- runif(length(lc$mu[,c(2,3)]),0.5,1.5) * sample(c(-1,1),size = 2*p,replace = T)
-# lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# # For sparse factor loading matrices:
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# lc$mu[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
-# for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.3)*lc$mu[i,3] }
-# lc$sigma[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
-# for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.3)*lc$sigma[i,3] }
-# # # ~~~~~~~~~~~~
-# # # Simulations:
-# # # ~~~~~~~~~~~~
-# AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T)
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T,
-#               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
+p = 10
+famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Normal()}
+lc <- NULL
+lc$mu <- matrix(1,ncol = 3, nrow = p)
+lc$sigma <- matrix(1, ncol = 3, nrow = p)
+lc$mu[,1] <- runif(p,1,2)
+lc$mu[,c(2,3)] <- runif(length(lc$mu[,c(2,3)]),0.5,1.5) * sample(c(-1,1),size = 2*p,replace = T)
+lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For sparse factor loading matrices:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+lc$mu[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
+for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.3)*lc$mu[i,3] }
+lc$sigma[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
+for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.3)*lc$sigma[i,3] }
+# # ~~~~~~~~~~~~
+# # Simulations:
+# # ~~~~~~~~~~~~
+AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,-.45,-.45,1),nrow = 2), iden.res = "eiv")
+AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T)
+AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T,
+              penalty = "alasso", lambda = "auto", w.alasso = AB$b)
+AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv")
+AE <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, iden.res = "eiv",
+              penalty = "alasso", lambda = "auto", w.alasso = AD$b, corr.lv = T)
+
+round(c(AB$loglik,AC$unploglik,AD$loglik,AE$unploglik),3)
+
+round(cbind(AA$b$mu,AB$b$mu,AC$b$mu,AD$b$mu,AE$b$mu),3)
+round(cbind(AA$b$si,AB$b$si,AC$b$si,AD$b$si,AE$b$si),3)
+
+round(cbind(AA$Rz,AB$Rz,AC$Rz,AD$Rz,AE$Rz),3)
+AB$GBIC; AC$GBIC; AD$GBIC; AE$GBIC
+
 
 # round(cbind(AA$b$mu,AB$b$mu,AC$b$mu),4)
 # round(cbind(AA$b$si,AB$b$si,AC$b$si),4)
@@ -49,13 +61,14 @@ n = 500     # Number of individuals
 # AC$sse;# AD$sse
 
 # data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = ~ Z1+Z2;ta.eq = NULL; nu.eq = NULL;
-# control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
-#               EM_appHess = F, EM_lrate = 0.001, est.ci = T,
-#               solver = "trust", start.val = NULL, mat.info = "Hessian",
-#               iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE, tolb = 1e-4,
-#               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
-#               verbose = TRUE, autoL_iter = 30,
-#               penalty = "alasso", lambda = "auto", w.alasso = AB$b, gamma = NULL, a = NULL, lazytrust = F)
+# control <- list(EM_iter = 50, EM_use2d = T, iter.lim = 300,
+#             EM_appHess = F, EM_lrate = 0.001, est.ci = T,
+#             solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
+#             iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
+#             corr.lv = T, Rz = NULL,
+#             nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
+#             verbose = T, autoL_iter = 30, f.scores = F,
+#             penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
 
 # r1 <- NULL
 # for(p in c(5,10,20)){
@@ -68,9 +81,9 @@ n = 500     # Number of individuals
 # }; r1; rm(r1)
  
 # r1 <- NULL
-# for(p in c(10)){
+# for(p in c(10,20)){
 #   for(n in c(200,500,1000)){
-#     r2 <- glvmlss_parsimpost_pml2(paste0("R/C2E1n",n,"p",p,".Rds"),
+#     r2 <- glvmlss_parsimpost_pml(paste0("R/C2E1n",n,"p",p,"_HetLFM.Rds"),
 #                                  out = c("MSE","AB","PVS","lambda"),
 #                                  mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2)
 #     r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
@@ -191,16 +204,30 @@ n = 500     # Number of individuals
 # # # Simulations:
 # # # ~~~~~~~~~~~~
 # AA <- glvmlss_sim(n, famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = lc)
-# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T)
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T,
+# A0 <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ 1, verbose = T, f.scores = T)
+# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T, f.scores = T)
+# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T, f.scores = T,
 #               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
-# 
+#   
 # round(cbind(AA$b$mu,AB$b$mu,AC$b$m),4)
 # round(cbind(AA$b$s,AB$b$s,AC$b$s),4)
-# AB$GBIC; AC$GBIC
-# AB$GAIC; AC$GAIC
+# 
+# round(cbind(AB$SE$mu,AC$S$m),4)
+# round(cbind(AB$SE$s,AC$S$s),4)
+# 
+# A0$GBIC; AB$GBIC; AC$GBIC
+# A0$GAIC; AB$GAIC; AC$GAIC
 # AC$lambda
 # AC$sse
+# 
+# hist(A0$f.scores$Z1, breaks = 25, freq = F); lines(density(c(A0$f.scores$Z1)), col = 2)
+# hist(AB$f.scores$Z1, breaks = 25, freq = F); lines(density(c(AB$f.scores$Z1)), col = 2)
+# hist(AC$f.scores$Z1, breaks = 25, freq = F); lines(density(c(AC$f.scores$Z1)), col = 2)
+# 
+# confintr::ci_cor(AA$Z$Z1,A0$f.scores$Z1, method = "kendall", type = c("bootstrap"))
+# confintr::ci_cor(AA$Z$Z1,AB$f.scores$Z1, method = "kendall", type = c("bootstrap"))
+# confintr::ci_cor(AA$Z$Z1,AC$f.scores$Z1, method = "kendall", type = c("bootstrap"))
+
 
 # testm <- function(x){  return(plogis(lc$mu[item,][1] + lc$mu[item,][2]*x)) }
 # tests <- function(x){  return(plogis(lc$sigma[item,][1] + lc$sigma[item,][2]*x)) }
@@ -225,55 +252,44 @@ n = 500     # Number of individuals
 #               penalty = "alasso", lambda = "auto", w.alasso = AB$b, gamma = NULL, a = NULL)
 
 # r1 <- NULL
-# for(p in c(5,10,20)){
+# for(p in c(10,20)){
 #   for(n in c(200,500,1000,5000)){
-#     r2 <- glvmlss_parsimpost(paste0("R/DefSim/C1E3n",n,"p",p,".Rds"),
-#                              out = c("PVS","MSE","AB"), trim = 0.0,
+#     r2 <- glvmlss_parsimpost(paste0("R/C1E3n",n,"p",p,"_HetBFM.Rds"),
+#                              out = c("PVS","MSE","AB","iter"), trim = 0.0,
 #                              mu.eq = ~ Z1, sg.eq = ~ Z1, plot = T, outs = F)
 #     r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
 #   };
-# }; r1; rm(r1)
+# }; round(r1,4); #rm(r1)
+#  
+# r1 <- NULL
+# for(p in c(10,20)){
+#   for(n in c(200,500,1000)){
+#     r2 <- glvmlss_parsimpost_pml(paste0("R/C2E3n",n,"p",p,"_HetBFM.Rds"),
+#                              out = c("MSE","AB","lambda", "PVS"),
+#                              mu.eq = ~ Z1, sg.eq = ~ Z1)
+#     r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
+#   };
+# }; round(r1,4);#rm(r1)
 
-r1 <- NULL
-for(p in c(20)){
-  for(n in c(1000)){
-    r2 <- glvmlss_parsimpost_pml2(paste0("R/C2E3n",n,"p",p,".Rds"),
-                             out = c("PVS","MSE","AB","lambda"), trim = 0.0,
-                             mu.eq = ~ Z1, sg.eq = ~ Z1)
-    r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
-  };
-}; round(r1,4);#rm(r1)
 
-ulim <- 0.07
 
-plot(x = colMeans(XSeg0,na.rm = T), y = apply(Xbeg0,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "MLE",
-     ylim = c(0,ulim), xlim = c(0,ulim))
-abline(a = 0,b = 1, col = 2)
 
-plot(x = colMeans(XSeg1,na.rm = T), y = apply(Xbeg1,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 1",
-     ylim = c(0,ulim), xlim = c(0,ulim))
-abline(a = 0,b = 1, col = 2)
-
-plot(x = colMeans(XSeg2,na.rm = T), y = apply(Xbeg2,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 2",
-     ylim = c(0,ulim), xlim = c(0,ulim))
-abline(a = 0,b = 1, col = 2)
-
-plot(x = colMeans(XSegf,na.rm = T), y = apply(Xbegf,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = log(n)/2",
-     ylim = c(0,ulim), xlim = c(0,ulim))
-abline(a = 0,b = 1, col = 2)
-
-plot(x = colMeans(XSeg3,na.rm = T), y = apply(Xbeg3,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 3",
-     ylim = c(0,ulim), xlim = c(0,ulim))
-abline(a = 0,b = 1, col = 2)
-
-plot(x = colMeans(XSeg4,na.rm = T), y = apply(Xbeg4,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 4",
-     ylim = c(0,ulim), xlim = c(0,ulim))
-abline(a = 0,b = 1, col = 2)
- 
-# hist(Xbegf[,"mu7.1"], breaks = 25)
-# abline(v = mean(Xbegf[,"mu7.1"], na.rm = T) + sd(Xbegf[,"mu7.1"], na.rm = T), col = 2, lty = 2, lwd = 2)
-# abline(v = mean(Xbegf[,"mu7.1"], na.rm = T) - sd(Xbegf[,"mu7.1"], na.rm = T), col = 2, lty = 2, lwd = 2)
-# abline(v = mean(Xbegf[,"mu7.1"], na.rm = T) + mean(XSegf[,"mu7.1"], na.rm = T), col = 3, lwd = 2, lty = 2)
-# abline(v = mean(Xbegf[,"mu7.1"], na.rm = T) - mean(XSegf[,"mu7.1"], na.rm = T), col = 3, lwd = 2, lty = 2)
-# 
-# hist(XSegf[,"mu7.1"], breaks = 25)
+# ulim <- 0.07
+# plot(x = colMeans(XSeg0,na.rm = T), y = apply(Xbeg0,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "MLE",
+#      ylim = c(0,ulim), xlim = c(0,ulim))
+# abline(a = 0,b = 1, col = 2)
+# plot(x = colMeans(XSeg1,na.rm = T), y = apply(Xbeg1,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 1",
+#      ylim = c(0,ulim), xlim = c(0,ulim))
+# abline(a = 0,b = 1, col = 2)
+# plot(x = colMeans(XSeg2,na.rm = T), y = apply(Xbeg2,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 2",
+#      ylim = c(0,ulim), xlim = c(0,ulim))
+# abline(a = 0,b = 1, col = 2)
+# plot(x = colMeans(XSeg3,na.rm = T), y = apply(Xbeg3,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 3",
+#      ylim = c(0,ulim), xlim = c(0,ulim))
+# abline(a = 0,b = 1, col = 2)
+# plot(x = colMeans(XSeg4,na.rm = T), y = apply(Xbeg4,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 4",
+#      ylim = c(0,ulim), xlim = c(0,ulim))
+# abline(a = 0,b = 1, col = 2)
+# plot(x = colMeans(XSeg5,na.rm = T), y = apply(Xbeg5,2,sd,na.rm = T), col = as.factor(Xb0[1,] == 0), pch = 16, ylab = "Empirical SE", xlab = "Estimated (Asymptotic) SE", main = "Gamma = 5",
+#      ylim = c(0,ulim), xlim = c(0,ulim))
+# abline(a = 0,b = 1, col = 2)

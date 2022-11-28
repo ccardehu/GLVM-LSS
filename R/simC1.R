@@ -1,59 +1,61 @@
 glvmlss_parsimE1 <- function(nsim, saveRes = T){
-  cores <- parallel::detectCores()
+  cores <- ifelse(parallel::detectCores() > 32, 32, parallel::detectCores())
   cl <- parallel::makeCluster(cores)
+  clusterExport(cl, ls(.GlobalEnv))
   doSNOW::registerDoSNOW(cl)
   progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
   opts <- list(progress = progress)
   FCOL <- suppressWarnings(
     foreach(l = 1:nsim,
             .combine = rbind,
-            .options.snow = opts,
-            .export = ls(parent.frame()) ) %dopar% {
+            .options.snow = opts) %dopar% { # , .export = ls(parent.frame()) 
               tryCatch({
+                
+                set.seed(l)
                 A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
                 c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
-                             nQP = 25, solver = "trust")
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25)
                 c1 <- Sys.time()
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
                 ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
                 return(c(cof,ex2)) },
                 error = function(e) { return(NA) }  ) } )
   stopCluster(cl)
-  if(saveRes) saveRDS(FCOL, file = paste0("E1n",n, "p", p,"_",Sys.Date(),".Rds"))
+  if(saveRes) saveRDS(FCOL, file = paste0("C1E1n",n, "p", p,"_",Sys.Date(),".Rds"))
   return(FCOL)
 }
 
 glvmlss_parsimE2 <- function(nsim, saveRes = T){
-  cores <- parallel::detectCores()
+  cores <- ifelse(parallel::detectCores() > 32, 32, parallel::detectCores())
   cl <- parallel::makeCluster(cores)
+  clusterExport(cl, ls(.GlobalEnv))
   doSNOW::registerDoSNOW(cl)
   progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
   opts <- list(progress = progress)
   FCOL <- suppressWarnings(
     foreach(l = 1:nsim,
             .combine = rbind,
-            .options.snow = opts,
-            .export = ls(parent.frame()) ) %dopar% {
+            .options.snow = opts) %dopar% { #, .export = ls(parent.frame()) 
               tryCatch({
+                
+                set.seed(l)
                 A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
                 c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b,
-                             nQP = 25, solver = "trust")
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25)
                 c1 <- Sys.time()
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
                 ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
                 return(c(cof,ex2)) },
                 error = function(e) { return(NA) }  ) } )
   stopCluster(cl)
-  if(saveRes) saveRDS(FCOL, file = paste0("E2n",n, "p", p,"_",Sys.Date(),".Rds"))
+  if(saveRes) saveRDS(FCOL, file = paste0("C1E2n",n, "p", p,"_",Sys.Date(),".Rds"))
   return(FCOL)
 }
 
 glvmlss_parsimE3 <- function(nsim, saveRes = T){
-  cores <- parallel::detectCores()
+  cores <- ifelse(parallel::detectCores() > 32, 32, parallel::detectCores())
   cl <- parallel::makeCluster(cores)
-  parallel::clusterExport(cl,ls(parent.frame()))
+  clusterExport(cl, ls(.GlobalEnv))
   doSNOW::registerDoSNOW(cl)
   progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
   opts <- list(progress = progress)
@@ -62,17 +64,18 @@ glvmlss_parsimE3 <- function(nsim, saveRes = T){
             .combine = rbind,
             .options.snow = opts) %dopar% { # .export = ls(parent.frame()),
               tryCatch({
+                
+                set.seed(l)
                 A <- glvmlss_sim(n,famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = lc)
                 c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = A$b,
-                             nQP = 40, solver = "trust")
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nQP = 40)
                 c1 <- Sys.time()
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
                 ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
                 return(c(cof,ex2)) },
                 error = function(e) { return(NA) }  ) } )
   stopCluster(cl)
-  if(saveRes) saveRDS(FCOL, file = paste0("E3n",n, "p", p,"_",Sys.Date(),".Rds"))
+  if(saveRes) saveRDS(FCOL, file = paste0("C1E3n",n, "p", p,"_",Sys.Date(),".Rds"))
   return(FCOL)
 }
 
@@ -90,9 +93,9 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   form <- prep_form()
   environment(prep_Z) <- environment()
   q <- prep_Z()
-  p <- as.numeric(sub(".Rds.*","",sub(".*p","", file)))
-  EX <- as.numeric(sub(".*R/DefSim/C1E","",sub("n.*","", file)))
-  n <- as.numeric(sub("p.*","",sub(".*n","", file)))
+  # p <- as.numeric(sub(".Rds.*","",sub(".*p","", file)))
+  EX <- as.numeric(sub(".*R/C1E","",sub("n.*","", file)))
+  # n <- as.numeric(sub("p.*","",sub(".*n","", file)))
   
   nam <- NULL
   for(i in names(form)){ nam <- rbind(nam,expand.grid(i,1:p,stringsAsFactors = F)) }
@@ -106,7 +109,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   }; rm(nam)
   
   ip <- !grepl(".0",nM,fixed = T)
-  if(q != 1) li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1","tau1.2","tau2.1","nu1.2","nu2.1") else li1 <- c("NA")
+  if(q != 1) li1 <- c("mu1.2","sigma1.2","tau1.2","nu1.2") else li1 <- c("NA") # Depends on the type of identification!
   li2 <- lapply(li1, function(i) !grepl(i,nM))
   for(i in 1:length(li2)){ ip <- ip & li2[[i]]}; names(ip) <- nM; rm(list=c("li1","li2"))
   ip[grepl(".0",nM,fixed = T)] <- T; nM <- nM[ip];
@@ -122,7 +125,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   X  <- X[complete.cases(X),]; X <- X[apply(X,1,min)!=-999, ]
   ix <- mean(X[,ncol(X)])
   X <- X[,-ncol(X)]
-  rR <- !(X[,ncol(X)] >= 300)
+  rR <- !(X[,ncol(X)] == 330)
   Xb0 <- X[rR,seq_len(ix[1])[ip]]; colnames(Xb0) <- nM ;
   Xbe <- X[rR,((ix[1]+1):(2*ix[1]))[ip]]; colnames(Xbe) <- nM
   Xit <- X[, max((ix[1]+1):(2*ix[1]))+2]
@@ -169,7 +172,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   
   if("iter" %in% out){ nam <- c(names(res),"AvIter"); res <- c(res,mean(Xit)); names(res) <- nam }
   if("time" %in% out){ nam <- c(names(res),"AvTime"); res <- c(res,mean(Xti)); names(res) <- nam }
-  if("PVS" %in% out){ nam <- c("PVS",names(res)); res <- c(nrow(X)/nrow(Xor),res); names(res) <- nam }
+  if("PVS" %in% out){ nam <- c("PVS",names(res)); res <- c(nrow(Xbe)/nrow(Xor),res); names(res) <- nam }
   
   if(plot){
     nid <- NULL
@@ -191,6 +194,6 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
     }
   }
   
-  return(c(round(res,4)))
+  return(res)
   # return(c(format(round(res,4),nsmall = 4,scientific = F)))
 }

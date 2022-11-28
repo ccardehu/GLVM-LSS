@@ -14,7 +14,7 @@ glvmlss_parsimE1_pml <- function(nsim, saveRes = T){
                 set.seed(l)
                 A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
                 
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = A$b)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2)
                 
                 C1a <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = B$b,
                                penalty = "alasso", lambda = "auto", w.alasso = B$b, gamma = 1)
@@ -31,6 +31,7 @@ glvmlss_parsimE1_pml <- function(nsim, saveRes = T){
                 sds <- c(lb2cb(B$S), lb2cb(C1a$S), lb2cb(C1b$S), lb2cb(C1c$S), lb2cb(C1d$S), lb2cb(C1e$S))
                 ex2 <- c(B$GBIC, C1a$GBIC, C1b$GBIC, C1c$GBIC, C1d$GBIC, C1e$GBIC,
                          B$conv, C1a$conv, C1b$conv, C1c$conv, C1d$conv, C1e$conv,
+                         B$iter, C1a$iter, C1b$iter, C1c$iter, C1d$iter, C1e$iter,
                          c(C1a$lambdahat), c(C1b$lambdahat), c(C1c$lambdahat),
                          c(C1d$lambdahat), c(C1e$lambdahat), l, length(lb2cb(B$b)))
                 
@@ -57,7 +58,7 @@ glvmlss_parsimE2_pml <- function(nsim, saveRes = T){
                 set.seed(l)
                 A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, start.val = lc)
                 
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, start.val = A$b)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2)
                 
                 C1a <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, start.val = B$b,
                                penalty = "alasso", lambda = "auto", w.alasso = B$b, gamma = 1)
@@ -74,6 +75,7 @@ glvmlss_parsimE2_pml <- function(nsim, saveRes = T){
                 sds <- c(lb2cb(B$S), lb2cb(C1a$S), lb2cb(C1b$S), lb2cb(C1c$S), lb2cb(C1d$S), lb2cb(C1e$S))
                 ex2 <- c(B$GBIC, C1a$GBIC, C1b$GBIC, C1c$GBIC, C1d$GBIC, C1e$GBIC,
                          B$conv, C1a$conv, C1b$conv, C1c$conv, C1d$conv, C1e$conv,
+                         B$iter, C1a$iter, C1b$iter, C1c$iter, C1d$iter, C1e$iter,
                          c(C1a$lambdahat), c(C1b$lambdahat), c(C1c$lambdahat),
                          c(C1d$lambdahat), c(C1e$lambdahat), l, length(lb2cb(B$b)))
                 
@@ -100,7 +102,7 @@ glvmlss_parsimE3_pml <- function(nsim, saveRes = T){
                 set.seed(l)
                 A <- glvmlss_sim(n, famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = lc)
                 
-                B <- glvmlss(data = A$Y, family = famt,mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = A$b)
+                B <- glvmlss(data = A$Y, family = famt,mu.eq = ~ Z1, sg.eq = ~ Z1)
                 
                 C1a <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = B$b,
                                penalty = "alasso", lambda = "auto", w.alasso = B$b, gamma = 1)
@@ -117,6 +119,7 @@ glvmlss_parsimE3_pml <- function(nsim, saveRes = T){
                 sds <- c(lb2cb(B$S), lb2cb(C1a$S), lb2cb(C1b$S), lb2cb(C1c$S), lb2cb(C1d$S), lb2cb(C1e$S))
                 ex2 <- c(B$GBIC, C1a$GBIC, C1b$GBIC, C1c$GBIC, C1d$GBIC, C1e$GBIC,
                          B$conv, C1a$conv, C1b$conv, C1c$conv, C1d$conv, C1e$conv,
+                         B$iter, C1a$iter, C1b$iter, C1c$iter, C1d$iter, C1e$iter,
                          c(C1a$lambdahat), c(C1b$lambdahat), c(C1c$lambdahat),
                          c(C1d$lambdahat), c(C1e$lambdahat), l, length(lb2cb(B$b)))
                 
@@ -126,7 +129,6 @@ glvmlss_parsimE3_pml <- function(nsim, saveRes = T){
   if(saveRes) saveRDS(FCOL, file = paste0("C2E3n",n, "p", p,".Rds"))
   return(FCOL)
 }
-
 
 glvmlss_parsimpost_pml <- function(file,
                                    out = c("MSE","AB"), dgs = 1,
@@ -139,8 +141,7 @@ glvmlss_parsimpost_pml <- function(file,
   form <- prep_form()
   environment(prep_Z) <- environment()
   q <- prep_Z()
-  p <- as.numeric(sub(".Rds.*","", sub(".*0p","", file)))
-
+  
   nam <- NULL
   for(i in names(form)){ nam <- rbind(nam,expand.grid(i,1:p,stringsAsFactors = F)) }
   nam <- unlist(lapply(1:nrow(nam),function(i) paste0(nam[i,], collapse = "")))
@@ -153,7 +154,8 @@ glvmlss_parsimpost_pml <- function(file,
   }; #rm(nam)
   
   ip <- !grepl(".0",nM,fixed = T)
-  if(q != 1) li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1","tau1.2","tau2.1","nu1.2","nu2.1") else li1 <- c("NA")
+  # if(q != 1) li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1","tau1.2","tau2.1","nu1.2","nu2.1") else li1 <- c("NA")
+  if(q != 1) li1 <- c("mu1.2","sigma1.2","tau1.2","nu1.2") else li1 <- c("NA") # Depends on the type of identification!
   li2 <- lapply(li1, function(i) !grepl(i,nM))
   for(i in 1:length(li2)){ ip <- ip & li2[[i]]}; names(ip) <- nM; rm(list=c("li1","li2"))
   ip[grepl(".0",nM,fixed = T)] <- T; nM <- nM[ip];
@@ -165,17 +167,21 @@ glvmlss_parsimpost_pml <- function(file,
     assign(paste0("ip",i), tmp); #rm(tmp)
   }
   
-  abc <- c(1,2,3,4,"f") # Influence factor values
+  abc <- c(1,2,3,4,5) # Influence factor values
   Xor <- X
   ix <- mean(X[,ncol(X)], na.rm = T)
   X <- X[,-ncol(X)]
-  X  <- X[!is.na(X[,ncol(X)]),];
-  # Xseed <- setdiff(1:nrow(Xor), X[,ncol(X)])
-  X <- X[,-ncol(X)] # -Xseed
+  probseedX <- is.na(X[,ncol(X)])
+  X  <- X[!probseedX,];
+  X <- X[,-ncol(X)]
   
   Xl <- X[,(ncol(X)-(length(form)*5)+1):ncol(X)]
   colnames(Xl) <- c(outer(paste0("lambda_",names(form)),abc,paste0))
   X <- X[,-((ncol(X)-(length(form)*5)+1):ncol(X))]
+  
+  Xi <- X[,(ncol(X)-5):ncol(X)]
+  colnames(Xi) <- paste0("iter_",c(0,abc))
+  X <- X[,-((ncol(X)-5):ncol(X))]
   
   Xc <- X[,(ncol(X)-5):ncol(X)]
   colnames(Xc) <- paste0("conv",c(0,abc))
@@ -187,18 +193,18 @@ glvmlss_parsimpost_pml <- function(file,
   Xbeg2 <- X[Xc[,"conv2"] == 1, ((3*ix[1]+1):(4*ix[1]))[ip]]; colnames(Xbeg2) <- nM
   Xbeg3 <- X[Xc[,"conv3"] == 1, ((4*ix[1]+1):(5*ix[1]))[ip]]; colnames(Xbeg3) <- nM
   Xbeg4 <- X[Xc[,"conv4"] == 1, ((5*ix[1]+1):(6*ix[1]))[ip]]; colnames(Xbeg4) <- nM
-  Xbegf <- X[Xc[,"convf"] == 1, ((6*ix[1]+1):(7*ix[1]))[ip]]; colnames(Xbegf) <- nM
+  Xbeg5 <- X[Xc[,"conv5"] == 1, ((6*ix[1]+1):(7*ix[1]))[ip]]; colnames(Xbeg5) <- nM
   
   XSeg0 <- X[Xc[,"conv0"] == 1, ((7*ix[1]+1):(8*ix[1]))[ip]]; colnames(XSeg0) <- nM
   XSeg1 <- X[Xc[,"conv1"] == 1, ((8*ix[1]+1):(9*ix[1]))[ip]]; colnames(XSeg1) <- nM
   XSeg2 <- X[Xc[,"conv2"] == 1, ((9*ix[1]+1):(10*ix[1]))[ip]]; colnames(XSeg2) <- nM
   XSeg3 <- X[Xc[,"conv3"] == 1, ((10*ix[1]+1):(11*ix[1]))[ip]]; colnames(XSeg3) <- nM
   XSeg4 <- X[Xc[,"conv4"] == 1, ((11*ix[1]+1):(12*ix[1]))[ip]]; colnames(XSeg4) <- nM
-  XSegf <- X[Xc[,"convf"] == 1, ((12*ix[1]+1):(13*ix[1]))[ip]]; colnames(XSegf) <- nM
+  XSeg5 <- X[Xc[,"conv5"] == 1, ((12*ix[1]+1):(13*ix[1]))[ip]]; colnames(XSeg5) <- nM
   
   XGBIC <- X[, seq(from = (13*ix[1])+1, length.out = 6)]
   colnames(XGBIC) <- c("GBICg0","GBICg1","GBICg2",
-                       "GBICg3","GBICg4","GBICgf")
+                       "GBICg3","GBICg4","GBICg5")
   
   imu0 <- grepl("mu",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
   imul <- grepl("mu",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
@@ -244,7 +250,7 @@ glvmlss_parsimpost_pml <- function(file,
       assign(paste0("AvMSEg2",ii), mean(colMeans((Xb0[Xc[,"conv2"] == 1, ili[[ii]]] - Xbeg2[,ili[[ii]]])^2)))
       assign(paste0("AvMSEg3",ii), mean(colMeans((Xb0[Xc[,"conv3"] == 1, ili[[ii]]] - Xbeg3[,ili[[ii]]])^2)))
       assign(paste0("AvMSEg4",ii), mean(colMeans((Xb0[Xc[,"conv4"] == 1, ili[[ii]]] - Xbeg4[,ili[[ii]]])^2)))
-      assign(paste0("AvMSEgf",ii), mean(colMeans((Xb0[Xc[,"convf"] == 1, ili[[ii]]] - Xbegf[,ili[[ii]]])^2)))
+      assign(paste0("AvMSEg5",ii), mean(colMeans((Xb0[Xc[,"conv5"] == 1, ili[[ii]]] - Xbeg5[,ili[[ii]]])^2)))
     }
     
     if("AB" %in% out){
@@ -253,7 +259,7 @@ glvmlss_parsimpost_pml <- function(file,
       assign(paste0("AvABg2",ii), mean(abs(colMeans(Xb0[Xc[,"conv2"] == 1, ili[[ii]]] - Xbeg2[,ili[[ii]]]))))
       assign(paste0("AvABg3",ii), mean(abs(colMeans(Xb0[Xc[,"conv3"] == 1, ili[[ii]]] - Xbeg3[,ili[[ii]]]))))
       assign(paste0("AvABg4",ii), mean(abs(colMeans(Xb0[Xc[,"conv4"] == 1, ili[[ii]]] - Xbeg4[,ili[[ii]]]))))
-      assign(paste0("AvABgf",ii), mean(abs(colMeans(Xb0[Xc[,"convf"] == 1, ili[[ii]]] - Xbegf[,ili[[ii]]]))))
+      assign(paste0("AvABg5",ii), mean(abs(colMeans(Xb0[Xc[,"conv5"] == 1, ili[[ii]]] - Xbeg5[,ili[[ii]]]))))
     }
   }
 
@@ -340,6 +346,15 @@ glvmlss_parsimpost_pml <- function(file,
       rtmp[paste0("g",i),] <- colMeans(Xl[Xc[,paste0("conv",i)] == 1, grepl(i,colnames(Xl),fixed = T), drop = F])
     }
     res <- cbind(res,rtmp); rm(rtmp)
+  }
+  
+  if("iter" %in% out){ 
+    rtmp <- matrix(NA,nrow = nrow(res), ncol = 1); rownames(rtmp) <- rownames(res)
+    colnames(rtmp) <- "Av_iter"
+    for(i in c(0,abc)){
+      rtmp[paste0("g",i),] <- mean(Xi[,i+1])
+    }
+    res <- cbind(rtmp, res); rm(rtmp)
   }
   
   return(res)

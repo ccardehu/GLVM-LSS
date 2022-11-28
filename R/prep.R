@@ -1,12 +1,12 @@
-prep_cont <- function(){
+prep_cont <- function(control,q,...){
   # Control settings
   # ~~~~~~~~~~~~~~~~
   con <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
               EM_appHess = F, EM_lrate = 0.001, est.ci = T,
               solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
               iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
-              corr.lv = FALSE,
-              nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
+              corr.lv = FALSE, Rz = NULL,
+              nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 18, 25) else 10 },
               verbose = FALSE, autoL_iter = 30, f.scores = F,
               penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
   control <- c(control, list(...))
@@ -17,7 +17,7 @@ prep_cont <- function(){
   return(con)
 }
 
-prep_form <- function(){
+prep_form <- function(mu.eq, sg.eq, ta.eq, nu.eq){
   # Formula settings
   # ~~~~~~~~~~~~~~~~
   is.formula <- function(x){ inherits(x,"formula") }
@@ -30,7 +30,7 @@ prep_form <- function(){
   return(form)
 }
 
-prep_fam <- function(){
+prep_fam <- function(family){
   # Family settings
   # ~~~~~~~~~~~~~~~
   if(!is.list(family)) stop("Argument `family' must be a list of valid distributions.")
@@ -40,7 +40,7 @@ prep_fam <- function(){
   return(family)
 }
 
-prep_Z <- function(){
+prep_Z <- function(form){
   # Factor settings
   # ~~~~~~~~~~~~~~~
   lvar <- unique(unlist(lapply(1:length(form), function(i) all.vars(form[[i]]))))
@@ -59,14 +59,17 @@ prep_Y <- function(data){
   return(Y)
 }
 
-prep_ghq <- function(){
+prep_ghq <- function(nQP,form,Rz){
   # GHQ setting
   # ~~~~~~~~~~~
-  if(control$corr.lv == T){ PsiZ <- diag(q); PsiZ[lower.tri(sigZ)] <- PsiZ[upper.tri(PsiZ)] <- 0.2 } else PsiZ <- diag(q)
-  return(mvghQ(n = control$nQP, formula = form, psi = PsiZ))
+  # Rz <- control$Rz
+  # if(control$corr.lv == T){ 
+  #   if(is.null(Rz)){ Rz <- diag(q); Rz[lower.tri(Rz)] <- Rz[upper.tri(Rz)] <- 0.5 }
+  #   } else Rz <- diag(q)
+  return(mvghQ(n = nQP, formula = form, psi = Rz))
 }
 
-prep_stva <- function(){
+prep_stva <- function(control,form,ghQ,Y,p,famL,q){
   # Starting betas
   # ~~~~~~~~~~~~~~
   if(!is.null(control$start.val)){
@@ -92,7 +95,7 @@ prep_stva <- function(){
       for(i in 1:length(b)){
         rb[[i]] <- penb[[i]] <- !is.na(rb[[i]])
         penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F 
-        penb[[i]][1,2] <- F }
+        penb[[i]][1,] <- F }
       b <-  list(b = b, rb = rb, penb = penb)
       return(b) }
     if(control$verbose & q != 1) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
@@ -102,23 +105,30 @@ prep_stva <- function(){
     if(control$iden.res == "orthogonal"){
       rb <- penb <- b
       for(i in 1:length(b)){
-        b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
+        if(ncol(b[[i]]) > 1){
+          b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u }
         rb[[i]] <- penb[[i]] <- !is.na(rb[[i]])
-        penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F } }
+        penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F
+      }
+    }
     if(control$iden.res == "eiv"){
       rb <- penb <- b
       for(i in 1:length(b)){
         for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
-        rb[[i]] <- penb[[i]] <- b[[i]] != 0 
+        rb[[i]] <- penb[[i]] <- b[[i]] != 0 & !is.na(b[[i]])
         penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F 
-        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F } }
+        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F # Not penalise loadings in diagonal (to give direction)
+      }
+    }
     if(control$iden.res == "recursive"){
       rb <- penb <- b
       for(i in 1:length(b)){
         b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")][upper.tri(b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")])] <- 0
-        rb[[i]] <- penb[[i]] <- b[[i]] != 0 
+        rb[[i]] <- penb[[i]] <- b[[i]] != 0 & !is.na(b[[i]])
         penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F
-        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F} }
+        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F # Not penalise loadings in diagonal (to give direction)
+      }
+    }
     b <-  list(b = b, rb = rb, penb = penb)
   } else {
     if(q == 1){
@@ -134,18 +144,21 @@ prep_stva <- function(){
     b <- rmat(control$iden.res,b) }
   # Sign
   # ~~~~
-  for(r in names(b$b)){
-    for(j in which(grepl("Z",colnames(b$b[[r]])))){
-      if(b$b[[r]][,j][b$b[[r]][,j] != 0][1] < 0) b$b[[r]][,j] <- -b$b[[r]][,j]
+  for(j in paste0("Z",1:q)){
+    if(j %in% colnames(b$b[[1]])){
+      if(b$b[[1]][,j][b$b[[1]][,j] != 0][1] < 0){
+        for(r in names(b$b)){
+          if(j %in% colnames(b$b[[r]])) b$b[[r]][,j] <- -b$b[[r]][,j] }
+      }
     }
   }
   return(b)
 }
 
-sim_cont <- function(){
+sim_cont <- function(control,q,...){
   # Control settings
   # ~~~~~~~~~~~~~~~~
-  con <- list(muZ = rep(0,q), PsiZ = diag(q), start.val = NULL, iden.res = NULL,
+  con <- list(muZ = rep(0,q), Rz = diag(q), start.val = NULL, iden.res = NULL,
               verbose = FALSE)
   control <- c(control, list(...))
   namC <- names(con)
@@ -155,18 +168,18 @@ sim_cont <- function(){
   return(con)
 }
 
-sim_Z <- function(){
-  if(sum(diag(control$PsiZ)) != q){ warning("Argument `control$PsiZ' standardised to a correlation matrix")
-    control$PsiZ <- diag(1/sqrt(diag(control$PsiZ)))%*%control$PsiZ%*%diag(1/sqrt(diag(control$PsiZ)))
+sim_Z <- function(control,q,n,form){
+  if(sum(diag(control$Rz)) != q){ warning("Argument `control$Rz' standardised to a correlation matrix")
+    control$Rz <- diag(1/sqrt(diag(control$Rz)))%*%control$Rz%*%diag(1/sqrt(diag(control$Rz)))
   }
-  Z <- as.data.frame(mvtnorm::rmvnorm(n, control$muZ, control$PsiZ))
+  Z <- as.data.frame(mvtnorm::rmvnorm(n, control$muZ, control$Rz))
   colnames(Z) <- paste0("Z", 1:q)
   Zmod <- vector("list", length = length(form)); names(Zmod) <- names(form)
   for(i in names(form)){ Zmod[[i]] <- as.data.frame(model.matrix(form[[i]],Z)) }
   return(list(Z = Z, Zmod = Zmod))
 }
 
-sim_stva <- function(){
+sim_stva <- function(control,p,Z,form,q){
   # Starting betas
   # ~~~~~~~~~~~~~~
   if(!is.null(control$start.val)){

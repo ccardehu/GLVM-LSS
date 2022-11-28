@@ -1,21 +1,20 @@
 glvmlss <- function(data, family = list(),
-                    mu.eq = ~ Z1 + Z2, sg.eq = NULL,
+                    mu.eq = ~ Z1, sg.eq = NULL,
                     ta.eq = NULL, nu.eq = NULL,
                     control = list(), ...){
   
   Y <- prep_Y(data)
   if(!all(Y$na.idx)) cat("\n Argument 'data' has missing values (NA): Handling with full information MML.")
   p <- ncol(Y$Y)
-  environment(prep_fam) <- environment(prep_form) <- environment()
-  famL <- prep_fam()
-  form <- prep_form()
-  environment(prep_Z) <- environment()
-  q <- prep_Z()
-  environment(prep_cont) <- environment(prep_ghq) <- environment()
-  environment(prep_stva) <- environment()
-  control <- prep_cont()
-  ghQ <- prep_ghq()
-  b <- prep_stva()
+  famL <- prep_fam(family)
+  form <- prep_form(mu.eq, sg.eq, ta.eq, nu.eq)
+  q <- prep_Z(form)
+  control <- prep_cont(control,q,...)
+  if(control$corr.lv){
+    if(!is.null(control$Rz)) Rz <- control$Rz else { Rz <- diag(q); Rz[Rz == 0] <- 0.05 }
+  } else { Rz <- diag(q) }
+  ghQ <- prep_ghq(nQP = control$nQP, form = form, Rz = Rz)
+  b <- prep_stva(control = control,form = form,ghQ = ghQ,Y = Y,p = p,famL = famL,q = q)
   rb <- b$rb   # 'rb' are free parameters! (i.e., T = to be estimated)
   bp <- b$penb # 'bp' are the penalised parameters! (i.e., T = to be penalised)
   b <- b$b 
@@ -29,14 +28,14 @@ glvmlss <- function(data, family = list(),
     if(!is.null(control$lambda)){
       if(any("auto" %in% control$lambda)){
         if(length(control$lambda) == 1 && control$lambda == "auto"){
-          pen.control$lambda <- rep(1/nrow(Y$Y),length(b))
+          pen.control$lambda <- rep(sqrt(.Machine$double.eps),length(b)) #1/nrow(Y$Y)
           pen.control$lambda.auto <- rep(T, length(pen.control$lambda))
         }
         if(length(control$lambda) > 1){
           if(length(control$lambda) != length(b)) stop("Define as many values for lambda as location, shape, or scale parameters.")
           pen.control$lambda <- control$lambda
           pen.control$lambda.auto <- pen.control$lambda == "auto"
-          pen.control$lambda[pen.control$lambda.auto] <- 1/nrow(Y$Y)
+          pen.control$lambda[pen.control$lambda.auto] <- sqrt(.Machine$double.eps) #1/nrow(Y$Y)
           pen.control$lambda <- as.numeric(pen.control$lambda)
         }
         autoL <- T; cycle <- 0
@@ -48,7 +47,7 @@ glvmlss <- function(data, family = list(),
         autoL <- F; cycle <- 0
       }
     } else {
-      pen.control$lambda <- rep(1/nrow(Y$Y),length(b))
+      pen.control$lambda <- rep(sqrt(.Machine$double.eps),length(b)) #1/nrow(Y$Y)
       pen.control$lambda.auto <- rep(T, length(pen.control$lambda))
       autoL <- F; cycle <- 0
     }
@@ -59,12 +58,13 @@ glvmlss <- function(data, family = list(),
   }
   
   fit <- structure(fit, class = "glvmlss")
-  if(all(is.null(fit$hess))) fit$GAIC <- GAIC(fit) else fit$GAIC <- NULL
-  if(all(is.null(fit$hess))) fit$GBIC <- GBIC(fit) else fit$GBIC <- NULL
-
-    if(control$f.scores){
+  if(!is.null(fit$hes$H) | !is.null(fit$hes$Hp)) fit$GAIC <- GAIC(fit) else fit$GAIC <- NULL
+  if(!is.null(fit$hes$H) | !is.null(fit$hes$Hp)) fit$GBIC <- GBIC(fit) else fit$GBIC <- NULL
+  if(!is.null(fit$GAIC) & !is.null(fit$GBIC)) fit$edf <- (fit$GBIC + 2*fit$unploglik)/log(fit$n)
+  
+  if(control$f.scores){
     fit$f.scores <- as.data.frame(fyz_c$pD%*%(c(ghQ$weights)*ghQ$points)[,,drop=F]) 
-    names(fit$f.scores) <- colnames(ghQ$points)}
+    names(fit$f.scores) <- colnames(ghQ$points) }
   
   return(fit)
 }
@@ -82,6 +82,12 @@ glvmlss_fit <- function(){
   EM_appHess <- control$EM_appHess
   
   while(!convg){
+    
+    if(control$corr.lv){
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      # Rz <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <- prep_ghq(control$nQP, form, Rz) }
+    
     bold1 <- b
     iter <- iter + 1
     pb <- lb2cb(b)
@@ -98,6 +104,7 @@ glvmlss_fit <- function(){
       cb <- cb - control$EM_lrate*exp(-0.5*iter)*d1ll_t }
     pb[lb2cb(rb) == T] <- cb
     b <- cb2lb(pb,b)
+
     dfyz_t <- fyz(Y,ghQ,b,famL)
     llk[iter+1] <- -dfyz_t$ll
     eps <- llk[iter+1] - llk[iter]
@@ -107,7 +114,7 @@ glvmlss_fit <- function(){
       cb <- pb[lb2cb(rb) == T]
       iter <- iter - 1
       break }
-    convg <- ifelse(abs(eps) < control$tol*1e4 || iter == control$EM_iter, T, F)
+    convg <- ifelse(abs(eps) < control$tol*1e0 || iter == control$EM_iter, T, F)
     if(control$verbose){ if(iter == 1) cat(paste0("\n EM iter: ",iter,", marginal loglik.: ", round(-llk[iter+1],5))) else
       cat(paste0("\r EM iter: ",iter,", marginal loglik.: ", round(-llk[iter+1],5))) }
   }
@@ -121,6 +128,10 @@ glvmlss_fit <- function(){
     pb[lb2cb(rb) == T] <- cb$argument
     b <- cb2lb(pb,b)
     convg <- ifelse(cb$converged,1,0)
+    if(control$corr.lv){
+      dfyz_t <- fyz(Y,ghQ,b,famL)
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <- prep_ghq(control$nQP,form,Rz) }
     if(control$verbose) cat(paste0("\r Direct MML estimation using trust-region algorithm ... Converged after ",
                                    iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, ")",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$value,5))) }
@@ -132,6 +143,10 @@ glvmlss_fit <- function(){
     pb[lb2cb(rb) == T] <- cb$par
     b <- cb2lb(pb,b)
     convg <- ifelse(cb$convergence == 0,1,0)
+    if(control$corr.lv){
+      dfyz_t <- fyz(Y,ghQ,b,famL)
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <-prep_ghq(control$nQP,form,Rz) }
     if(control$verbose) cat(paste0("\r Direct MML estimation using 'nlminb' function ... Converged after ",
                                    iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb)",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$objective,5))) } 
@@ -144,28 +159,38 @@ glvmlss_fit <- function(){
     pb[lb2cb(rb) == T] <- cb$par
     b <- cb2lb(pb,b)
     convg <- ifelse(cb$convergence == 0,1,0)
+    if(control$corr.lv){
+      dfyz_t <- fyz(Y,ghQ,b,famL)
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <- prep_ghq(control$nQP,form,Rz) }
     if(control$verbose) cat(paste0("\r Direct MML estimation using ", control$solver, " algorithm ... Converged.",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$value,5))) }
   
   # Fix sign
   # ~~~~~~~~
-  for(r in names(b)){
-    for(j in which(grepl("Z",colnames(b[[r]])))){
-      if(b[[r]][,j][b[[r]][,j] != 0][1] < 0) b[[r]][,j] <- -b[[r]][,j]
-    }
-  }
+  # for(j in paste0("Z",1:q)){
+  #   if(j %in% colnames(b[[1]])){
+  #     if(b[[1]][,j][b[[1]][,j] != 0][1] < 0){
+  #       for(r in names(b)){
+  #         if(j %in% colnames(b[[r]])) b[[r]][,j] <- -b[[r]][,j] }
+  #     }
+  #   }
+  # }
   
   assign(x = "fyz_c",value = fyz(Y,ghQ,b,famL),envir = parent.frame())
   if(control$est.ci){
+    if(control$verbose) cat("\n Computing standard errors ...")
     hes_u <- -d2ll(Y = Y,ghQ = ghQ,b = b, famL = famL, info = "Fisher", pd = fyz_c$pD, rb = rb); hes_c <- NULL
     pdMhes <- m2pdm(hes_u)
-    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian is not positive definite at solution (fixed)."))
+    if(control$verbose){
+      if(!pdMhes$is.PD){ cat(paste0("\r Computing standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+      } else { cat(paste0("\r Computing standard errors ... done!")) } }
     seb <- rep(NA,length(lb2cb(b)))
     seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
     seb <- cb2lb(seb,b)
   } else seb <- hes_u <- hes_c <- NULL
   
-  return(list(b = b, loglik = fyz_c$ll, unploglik = fyz_c$ll,
+  return(list(b = b, Rz = Rz, loglik = fyz_c$ll, unploglik = fyz_c$ll,
               convergence = convg, iter = iter + cb$iter,
               hes = list(H = hes_u, Hp = hes_c), SE = seb, n = nrow(Y$Y)))
 }
@@ -194,6 +219,11 @@ glvmlss_penfit <- function(){
   EM_appHess <- control$EM_appHess
   
   while(!convg){
+    
+    if(control$corr.lv){
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <- prep_ghq(control$nQP,form,Rz) }
+    
     bold1 <- b
     iter <- iter + 1
     pb <- lb2cb(b)
@@ -207,7 +237,7 @@ glvmlss_penfit <- function(){
       } else {
         da2ll_t <- -ad2ll(Y,ghQ,b,famL,info,dfyz_t$pD,rb) + nrow(Y$Y)*pMat$full
       }
-      cb <- cb - solve(da2ll_t, d1ll_t)
+      tryCatch({cb <- cb - solve(da2ll_t, d1ll_t)}, error = function(e){cb <- cb - c(m2pdm(da2ll_t)$inv%*%d1ll_t)})
     } else {
       cb <- cb - control$EM_lrate*exp(-0.5*iter)*d1ll_t
       if(cycle == 0) da2ll_t <- -d2llEM(Y,ghQ,b,famL,info,dfyz_t$pD,rb) + nrow(Y$Y)*pMat$full }
@@ -215,6 +245,7 @@ glvmlss_penfit <- function(){
                                      b = b, gra = -d1ll_t, hes = da2ll_t, rb = rb, bp = bp, pml = pen.control, Y = Y)
     pb[lb2cb(rb) == T] <- cb
     b <- cb2lb(pb,b)
+
     dfyz_t <- fyz(Y,ghQ,b,famL)
     pMat <- pM(b,rb,bp,penalty = pen.control$penalty,
                lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
@@ -244,6 +275,9 @@ glvmlss_penfit <- function(){
     pb[lb2cb(rb) == T] <- cb$argument
     b <- cb2lb(pb,b)
     convg <- ifelse(cb$converged,1,0)
+    if(control$corr.lv){
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <- prep_ghq(control$nQP,form,Rz) }
     if(control$verbose){
       if(autoL){ cat(paste0("\r Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ... Converged after ",
                             iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, "),",
@@ -264,6 +298,9 @@ glvmlss_penfit <- function(){
     pb[lb2cb(rb) == T] <- cb$par
     b <- cb2lb(pb,b)
     convg <- ifelse(cb$convergence == 0,1,0)
+    if(control$corr.lv){
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <- prep_ghq(control$nQP,form,Rz) }
     if(control$verbose){
       if(!autoL){ cat(paste0("\r Direct penalised MML estimation 'nlminb' function ... Converged after ",
                              iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb)",
@@ -285,6 +322,9 @@ glvmlss_penfit <- function(){
     pb[lb2cb(rb) == T] <- cb$par
     b <- cb2lb(pb,b)
     convg <- ifelse(cb$convergence == 0,1,0)
+    if(control$corr.lv){
+      Rz <- upRz(cRz = c(Rz[lower.tri(Rz)]), ghQ = ghQ, pD = dfyz_t$pD, q = q)
+      ghQ <- prep_ghq(control$nQP,form,Rz) }
     if(control$verbose){
       if(!autoL){ cat(paste0("\r Direct penalised MML estimation using ", control$solver, " algorithm ... Converged.",
                              "\n (Approximate) Penalised Marginal loglikelihood: ", round(-cb$value,5)))
@@ -292,13 +332,16 @@ glvmlss_penfit <- function(){
         cat(paste0("\r Direct penalised MML estimation (", control$solver,", cycle ", cycle + 1,") ... Converged (",
                    "pen. margllk: ", round(-cb$value,5), ")")) } } }
   
-  # Fix sign
-  # ~~~~~~~~
-  for(r in names(b)){
-    for(j in which(grepl("Z",colnames(b[[r]])))){
-      if(b[[r]][,j][b[[r]][,j] != 0][1] < 0) b[[r]][,j] <- -b[[r]][,j]
-    }
-  }
+  # # Fix sign
+  # # ~~~~~~~~
+  # for(j in paste0("Z",1:q)){
+  #   if(j %in% colnames(b[[1]])){
+  #     if(b[[1]][,j][b[[1]][,j] != 0][1] < 0){
+  #       for(r in names(b)){
+  #         if(j %in% colnames(b[[r]])) b[[r]][,j] <- -b[[r]][,j] }
+  #     }
+  #   }
+  # }
   
   if(autoL){
     tObj <- op.lambda(Y,ghQ,b,famL,info,rb,bp,pen.control)
@@ -327,16 +370,19 @@ glvmlss_penfit <- function(){
   assign(x = "fyz_c",value = fyz(Y,ghQ,b,famL),envir = parent.frame())
   
   if(control$est.ci){
+    if(control$verbose) cat("\n Computing standard errors ...")
     hes_u <- -d2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb4se)
     hes_c <- hes_u + nrow(Y$Y)*pMat$full
     pdMhes <- m2pdm(hes_c)
-    if(!pdMhes$is.PD & control$verbose) cat(paste0("\n Unstable solution: Hessian is not positive definite at solution (fixed)."))
+    if(control$verbose){
+      if(!pdMhes$is.PD){ cat(paste0("\r Computing standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+      } else { cat(paste0("\r Computing standard errors ... done!")) } }
     seb <- rep(NA,length(lb2cb(b)))
     seb[lb2cb(rb4se)] <- sqrt(diag(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat))
     seb <- cb2lb(seb,b)
   } else seb <- hes_u <- hes_c <- NULL
   
-  return(list(b = b, loglik = c(fyz_c$ll - 0.5*nrow(Y$Y)*crossprod(b.,pMat$full)%*%b.),
+  return(list(b = b, Rz = Rz, loglik = c(fyz_c$ll - 0.5*nrow(Y$Y)*crossprod(b.,pMat$full)%*%b.),
               unploglik = fyz_c$ll, convergence = convg,
               iter = iter + cb$iter, hes = list(H = hes_u, Hp = hes_c), SE = seb,
               cycle = cycle + 1, gamma = pen.control$gamma, n = nrow(Y$Y),
@@ -350,21 +396,17 @@ glvmlss_sim <- function(n, family = list(),
                         ta.eq = NULL, nu.eq = NULL,
                         control = list(), ...){
   
-  environment(prep_fam) <- environment(prep_form) <- environment()
-  famL <- prep_fam()
-  form <- prep_form()
+  famL <- prep_fam(family)
+  form <- prep_form(mu.eq, sg.eq, ta.eq, nu.eq)
   p <- length(famL)
-  environment(prep_Z) <- environment()
-  q <- prep_Z()
-  environment(sim_cont) <- environment(sim_Z) <- environment()
-  control <- sim_cont()
-  Z <- sim_Z()
-  environment(sim_stva) <- environment()
-  b <- sim_stva()$b
+  q <- prep_Z(form)
+  control <- sim_cont(control,q,...)
+  Z <- sim_Z(control,q,n,form)
+  b <- sim_stva(control,p,Z,form,q)$b
   
   Y <- sapply(1:p, function(i) famL[[i]]$sf(i,n,b,Z$Zmod))
   Y <- as.data.frame(Y); colnames(Y) <- paste0("Y", 1:p)
   
-  return(list(Y = Y, Z = Z$Z, b = b))
+  return(list(Y = Y, Z = Z$Z, b = b, Rz = control$Rz))
 }
 

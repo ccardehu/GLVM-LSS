@@ -1,6 +1,6 @@
 y. <- function(x){
- if (any(x == 1)) x[x == 1] <- 1 - .Machine$double.eps^(1/3)
- if (any(x == 0)) x[x == 0] <- .Machine$double.eps^1/3
+ if (any(x == 1, na.rm = T)) x[x == 1] <- 1 - 1e-3 #.Machine$double.eps^(1/3)
+ if (any(x == 0, na.rm = T)) x[x == 0] <- 1e-3 #.Machine$double.eps^(1/3)
  return(x)
 }
 
@@ -16,6 +16,7 @@ ll <- function(cb,Y,ghQ,bg,famL,info,rb){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
+  # Solve for Rz here? (i.e., update ghQ)
   f0 <- fyz(Y,ghQ,b,famL)
   f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb)
   f2 <- -d2ll(Y,ghQ,b,famL,info,f0$pD,rb)
@@ -26,6 +27,7 @@ lazyll <- function(cb,Y,ghQ,bg,famL,info,rb){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
+  # Solve for Rz here? (i.e., update ghQ)
   f0 <- fyz(Y,ghQ,b,famL)
   f1 <- -d1ll(Y,ghQ,b,famL,info,f0$pD,rb)
   f2 <- ad2ll(Y,ghQ,b,famL,info,f0$pD,rb)
@@ -49,6 +51,7 @@ lazypll <- function(cb,Y,ghQ,bg,famL,info,rb,bp,pen.control){
   b <- lb2cb(bg)
   b[lb2cb(rb) == T] <- cb
   b <- cb2lb(b,bg)
+  # Solve for Rz here? (i.e., update ghQ)
   f0 <- fyz(Y,ghQ,b,famL)
   pMat <- pM(b,rb,bp,penalty = pen.control$penalty,
              lambda = pen.control$lambda, w.alasso = pen.control$w.alasso, a = pen.control$a)
@@ -366,7 +369,7 @@ mvghQ <- function(n, mu, psi, formula = ~ Z1 + Z2) {
   nl <- nl[grep("Z", nl, fixed = T)]
   if(missing(mu)) mu <- rep(0,length(nl)); 
   if(missing(psi)) psi <- diag(length(nl))
-  if(!all(dim(psi) == length(mu))) stop("muZ and PsiZ have nonconformable dimensions (in ghQ)")
+  if(!all(dim(psi) == length(mu))) stop("muZ and Rz have nonconformable dimensions (in ghQ)")
   if(length(mu) > 0) dm  <- length(mu) else dm <- 1
   if(missing(n)) n <- round(100^(1/dm))
   gh  <- list("points" = ghq(n)$x, "weights" = ghq(n)$w)
@@ -425,39 +428,51 @@ m2pdm <- function(mat){
   e.val <- eS$values
   e.vec <- eS$vectors
   check.eigen <- any(e.val <= 0)
+  # if(check.eigen == T){
+  #   n.e.val <- e.val[e.val <= 0]
+  #   # s <- sum(e.val[!n.e.val])
+  #   s <- sum(e.val[n.e.val])*2
+  #   t <- s^2*100 + 1
+  #   p <- min(e.val[(e.val <= 0) == F])
+  #   # p <- min(e.val[(e.val <= 0) == F])
+  #   e.val[e.val <= 0] <- p*(s - n.e.val)^2/t
+  #   D <- diag(e.val)
+  #   D.inv <- diag(1/e.val)
+  #   res <- e.vec %*% D %*% t(e.vec)
+  #   res.inv <- e.vec %*% D.inv %*% t(e.vec)
+  #   res.sqr <- e.vec %*% sqrt(D)
+  # } else { res <- mat; res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) ; res.sqr <- e.vec %*% diag(sqrt(e.val))}
+  # res <- (res + t(res) ) / 2
+  # res.inv <- (res.inv + t(res.inv) ) / 2
   if(check.eigen == T){
-    n.e.val <- e.val[e.val <= 0]
-    # s <- sum(e.val[!n.e.val])
-    s <- sum(e.val[n.e.val])*2
+    neg.e.val <- e.val[e.val <= 0]
+    s <- sum(e.val[-1])
     t <- s^2*100 + 1
-    p <- min(e.val[(e.val <= 0) == F])
-    # p <- min(e.val[(e.val <= 0) == F])
-    e.val[e.val <= 0] <- p*(s - n.e.val)^2/t
+    p <- min(e.val[e.val > 0])
+    e.val[e.val <= 0] <- p*(s - neg.e.val)^2/t
     D <- diag(e.val)
     D.inv <- diag(1/e.val)
-    res <- e.vec %*% D %*% t(e.vec) 
+    res <- e.vec %*% D %*% t(e.vec)
     res.inv <- e.vec %*% D.inv %*% t(e.vec)
     res.sqr <- e.vec %*% sqrt(D)
-  } else { res <- mat; res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) ; res.sqr <- e.vec %*% diag(sqrt(e.val))} 
-  res.inv <- (res.inv + t(res.inv) ) / 2 
+  } else { res <- mat; res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) ; res.sqr <- e.vec %*% diag(sqrt(e.val))}
+  res <- (res + t(res) ) / 2
+  res.inv <- (res.inv + t(res.inv) ) / 2
+  # tobj <- nearPD(mat)
+  # res <- tobj$mat
+  # e.vec <- tobj$vectors
+  # e.val <- tobj$values
+  # res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) ; res.sqr <- e.vec %*% diag(sqrt(e.val)) 
+  # } else {  res <- mat; res.inv <- e.vec %*% diag(1/e.val) %*% t(e.vec) ; res.sqr <- e.vec %*% diag(sqrt(e.val)) }
   return(list(mat = res, inv.mat = res.inv, sqr.mat = t(res.sqr), is.PDM = !check.eigen))
 }
 
 pM <- function(b, rb, bp, penalty = "lasso", lambda = 0.1, w.alasso = NULL, a = NULL){
-  # penidx <- function(rb){
-  #   for(i in names(rb)){
-  #     rb[[i]][,colnames(rb[[i]]) == "(Intercept)"] <- F
-  #     nQ <- sum(grepl("Z", colnames(rb[[i]]), fixed = T))
-  #     rb[[i]][seq_len(nQ), ] <- F
-  #   } 
-  #   return(rb) 
-  # }
   lambda2lb <- function(lamlist,b){
     for(i in 1:length(b)) b[[i]] <- matrix(lamlist[i], nrow = nrow(b[[i]]), ncol = ncol(b[[i]]),
                                            dimnames = dimnames(b[[i]]))
     return(b)
   }
-  # id <- lb2cb(penidx(rb))
   id <- lb2cb(bp)
   param <- lb2cb(b)[id]
   if(!is.null(w.alasso) && is.list(w.alasso)){ w.alasso <- lb2cb(w.alasso)[id] }
@@ -586,3 +601,226 @@ fixrb <- function(rb,b,tolb){
   }
   return(rb)
 }
+
+nearPD <- function (M, eig.tol = 1e-06, conv.tol = 1e-07, posd.tol = 1e-08,
+                    maxits = 100) {
+  if (!(is.numeric(M) && is.matrix(M) && identical(M, t(M))))
+    stop("Input matrix M must be square and symmetric.\n")
+  inorm <- function(x) max(rowSums(abs(x)))
+  n <- ncol(M)
+  U <- matrix(0.0, n, n)
+  X <- M
+  iter <- 0
+  converged <- FALSE
+  while (iter < maxits && !converged) {
+    Y <- X
+    T. <- Y - U
+    e <- eigen(Y, symmetric = TRUE)
+    Q <- e$vectors
+    d <- e$values
+    D <- if (length(d) > 1) diag(d) else as.matrix(d)
+    p <- (d > eig.tol * d[1])
+    QQ <- Q[, p, drop = FALSE]
+    X <- QQ %*% D[p, p, drop = FALSE] %*% t(QQ)
+    U <- X - T.
+    X <- (X + t(X)) / 2
+    conv <- inorm(Y - X)/inorm(Y)
+    iter <- iter + 1
+    converged <- conv <= conv.tol
+  }
+  X <- (X + t(X)) / 2
+  e <- eigen(X, symmetric = TRUE)
+  d <- e$values
+  Eps <- posd.tol * abs(d[1L])
+  if (d[n] < Eps) {
+    d[d < Eps] <- Eps
+    Q <- e$vectors
+    o.diag <- diag(X)
+    X <- Q %*% (d * t(Q))
+    D <- sqrt(pmax(Eps, o.diag) / diag(X))
+    X[] <- D * X * rep(D, each = n)
+  }
+  X <- (X + t(X)) / 2
+  e <- eigen(X, symmetric = TRUE)
+  return(list(mat = X, values = e$values, vectors = e$vectors))
+}
+
+# upS <- function(ghQ,pD){
+#   pz <- (1/nrow(pD))*Reduce("+",lapply(1:nrow(pD), function(m){
+#   Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]))}))
+#  pz <- diag(1/sqrt(diag(pz)))%*%pz%*%diag(1/sqrt(diag(pz)))
+#  return(pz)
+# }
+
+# # upSa <- function(ghQ,pD){ # pz,ghQ,pD,respz
+# #  
+# #  if(is.null(respz)){ corlst <- which(lower.tri(pz),arr.ind = T) } else corlst <- which(lower.tri(pz),arr.ind = T)[-respz,]
+# #  V <- Reduce("+",lapply(1:nrow(pD), function(m){
+# #   Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i])) }))
+# #  sc <- -nrow(pD)/2*solve(pz) + 0.5*solve(pz)%*%V%*%solve(pz)
+# #  sc <- 2*sc - diag(diag(sc))
+# #  sc <- c(sc[lower.tri(sc)],sc[upper.tri(sc)])
+# #  kR <- kronecker(solve(pz),solve(pz))
+# #  for(y in 1:nrow(corlst)){
+# #   idr <- (((y-1)*nrow(pz))+nrow(pz)+1):((y)*nrow(pz)+nrow(pz))
+# #   idc <- (((y-1)*nrow(pz))+nrow(pz)+1):((y)*nrow(pz)+nrow(pz))
+# #   he <- nrow(pD)/2*(kR[id,id]) - 0.5*(solve(pz)%*%solve(pz)%*%V%*%solve(pz) - solve(pz)%*%V%*%solve(pz)%*%solve(pz))
+# #  }
+# # 
+# #  # he <- 2*he - diag(diag(he))
+# #  # for(y in 1:nrow(corlst)){
+# #  #  pz[corlst[y,1],corlst[y,2]] <- pz[corlst[y,1],corlst[y,2]] - solve(he)[corlst[y,1],corlst[y,2]]*sc[corlst[y,1],corlst[y,2]]
+# #  # }
+# #  # pz[upper.tri(pz)] <- pz[lower.tri(pz)]
+# #   
+# #  
+# #  pz <- (1/nrow(pD))*Reduce("+",lapply(1:nrow(pD), function(m){
+# #   Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]))}))
+# #  pz <- diag(1/sqrt(diag(pz)))%*%pz%*%diag(1/sqrt(diag(pz)))
+# #  return(pz)
+# # }
+# 
+# upS <- function(pz,ghQ,pD,respz){
+#  if(is.null(respz)){ corlst <- which(lower.tri(pz),arr.ind = T) } else corlst <- which(lower.tri(pz),arr.ind = T)[-respz,]
+#  sv <- pz[lower.tri(pz)]
+#  gra <- matrix(0,nrow = length(sv))
+#  hess <- matrix(0, nrow = length(sv), ncol = length(sv))
+#  Iq <- diag(nrow(pz))
+#  for(y in 1:nrow(corlst)){
+#   Dy <- matrix(0,nrow = nrow(pz),ncol(pz)); Dy[corlst[y,1],corlst[y,2]] <- 1
+#   Dy <- Dy + t(Dy) - Dy%*%Dy
+#   Gy <- solve(pz)%*%Dy%*%solve(pz)
+#   # Fy <- solve(pz)%*%Dy%*%Gy + Gy%*%Dy%*%solve(pz)
+#   P1 <- -nrow(pD)/2*sum(diag((2*solve(pz) - solve(pz)*Iq)%*%Dy))
+#   P2 <- Reduce("+",lapply(1:nrow(pD), function(m){sum(diag(
+#         Gy%*%Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i])) )) }))
+#   P3 <- Reduce("+",lapply(1:nrow(pD), function(m){
+#         v <- Reduce("+",lapply(1:nrow(ghQ$points), function(i) matrix(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]));
+#         t(v)%*%Gy%*%v }))
+#   gra[y] <- P1+P2+P3
+#  }
+#  pz[lower.tri(pz)] <- matrix(sv) - solve(hess)%*%gra
+# 
+#   #
+#   # H1 <- nrow(pD)/2*sum(diag(Gy%*%Dy))
+#   # H2 <- -0.5*Reduce("+",lapply(1:nrow(pD), function(m){sum(diag(
+#   # Fy%*%Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i])) )) }))
+#   # H3 <- -0.5*Reduce("+",lapply(1:nrow(pD), function(m){
+#   #   v <- Reduce("+",lapply(1:nrow(ghQ$points), function(i) matrix(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]));
+#   #   t(v)%*%Fy%*%v }))
+#   # pz[corlst[y,1],corlst[y,2]] <- pz[corlst[y,1],corlst[y,2]] - c(P1+P2+P3)/c(H1+H2+H3)
+#   #
+#   # gradient <- c(gradient, P1+P2+P3)
+#   # hessian <- c(hessian, H1+H2+H3)
+#  # }
+#  # if(length(hessian) == 1) hessian <- matrix(hessian) else hessian <- diag(hessian)
+#  pz[upper.tri(pz)] <- pz[lower.tri(pz)]
+#  return(list(pz = pz, gradient = c(gra), hessian = hess))
+# }
+ 
+# grRz <- function(.crz,.ghQ,.pD,.q){
+#   # Rz_ <- .Rz <- diag(.q)
+#   .Rz <- diag(.q)
+#   # Rz_[lower.tri(.Rz)] <- .crz # fills by column
+#   .Rz[lower.tri(.Rz)] <- .Rz[upper.tri(.Rz)] <- .crz # fills by column
+#   # .Rz <- diag(1/sqrt(diag(.Rz)))%*%.Rz%*%diag(1/sqrt(diag(.Rz)))
+# 
+#   gra <- vector(mode = "numeric", length(.crz))
+#   for(i in 1:length(gra)){
+#     Dy <- matrix(0, nrow = nrow(.Rz), ncol(.Rz))
+#     # Dy[which(Rz_ == .crz[i])] <- 1
+#     Dy[which(.Rz == .crz[i])] <- 1
+#     Dy <- Dy + t(Dy) - Dy%*%Dy
+#     Gy <- solve(.Rz)%*%Dy%*%solve(.Rz)
+#     # P1 <- -nrow(.pD)/2*sum(diag((2*solve(.Rz) - solve(.Rz)*diag(.q))%*%Dy))
+#     P1 <- -nrow(.pD)/2*sum(diag((solve(.Rz)%*%Dy)))
+#     P2 <- Reduce("+",lapply(1:nrow(.pD),
+#                  function(m){sum(diag(Gy%*%Reduce("+",lapply(1:nrow(.ghQ$points),
+#                                                               function(i) tcrossprod(.ghQ$points[i,])*.pD[m,i]*c(.ghQ$weights)[i])) )) }))
+#     P3 <- Reduce("+",lapply(1:nrow(.pD), function(m){
+#       v <- Reduce("+",lapply(1:nrow(.ghQ$points), function(i) matrix(.ghQ$points[i,])*.pD[m,i]*c(.ghQ$weights)[i]));
+#       t(v)%*%Gy%*%v }))
+#     gra[i] <- P1+.5*P2+.5*P3
+#   }
+#   return(gra)
+# }
+
+opRz <- function(cRzf,ghQf,pDf,qf){
+  Rz <- diag(qf)
+  Rz[lower.tri(Rz)] <- cRzf
+  Rz[upper.tri(Rz)] <- c(t(Rz)[upper.tri(Rz)])
+  # Rz <- diag(1/sqrt(diag(Rz)))%*%Rz%*%diag(1/sqrt(diag(Rz)))
+  llkZ <- -1*sum(sapply(1:nrow(pDf), function(m){ sum(mvnfast::dmvn(ghQf$points[,], mu = rep(0,qf), sigma = Rz, log = T)*pDf[m,]*c(ghQf$weights)) } ) )
+  return(llkZ)
+}
+
+upRz <- function(cRz, ghQ, pD, q, max_it = 100){
+  tmp <- optim(par = cRz, fn = opRz, ghQf = ghQ, pDf = pD, qf = q,
+               method = "L-BFGS-B", lower = -0.95, upper = 0.95, control = list(fnscale = 1, maxit = max_it))
+  Rz <- diag(q)
+  Rz[lower.tri(Rz)] <- tmp$par
+  Rz[upper.tri(Rz)] <- c(t(Rz)[upper.tri(Rz)])
+  # Rz <- diag(1/sqrt(diag(Rz)))%*%Rz%*%diag(1/sqrt(diag(Rz)))
+  return(Rz)
+}
+
+newRz <- function(Rz,ghQ,pD,q){
+  
+  LDL_Rz <- fastmatrix::ldl(Rz)
+  lvec <- LDL_Rz$lower[lower.tri(LDL_Rz$lower)]
+  dvec <- LDL_Rz$d[LDL_Rz$d != 1]
+  pvec <- c(lvec,dvec)
+  
+  ineq_fun <- function(pvecf,ghQf,pDf,qf){
+    nndef.cond <- pvecf[((qf*(qf-1)/2)+1):length(pvecf)]
+    return(nndef.cond)
+  }
+  
+  eq_fun <- function(pvecf,ghQf,pDf,qf){
+    lv <- pvecf[1:(qf*(qf-1)/2)]
+    tmpL <- tmpD <- diag(qf)
+    tmpL[lower.tri(tmpL)] <- lv
+    dvec <- pvecf[((qf*(qf-1)/2)+1):length(pvecf)]
+    diag(tmpD)[2:qf] <- dvec
+    
+    ident.cond <- vector(mode = "numeric", length = qf-1)
+    for(i in 2:qf){
+      ident.cond[i-1] <- (tmpL%*%tmpD%*%t(tmpL))[i,i] - 1
+    }
+    return(ident.cond)
+  }
+  
+  LDLRz <- function(pvecf,ghQf,pDf,qf){
+    lv <- pvecf[1:(qf*(qf-1)/2)]
+    tmpL <- tmpD <- diag(qf)
+    tmpL[lower.tri(tmpL)] <- lv
+    dvec <- pvecf[((qf*(qf-1)/2)+1):length(pvecf)]
+    diag(tmpD)[2:qf] <- dvec
+    
+    .Rz <- tmpL%*%tmpD%*%t(tmpL)
+    llkZ <- -1*sum(sapply(1:nrow(pDf), function(m){ sum(mvnfast::dmvn(ghQf$points[,], mu = rep(0,qf), sigma = .Rz, log = T)*pDf[m,]*c(ghQf$weights)) } ) )
+  return(llkZ)
+  }
+  
+  tmpSol <- Rsolnp::solnp(pars = pvec, fun = LDLRz,
+                          eqfun = eq_fun,
+                          eqB = rep(0,(q-1)),
+                          ineqfun = ineq_fun,
+                          ineqLB = rep(0,(q-1)),
+                          ineqUB = rep(10,(q-1)),
+                          ghQf = ghQ, pDf = pD, qf = q, control = list(trace = 0))
+  
+  lv <- tmpSol$pars[1:(q*(q-1)/2)]
+  tmpL <- tmpD <- diag(q)
+  tmpL[lower.tri(tmpL)] <- lv
+  dvec <- tmpSol$pars[((q*(q-1)/2)+1):length(tmpSol$pars)]
+  diag(tmpD)[2:q] <- dvec
+  
+  .Rz <- tmpL%*%tmpD%*%t(tmpL)
+  
+  return(.Rz)
+}
+
+# numDeriv::grad(func = LDLRz, x = pvec, ghQ = ghQ, pD = pD, q = q)
+# grRz(.crz = c(Rz[lower.tri(Rz)]), .ghQ = ghQ, .pD = dfyz_t$pD, .q = q) 
+# crz. = c(Rz[lower.tri(Rz)]); ghQ. = ghQ; pD. = dfyz_t$pD; q. = q; maxit. = 100
