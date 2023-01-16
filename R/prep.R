@@ -1,4 +1,4 @@
-prep_cont <- function(control,q,...){
+prep_cont <- function(control,q,p,...){
   # Control settings
   # ~~~~~~~~~~~~~~~~
   con <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
@@ -17,15 +17,15 @@ prep_cont <- function(control,q,...){
   return(con)
 }
 
-prep_form <- function(mu.eq, sg.eq, ta.eq, nu.eq){
+prep_form <- function(mu.eq, sg.eq, nu.eq, ta.eq){
   # Formula settings
   # ~~~~~~~~~~~~~~~~
   is.formula <- function(x){ inherits(x,"formula") }
   if(!is.formula(mu.eq) & !is.null(mu.eq)) mu.eq <- as.formula(mu.eq)
   if(!is.formula(sg.eq) & !is.null(sg.eq)) sg.eq <- as.formula(sg.eq)
-  if(!is.formula(ta.eq) & !is.null(ta.eq)) ta.eq <- as.formula(ta.eq)
   if(!is.formula(nu.eq) & !is.null(nu.eq)) nu.eq <- as.formula(nu.eq)
-  form <- list("mu" = mu.eq, "sigma" = sg.eq, "tau" = ta.eq, "nu" = nu.eq)
+  if(!is.formula(ta.eq) & !is.null(ta.eq)) ta.eq <- as.formula(ta.eq)
+  form <- list("mu" = mu.eq, "sigma" = sg.eq, "nu" = nu.eq, "tau" = ta.eq)
   for(i in names(form)){ if(is.null(form[[i]])) form[[i]] <- NULL } 
   return(form)
 }
@@ -73,8 +73,8 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
   # Starting betas
   # ~~~~~~~~~~~~~~
   if(!is.null(control$start.val)){
-    if(!is.list(control$start.val)) stop("\n Provided starting values should be a list with dim p*(q+intercept) loading matrices for mu, sigma, tau, nu")
-    if(length(control$start.val) != length(form)) stop("\n Number of matrices in starting values should match number of parameters mu, sigma, tau, nu")
+    if(!is.list(control$start.val)) stop("\n Provided starting values should be a list with dim p*(q+intercept) loading matrices for mu, sigma, nu, tau")
+    if(length(control$start.val) != length(form)) stop("\n Number of matrices in starting values should match number of parameters mu, sigma, nu, tau")
     names(control$start.val) <- names(form)
     for(i in names(control$start.val)) {
       colnames(control$start.val[[i]]) <- colnames(ghQ$out[[i]]); rownames(control$start.val[[i]]) <- colnames(Y$Y)
@@ -98,8 +98,10 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
         penb[[i]][1,] <- F }
       b <-  list(b = b, rb = rb, penb = penb)
       return(b) }
-    if(control$verbose & q != 1) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
+    if(control$verbose & q != 1 & !control$corr.lv){ cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
     control$iden.res <- "recursive" }
+    if(control$verbose & q != 1 & control$corr.lv){ cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variable identification restriction (correlated factors).")
+    control$iden.res <- "eiv" } }
   if(is.character(control$iden.res)){
     if(!control$iden.res %in% c("orthogonal", "eiv", "recursive")) stop("Argument 'control$iden.res' should be one of c(orthogonal, eiv, recursive).")
     if(control$iden.res == "orthogonal"){

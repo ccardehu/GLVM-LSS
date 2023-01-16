@@ -319,7 +319,7 @@ ibeta <- function(Y,famL,form){
     if(famL[[i]]$family == "Beta" | famL[[i]]$family == "Beta0") tmpY <- y.(Y[,i]) else tmpY <- Y[,i]
     for(p in 1:length(eq)){ eq[[p]] <- update(eq[[p]], tmpY ~ .)  }
     if(famL[[i]]$family != "Beta0"){
-      tmp <- try(gamlss::gamlss(eq$mu, sigma.formula = eq$sigma, tau.formula = eq$tau, nu.formula = eq$nu,
+      tmp <- try(gamlss::gamlss(eq$mu, sigma.formula = eq$sigma, nu.formula = eq$nu, tau.formula = eq$tau,
                                 family = famL[[i]]$iuse, data = as.data.frame(cbind(tmpY,Z)),
                                 control = gamlss::gamlss.control(trace = F)), silent = T)
     } else {
@@ -351,11 +351,13 @@ rmat <- function(res,b){
   frparm <- rb <- b
   for(k in names(b)){ rb[[k]] <- b[[k]]*NA  }
   for(i in 1:nrow(rest)){
-    frparm[[as.character(rest[i,1])]][as.character(rest[i,2]),as.character(rest[i,3])] <- as.numeric(rest[i,4])
-    rb[[as.character(rest[i,1])]][as.character(rest[i,2]),as.character(rest[i,3])] <- as.numeric(rest[i,4])
+    frparm[[as.character(rest[i,1])]][as.character(rest[i,2]),as.character(rest[i,3])] <- as.numeric(as.character(rest[i,4]))
+    rb[[as.character(rest[i,1])]][as.character(rest[i,2]),as.character(rest[i,3])] <- as.numeric(as.character(rest[i,4]))
   }
-  for(k in names(rb)){ rb[[k]] <- is.na(rb[[k]])  }
-  return(list(b = frparm, rb = rb))
+  for(k in names(rb)){ rb[[k]] <- is.na(rb[[k]]) & !is.na(b[[k]])}
+  penb <- rb
+  for(k in names(penb)){ penb[[k]][,grepl("(Intercept)", colnames(penb[[k]]), fixed = T)] <- F  }
+  return(list(b = frparm, rb = rb, penb = penb))
 }
 
 l2rm <- function(rlist){
@@ -404,9 +406,11 @@ cb2lb <- function(cb,b){
   bm <- matrix(cb,byrow=T,nrow=nrow(b$mu))
   c2l <- vector(mode = "list", length = length(b))
   names(c2l) <- names(b)
+  ic = 1
   for(i in seq_along(names(b))){
-    if(i == 1) c2l[[i]] <- bm[,1:ncol(b[[i]]), drop = F]
-    else c2l[[i]] <- bm[,seq(from = (ncol(b[[i-1]])+1), length = ncol(b[[i]])), drop = F]
+    colsel = seq(from = ic, length = ncol(b[[i]]))
+    c2l[[i]] <- bm[,colsel, drop = F]
+    ic = max(colsel) + 1
     colnames(c2l[[i]]) <- colnames(b[[i]]); rownames(c2l[[i]]) <- rownames(b[[i]])
   }
   return(c2l)
@@ -415,9 +419,11 @@ cb2lb <- function(cb,b){
 mb2lb <- function(mb,b){
   m2l <- vector(mode = "list", length = length(b))
   names(m2l) <- names(b)
+  ic = 1
   for(i in seq_along(names(b))){
-    if(i == 1) m2l[[i]] <- mb[,1:ncol(b[[i]]), drop = F]
-    else m2l[[i]] <- mb[,seq(from = (ncol(b[[i-1]])+1), length = ncol(b[[i]])), drop = F]
+    colsel = seq(from = ic, length = ncol(b[[i]]))
+    m2l[[i]] <- mb[,colsel, drop = F]
+    ic = max(colsel) + 1
     colnames(m2l[[i]]) <- colnames(b[[i]]); rownames(m2l[[i]]) <- rownames(b[[i]])
   }
   return(m2l)
@@ -645,13 +651,6 @@ nearPD <- function (M, eig.tol = 1e-06, conv.tol = 1e-07, posd.tol = 1e-08,
   return(list(mat = X, values = e$values, vectors = e$vectors))
 }
 
-# upS <- function(ghQ,pD){
-#   pz <- (1/nrow(pD))*Reduce("+",lapply(1:nrow(pD), function(m){
-#   Reduce("+",lapply(1:nrow(ghQ$points), function(i) tcrossprod(ghQ$points[i,])*pD[m,i]*c(ghQ$weights)[i]))}))
-#  pz <- diag(1/sqrt(diag(pz)))%*%pz%*%diag(1/sqrt(diag(pz)))
-#  return(pz)
-# }
-
 # # upSa <- function(ghQ,pD){ # pz,ghQ,pD,respz
 # #  
 # #  if(is.null(respz)){ corlst <- which(lower.tri(pz),arr.ind = T) } else corlst <- which(lower.tri(pz),arr.ind = T)[-respz,]
@@ -718,105 +717,80 @@ nearPD <- function (M, eig.tol = 1e-06, conv.tol = 1e-07, posd.tol = 1e-08,
 #  return(list(pz = pz, gradient = c(gra), hessian = hess))
 # }
  
-# grRz <- function(.crz,.ghQ,.pD,.q){
-#   # Rz_ <- .Rz <- diag(.q)
-#   .Rz <- diag(.q)
-#   # Rz_[lower.tri(.Rz)] <- .crz # fills by column
-#   .Rz[lower.tri(.Rz)] <- .Rz[upper.tri(.Rz)] <- .crz # fills by column
-#   # .Rz <- diag(1/sqrt(diag(.Rz)))%*%.Rz%*%diag(1/sqrt(diag(.Rz)))
-# 
-#   gra <- vector(mode = "numeric", length(.crz))
-#   for(i in 1:length(gra)){
-#     Dy <- matrix(0, nrow = nrow(.Rz), ncol(.Rz))
-#     # Dy[which(Rz_ == .crz[i])] <- 1
-#     Dy[which(.Rz == .crz[i])] <- 1
-#     Dy <- Dy + t(Dy) - Dy%*%Dy
-#     Gy <- solve(.Rz)%*%Dy%*%solve(.Rz)
-#     # P1 <- -nrow(.pD)/2*sum(diag((2*solve(.Rz) - solve(.Rz)*diag(.q))%*%Dy))
-#     P1 <- -nrow(.pD)/2*sum(diag((solve(.Rz)%*%Dy)))
-#     P2 <- Reduce("+",lapply(1:nrow(.pD),
-#                  function(m){sum(diag(Gy%*%Reduce("+",lapply(1:nrow(.ghQ$points),
-#                                                               function(i) tcrossprod(.ghQ$points[i,])*.pD[m,i]*c(.ghQ$weights)[i])) )) }))
-#     P3 <- Reduce("+",lapply(1:nrow(.pD), function(m){
-#       v <- Reduce("+",lapply(1:nrow(.ghQ$points), function(i) matrix(.ghQ$points[i,])*.pD[m,i]*c(.ghQ$weights)[i]));
-#       t(v)%*%Gy%*%v }))
-#     gra[i] <- P1+.5*P2+.5*P3
+# grL <- function(lvec,ghQf,pDf,qf){
+#   
+#   Lf <- diag(qf)
+#   lvecorg <- lvec
+#   lvec <- c(1,lvec)
+#   Lf[upper.tri(Lf, diag = T)] <- lvec
+#   Lf <- t(Lf)
+#   gra <- vector(mode = "numeric", length(lvecorg))
+#   
+#   auxF <- function(m,ghQff,pDff,Gyf){
+#     zm  <- Reduce("+",lapply(1:nrow(ghQff$points), function(i){ matrix(ghQff$points[i,])*pDff[m,i]*c(ghQff$weights)[i] }))
+#     z2m <- Reduce("+",lapply(1:nrow(ghQff$points), function(i){ tcrossprod(matrix(ghQff$points[i,]) - zm)*pDff[m,i]*c(ghQff$weights)[i] }))
+#     
+#     P2 <- sum(diag(Gyf%*%z2m))
+#     P3 <- t(zm)%*%Gyf%*%zm
+#     return(P2 + P3)
 #   }
+#   
+#   for(i in 1:length(lvecorg)){
+#     Dy <- matrix(0, nrow = nrow(Lf), ncol(Lf))
+#     Dy[which(Lf == lvecorg[i])] <- 1
+#     Ay <- t(Lf)%*%solve(Lf%*%t(Lf))
+#     Gy <- solve(Lf%*%t(Lf))%*%Dy%*%Ay
+#     P1 <- -nrow(pDf)*sum(diag((Ay%*%Dy)))
+#     P2P3 <- Reduce("+",lapply(1:nrow(pDf), function(m){auxF(m,ghQf,pDf,Gy) }))
+#     gra[i] <- P1+P2P3
+#   }
+#   
 #   return(gra)
 # }
 
-opRz <- function(cRzf,ghQf,pDf,qf){
-  Rz <- diag(qf)
-  Rz[lower.tri(Rz)] <- cRzf
-  Rz[upper.tri(Rz)] <- c(t(Rz)[upper.tri(Rz)])
-  # Rz <- diag(1/sqrt(diag(Rz)))%*%Rz%*%diag(1/sqrt(diag(Rz)))
-  llkZ <- -1*sum(sapply(1:nrow(pDf), function(m){ sum(mvnfast::dmvn(ghQf$points[,], mu = rep(0,qf), sigma = Rz, log = T)*pDf[m,]*c(ghQf$weights)) } ) )
-  return(llkZ)
-}
+# rmA <- grL(lvecT, ghQf = ghQf ,pDf = pDf,qf = qf)
+# rmB <- numDeriv::grad(fun = opRz, x = lvecT, ghQf = ghQf ,pDf = pDf,qf = qf)
 
-upRz <- function(cRz, ghQ, pD, q, max_it = 100){
-  tmp <- optim(par = cRz, fn = opRz, ghQf = ghQ, pDf = pD, qf = q,
-               method = "L-BFGS-B", lower = -0.95, upper = 0.95, control = list(fnscale = 1, maxit = max_it))
-  Rz <- diag(q)
-  Rz[lower.tri(Rz)] <- tmp$par
-  Rz[upper.tri(Rz)] <- c(t(Rz)[upper.tri(Rz)])
-  # Rz <- diag(1/sqrt(diag(Rz)))%*%Rz%*%diag(1/sqrt(diag(Rz)))
-  return(Rz)
-}
+# opRz <- function(lvec,ghQf,pDf,qf){
+#   Lf <- diag(qf)
+#   lvec <- c(1,lvec)
+#   Lf[upper.tri(Lf, diag = T)] <- lvec
+#   llkZ <- sum(sapply(1:nrow(pDf), function(m){ sum(mvnfast::dmvn(ghQf$points, mu = rep(0,qf), sigma = t(Lf)%*%Lf, log = T)*pDf[m,]*c(ghQf$weights)) } ) )
+#   return(llkZ)
+# }
 
-newRz <- function(Rz,ghQ,pD,q){
+# upRz <- function(cRz, ghQ, pD, q, max_it = 100){
+#   tmp <- optim(par = cRz, fn = opRz, ghQf = ghQ, pDf = pD, qf = q,
+#                method = "L-BFGS-B", lower = -0.95, upper = 0.95, control = list(fnscale = -1, maxit = max_it))
+#   Rz <- diag(q)
+#   Rz[lower.tri(Rz)] <- tmp$par
+#   Rz[upper.tri(Rz)] <- c(t(Rz)[upper.tri(Rz)])
+#   Rz <- diag(1/sqrt(diag(Rz)))%*%Rz%*%diag(1/sqrt(diag(Rz)))
+#   return(Rz)
+# }
+
+newRz <- function(Rz,pD,ghQ,q){
   
-  LDL_Rz <- fastmatrix::ldl(Rz)
-  lvec <- LDL_Rz$lower[lower.tri(LDL_Rz$lower)]
-  dvec <- LDL_Rz$d[LDL_Rz$d != 1]
-  pvec <- c(lvec,dvec)
-  
-  ineq_fun <- function(pvecf,ghQf,pDf,qf){
-    nndef.cond <- pvecf[((qf*(qf-1)/2)+1):length(pvecf)]
-    return(nndef.cond)
+  L <- chol(Rz) # Rz = t(L)%*%L
+
+  objF <- function(lvec,colNf,Lf,ghQf,pDf,qf){
+    tlvec <- vector(mode = "numeric", length = qf)
+    tlvec[1:length(lvec)] <- lvec
+    Lf[,colNf] <- tlvec
+    llkZ <- sum(sapply(1:nrow(pDf), function(m){ sum(mvnfast::dmvn(ghQf$points[,], mu = rep(0,qf), sigma = t(Lf)%*%Lf, log = T)*pDf[m,]*c(ghQf$weights)) } ) )
+    return(llkZ)
   }
   
-  eq_fun <- function(pvecf,ghQf,pDf,qf){
-    lv <- pvecf[1:(qf*(qf-1)/2)]
-    tmpL <- tmpD <- diag(qf)
-    tmpL[lower.tri(tmpL)] <- lv
-    dvec <- pvecf[((qf*(qf-1)/2)+1):length(pvecf)]
-    diag(tmpD)[2:qf] <- dvec
-    
-    ident.cond <- vector(mode = "numeric", length = qf-1)
-    for(i in 2:qf){
-      ident.cond[i-1] <- (tmpL%*%tmpD%*%t(tmpL))[i,i] - 1
-    }
-    return(ident.cond)
+  for(i in 2:q){
+    lvec <- L[,i][upper.tri(L,diag = T)[,i]]
+    tmp <- optim(lvec, fn = objF, colNf = i, Lf = L, ghQf = ghQ, pDf = pD, qf = q,
+                 control = list(fnscale = -1, maxit = 100))
+    lvec <- vector(mode = "numeric", length = q)
+    lvec[1:length(tmp$par)] <- tmp$par/sqrt(c(crossprod(tmp$par)))
+    L[,i] <- lvec
   }
   
-  LDLRz <- function(pvecf,ghQf,pDf,qf){
-    lv <- pvecf[1:(qf*(qf-1)/2)]
-    tmpL <- tmpD <- diag(qf)
-    tmpL[lower.tri(tmpL)] <- lv
-    dvec <- pvecf[((qf*(qf-1)/2)+1):length(pvecf)]
-    diag(tmpD)[2:qf] <- dvec
-    
-    .Rz <- tmpL%*%tmpD%*%t(tmpL)
-    llkZ <- -1*sum(sapply(1:nrow(pDf), function(m){ sum(mvnfast::dmvn(ghQf$points[,], mu = rep(0,qf), sigma = .Rz, log = T)*pDf[m,]*c(ghQf$weights)) } ) )
-  return(llkZ)
-  }
-  
-  tmpSol <- Rsolnp::solnp(pars = pvec, fun = LDLRz,
-                          eqfun = eq_fun,
-                          eqB = rep(0,(q-1)),
-                          ineqfun = ineq_fun,
-                          ineqLB = rep(0,(q-1)),
-                          ineqUB = rep(10,(q-1)),
-                          ghQf = ghQ, pDf = pD, qf = q, control = list(trace = 0))
-  
-  lv <- tmpSol$pars[1:(q*(q-1)/2)]
-  tmpL <- tmpD <- diag(q)
-  tmpL[lower.tri(tmpL)] <- lv
-  dvec <- tmpSol$pars[((q*(q-1)/2)+1):length(tmpSol$pars)]
-  diag(tmpD)[2:q] <- dvec
-  
-  .Rz <- tmpL%*%tmpD%*%t(tmpL)
+  .Rz <- t(L)%*%L
   
   return(.Rz)
 }
