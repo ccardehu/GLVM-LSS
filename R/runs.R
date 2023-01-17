@@ -2,7 +2,6 @@
 rm(list = ls())
 set.seed(1234)
 
-library(doSNOW)
 source("R/prep.R")
 source("R/fams.R")
 source("R/glvmlss.R")
@@ -10,9 +9,9 @@ source("R/misc.R")
 source("R/simC1.R")
 source("R/simC2.R")
 
-n = 500     # Number of individuals
-# # # nsim = 1000  # Number of simulations
-# # 
+# n = 500     # Number of individuals
+# # # # nsim = 1000  # Number of simulations
+# # # 
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # Simulation 1: Heteroscedastic Normal model:
@@ -37,11 +36,11 @@ n = 500     # Number of individuals
 # # # Simulations:
 # # # ~~~~~~~~~~~~
 # AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,.45,.45,1),nrow = 2), iden.res = "eiv")
-# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T)
+# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv")
 # AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T,
 #               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
-# AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv")
-# AE <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, iden.res = "eiv",
+# AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv", est.ci = "Approximate")
+# AE <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, iden.res = "eiv", est.ci = "Approximate",
 #               penalty = "alasso", lambda = "auto", w.alasso = AD$b, corr.lv = T)
 # 
 # round(cbind(AA$b$mu,AB$b$mu,AC$b$mu, AD$b$mu,AE$b$mu),3) #,AB$b$mu,AC$b$mu,
@@ -59,13 +58,13 @@ n = 500     # Number of individuals
 
 # data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = ~ Z1+Z2;ta.eq = NULL; nu.eq = NULL;
 # control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
-#             EM_appHess = F, EM_lrate = 0.001, est.ci = T,
+#             EM_appHess = F, EM_lrate = 0.001, est.ci = "Approximate",
 #             solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
-#             iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
+#             iden.res = "eiv", tol = sqrt(.Machine$double.eps), tolb = 1e-4,
 #             corr.lv = T, Rz = NULL,
 #             nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
 #             verbose = T, autoL_iter = 30, f.scores = F,
-#             penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
+#             penalty = "alasso", lambda = "auto", w.alasso = AD$b, gamma = NULL, a = NULL)
 
 # r1 <- NULL
 # for(p in c(5,10,20)){
@@ -317,7 +316,6 @@ n = 500     # Number of individuals
 rm(list = ls())
 set.seed(1234)
 
-library(doSNOW)
 source("R/prep.R")
 source("R/fams.R")
 source("R/glvmlss.R")
@@ -334,12 +332,13 @@ lc$mu <- matrix(1,ncol = 2, nrow = p)
 lc$sigma <- matrix(1, ncol = 2, nrow = p)
 lc$nu <- matrix(1, ncol = 2, nrow = p)
 lc$mu[,1] <- runif(p,1,2)
-lc$mu[,c(2)] <- runif(length(lc$mu[,c(2)]),0.5,1.5) * sample(c(-1,1),size = p,replace = T)
+lc$mu[,c(2)] <- runif(length(lc$mu[,c(2)]),0.5,1) * sample(c(-1,1),size = p,replace = T)
 lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
 lc$nu <- matrix(runif(length(lc$sigma),0.5,1.0), nrow = p) * sample(c(-1,1),size = p,replace = T)
 
 AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, start.val = lc)
-AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, verbose = T, solver = "nlminb", iter.lim = 1000, EM_use2d = F)
+AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, verbose = T,
+              solver = "nlminb", iter.lim = 1000, EM_use2d = F, est.ci = "Approximate")
 
 round(cbind(AA$b$mu, AB$b$mu),3)
 round(cbind(AA$b$si, AB$b$si),3)
@@ -347,7 +346,7 @@ round(cbind(AA$b$nu, AB$b$nu),3)
 
 # data = AA$Y; family = famt; mu.eq = ~ Z1; sg.eq = ~ Z1; nu.eq = ~ Z1; ta.eq = NULL;
 
-hist(AA$Y$Y10, breaks = 25)
+hist(AA$Y$Y5, breaks = 25)
 
 testf <- function(arg, Y, ghQ, borg, famL){
   b <- cb2lb(arg,borg)

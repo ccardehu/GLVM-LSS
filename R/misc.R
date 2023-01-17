@@ -286,8 +286,7 @@ ghq <- function(n){ # Function from GLMMADAPTIVE (2021)
       pp <- sqrt(2 * n) * p2
       z1 <- z
       z <- z1 - p1/pp
-      if (abs(z - z1) <= 3e-14)
-        break
+      if (abs(z - z1) <= 3e-14){ break }
     }
     x[i] <- z
     x[n + 1 - i] <- -z

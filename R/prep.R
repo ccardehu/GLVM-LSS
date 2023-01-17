@@ -2,7 +2,7 @@ prep_cont <- function(control,q,p,...){
   # Control settings
   # ~~~~~~~~~~~~~~~~
   con <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
-              EM_appHess = F, EM_lrate = 0.001, est.ci = T,
+              EM_appHess = F, EM_lrate = 0.001, est.ci = "Standard",
               solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
               iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
               corr.lv = FALSE, Rz = NULL,

@@ -437,27 +437,14 @@ SkewNormal <- function(mu.link = "identity", sg.link = "log", nu.link = "identit
     mu = sta.mu$linkinv(c(as.matrix(ghQ$out$mu)%*%b$mu[i,]))
     sg = sta.sg$linkinv(c(as.matrix(ghQ$out$sig)%*%b$sig[i,]))
     nu = sta.nu$linkinv(c(as.matrix(ghQ$out$nu)%*%b$nu[i,]))
-    dSKN <- Vectorize( function(Y,mu,sigma,nu,log = T){
-      tryCatch({z <- (Y - mu)/sigma
-      w <- nu*z
-      z2 <- (z^2)/2
-      w2 <- (w^2)/2
-      lpdf <- -0.5*log(2*pi) - z2
-      lcdf_fun <- function(idx,w2.,w.){
-        w2. <- w2.[idx]
-        w. <- w.[idx]
-        if(w2. == 0){
-          lcdf <- lpnorm(0, log.p = T)
-        } else lcdf <- log(0.5 * (1 + pgamma(w2., shape = 1/2, scale = 1) * sign(w.))) #  + .Machine$double.eps^10 
-        return(lcdf) }
-      lcdf <- sapply(1:length(w2), lcdf_fun, w2. = w2, w. = w)
-      lf <- lpdf + lcdf + log(2) - log(sigma)
-      if(log == T) return(lf) else return(exp(lf))}, error = function(e) NA) } )
+    dSKN <- function(Y,mu,sigma,nu,log = T){
+      lf <- dnorm(Y,mean = mu,sd = sigma,log = T) + pnorm(nu*Y,mean = mu,sd = sigma,log.p = T) + log(2) - log(sigma)
+      if(log == T) return(lf) else return(exp(lf)) }
     sapply(1:nrow(ghQ$points), function(r) dSKN(y,mu[r],sg[r],nu[r],log = T))
   }
   
-  eta1 = Vectorize( function(x) exp( dnorm(x,log=T) - pnorm(x,log.p = T) ) )
-  eta2 = Vectorize( function(x) -x*eta1(x) - eta1(x)^2 )
+  eta1 = function(x){ exp( dnorm(x,log=T) - pnorm(x,log.p = T) ) }
+  eta2 = function(x){ -x*eta1(x) - eta1(x)^2 }
   d1mu = function(y, mu, sigma, nu){
     z <- (y - mu)/sigma
     w <- nu * z

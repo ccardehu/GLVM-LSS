@@ -119,7 +119,7 @@ glvmlss_fit <- function(){
   }
   
   if(control$solver == "trust"){
-    if(control$verbose) cat("\n Direct MML estimation using trust-region algorithm ...")
+    if(control$verbose) cat("\n Direct MML estimation (trust-region) ...")
     if(control$lazytrust) trustll <- lazyll else trustll <- ll
     cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 1, rmax = 5,
                        fterm = control$tol, iterlim = control$iter.lim,
@@ -131,12 +131,12 @@ glvmlss_fit <- function(){
       dfyz_t <- fyz(Y,ghQ,b,famL)
       Rz <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q)
       ghQ <- prep_ghq(control$nQP,form,Rz) }
-    if(control$verbose) cat(paste0("\r Direct MML estimation using trust-region algorithm ... Converged after ",
+    if(control$verbose) cat(paste0("\r Direct MML estimation (trust-region) ... Converged after ",
                                    iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, ")",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$value,5))) }
   
   if(control$solver == "nlminb"){
-    if(control$verbose) cat("\n Direct MML estimation using 'nlminb' function ...")
+    if(control$verbose) cat("\n Direct MML estimation ('nlminb') ...")
     cb <- nlminb(start = cb, objective = lla, gradient = d1lla, control = list(iter.max = control$iter.lim),
                  Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
     pb[lb2cb(rb) == T] <- cb$par
@@ -146,12 +146,12 @@ glvmlss_fit <- function(){
       dfyz_t <- fyz(Y,ghQ,b,famL)
       Rz <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q)
       ghQ <-prep_ghq(control$nQP,form,Rz) }
-    if(control$verbose) cat(paste0("\r Direct MML estimation using 'nlminb' function ... Converged after ",
+    if(control$verbose) cat(paste0("\r Direct MML estimation ('nlminb') ... Converged after ",
                                    iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb)",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$objective,5))) } 
   
   if(control$solver != "nlminb" & control$solver != "trust"){
-    if(control$verbose) cat(paste0("\n Direct MML estimation using ", control$solver," algorithm ..."))
+    if(control$verbose) cat(paste0("\n Direct MML estimation (", control$solver,") ..."))
     cb <- optim(cb, fn = lla, gr = d1lla, method = control$solver,
                 control = list(maxit = control$iter.lim, fnscale = 1),
                 Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
@@ -162,20 +162,33 @@ glvmlss_fit <- function(){
       dfyz_t <- fyz(Y,ghQ,b,famL)
       Rz <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q)
       ghQ <- prep_ghq(control$nQP,form,Rz) }
-    if(control$verbose) cat(paste0("\r Direct MML estimation using ", control$solver, " algorithm ... Converged.",
+    if(control$verbose) cat(paste0("\r Direct MML estimation (", control$solver, ") ... Converged.",
                                    "\n (Approximate) Marginal loglikelihood: ", round(-cb$value,5))) }
   
   assign(x = "fyz_c",value = fyz(Y,ghQ,b,famL),envir = parent.frame())
-  if(control$est.ci){
-    if(control$verbose) cat("\n Computing standard errors ...")
-    hes_u <- -d2ll(Y = Y,ghQ = ghQ,b = b, famL = famL, info = "Fisher", pd = fyz_c$pD, rb = rb); hes_c <- NULL
-    pdMhes <- m2pdm(hes_u)
-    if(control$verbose){
-      if(!pdMhes$is.PD){ cat(paste0("\r Computing standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
-      } else { cat(paste0("\r Computing standard errors ... done!")) } }
-    seb <- rep(NA,length(lb2cb(b)))
-    seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
-    seb <- cb2lb(seb,b)
+  if(!is.null(control$est.ci)){
+    if(control$est.ci == "Standard" | control$est.ci == "Bayesian"){
+      if(control$verbose) cat("\n Computing standard errors ...")
+      hes_u <- -d2ll(Y = Y,ghQ = ghQ,b = b, famL = famL, info = "Fisher", pd = fyz_c$pD, rb = rb); hes_c <- NULL
+      pdMhes <- m2pdm(hes_u)
+      if(control$verbose){
+        if(!pdMhes$is.PD){ cat(paste0("\r Computing standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+        } else { cat(paste0("\r Computing standard errors ... done!")) } }
+      seb <- rep(NA,length(lb2cb(b)))
+      seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
+      seb <- cb2lb(seb,b)
+    }
+    if(control$est.ci == "Approximate"){
+      if(control$verbose) cat("\n Computing (approximate) standard errors ...")
+      hes_u <- ad2ll(Y = Y,ghQ = ghQ,b = b, famL = famL, info = "Fisher", pd = fyz_c$pD, rb = rb); hes_c <- NULL
+      pdMhes <- m2pdm(hes_u)
+      if(control$verbose){
+        if(!pdMhes$is.PD){ cat(paste0("\r Computing (approximate) standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+        } else { cat(paste0("\r Computing (approximate) standard errors ... done!")) } }
+      seb <- rep(NA,length(lb2cb(b)))
+      seb[lb2cb(rb)] <- sqrt(diag(pdMhes$inv.mat))
+      seb <- cb2lb(seb,b)
+    }
   } else seb <- hes_u <- hes_c <- NULL
   
   return(list(b = b, Rz = Rz, loglik = fyz_c$ll, unploglik = fyz_c$ll,
@@ -246,15 +259,22 @@ glvmlss_penfit <- function(){
         iter <- iter - 1
         break }
       convg <- ifelse(abs(eps1) < control$tol*1e0 || iter == control$EM_iter , T, F)
-      if(control$verbose){ if(iter == 1) cat(paste0("\n EM iter: ",iter,", penalised marginal loglik.: ", round(-llk[iter+1],5))) else
-        cat(paste0("\r EM iter: ",iter,", penalised marginal loglik.: ", round(-llk[iter+1],5))) }
+      if(control$verbose){
+        if(!autoL){
+          if(iter == 1) cat(paste0("\n EM iter: ",iter,", penalised marginal loglik.: ", round(-llk[iter+1],5))) else
+            cat(paste0("\r EM iter: ",iter,", penalised marginal loglik.: ", round(-llk[iter+1],5)))
+        } else {
+          if(iter == 1) cat(paste0("\n [Cycle: ",cycle + 1,"] EM iter: ",iter,", penalised marginal loglik.: ", round(-llk[iter+1],5))) else
+            cat(paste0("\r [Cycle: ",cycle + 1,"] EM iter: ",iter,", penalised marginal loglik.: ", round(-llk[iter+1],5)))
+        }
+      }
     }
     
     if(control$solver == "trust"){
       if(control$verbose){
-        if(!autoL) cat("\n Direct penalised MML estimation using trust-region algorithm ...") else
-          if(cycle == 0) cat(paste0("\n Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ...")) else
-            cat(paste0("\n Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ...")) }
+        if(!autoL) cat("\n Direct penalised MML estimation (trust-region) ...") else
+          if(cycle == 0) cat(paste0("\n [Cycle: ",cycle + 1,"] Direct penalised MML estimation (trust-region) ...")) else
+            cat(paste0("\n [Cycle: ",cycle + 1,"] Direct penalised MML estimation (trust-region) ...")) }
       if(control$lazytrust) trustll <- lazypll else trustll <- pll
       cb <- trust::trust(objfun = trustll, parinit = cb, rinit = 1, rmax = 5,
                          fterm = control$tol, iterlim = control$iter.lim,
@@ -268,19 +288,19 @@ glvmlss_penfit <- function(){
         Rz <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q)
         ghQ <- prep_ghq(control$nQP,form,Rz) }
       if(control$verbose){
-        if(autoL){ cat(paste0("\r Direct penalised MML estimation (trust-region, cycle ", cycle + 1,") ... Converged after ",
+        if(autoL){ cat(paste0("\r [Cycle: ",cycle + 1,"] Direct penalised MML estimation (trust-region) ... Converged after ",
                               iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, "),",
                               " pen. margllk: ", round(-cb$value,5)))
         } else {
-          cat(paste0("\r Direct penalised MML estimation using trust-region algorithm ... Converged after ",
+          cat(paste0("\r Direct penalised MML estimation (trust-region) ... Converged after ",
                      iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " ", control$solver, ")",
                      "\n (Approximate) Penalised Marginal loglikelihood: ", round(-cb$value,5))) } } }
     
     if(control$solver == "nlminb"){
       if(control$verbose){
-        if(!autoL) cat("\n Direct penalised MML estimation using 'nlminb' function ...") else 
-          if(cycle == 0) cat(paste0("\n Direct penalised MML estimation ('nlminb', cycle ", cycle + 1,") ...")) else
-            cat(paste0("\n Direct penalised MML estimation ('nlminb', cycle ", cycle + 1,") ...")) }
+        if(!autoL) cat("\n Direct penalised MML estimation ('nlminb') ...") else 
+          if(cycle == 0) cat(paste0("\n [Cycle: ",cycle + 1,"] Direct penalised MML estimation ('nlminb') ...")) else
+            cat(paste0("\n [Cycle: ",cycle + 1,"] Direct penalised MML estimation ('nlminb') ...")) }
       cb <- nlminb(start = cb, objective = plla, gradient = d1plla, control = list(iter.max = control$iter.lim),
                    Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb, bp = bp,
                    pen.control = pen.control)
@@ -292,19 +312,19 @@ glvmlss_penfit <- function(){
         Rz <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q)
         ghQ <- prep_ghq(control$nQP,form,Rz) }
       if(control$verbose){
-        if(!autoL){ cat(paste0("\r Direct penalised MML estimation 'nlminb' function ... Converged after ",
+        if(!autoL){ cat(paste0("\r Direct penalised MML estimation ('nlminb') ... Converged after ",
                                iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb)",
                                "\n (Approximate) Penalised Marginal loglikelihood: ", round(-cb$objective,5)))
         } else {
-          cat(paste0("\r Direct penalised MML estimation ('nlminb', cycle ", cycle + 1,") ... Converged after ",
+          cat(paste0("\r [Cycle: ",cycle + 1,"] Direct penalised MML estimation ('nlminb') ... Converged after ",
                      iter + cb$iter, " iterations (", iter," EM + ", cb$iter, " nlminb),",
                      " pen. margllk: ", round(-cb$objective,5))) } } }
     
     if(control$solver != "trust" & control$solver != "nlminb"){
       if(control$verbose){
-        if(!autoL) cat(paste0("\n Direct penalised MML estimation using ", control$solver," algorithm ...")) else
-          if(cycle == 0) cat(paste0("\n Direct penalised MML estimation (", control$solver,", cycle ", cycle + 1,") ...")) else
-            cat(paste0("\n Direct penalised MML estimation (", control$solver,", cycle ", cycle + 1,") ...")) }
+        if(!autoL) cat(paste0("\n Direct penalised MML estimation (", control$solver,") ...")) else
+          if(cycle == 0) cat(paste0("\n [Cycle: ",cycle + 1,"] Direct penalised MML estimation (", control$solver,") ...")) else
+            cat(paste0("\n [Cycle: ",cycle + 1,"] Direct penalised MML estimation (", control$solver,") ...")) }
       cb <- optim(cb, fn = plla, gr = d1plla, method = control$solver,
                   control = list(maxit = control$iter.lim, fnscale = 1),
                   Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb, bp = bp,
@@ -317,10 +337,10 @@ glvmlss_penfit <- function(){
         Rz <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q)
         ghQ <- prep_ghq(control$nQP,form,Rz) }
       if(control$verbose){
-        if(!autoL){ cat(paste0("\r Direct penalised MML estimation using ", control$solver, " algorithm ... Converged.",
+        if(!autoL){ cat(paste0("\r Direct penalised MML estimation (", control$solver, ") ... Converged.",
                                "\n (Approximate) Penalised Marginal loglikelihood: ", round(-cb$value,5)))
         } else {
-          cat(paste0("\r Direct penalised MML estimation (", control$solver,", cycle ", cycle + 1,") ... Converged (",
+          cat(paste0("\r [Cycle: ",cycle + 1,"] Direct penalised MML estimation (", control$solver,") ... Converged (",
                      "pen. margllk: ", round(-cb$value,5), ")")) } } }
     
     if(autoL){
@@ -349,18 +369,56 @@ glvmlss_penfit <- function(){
   b. <- lb2cb(b)[lb2cb(rb4se) == T]
   assign(x = "fyz_c",value = fyz(Y,ghQ,b,famL),envir = parent.frame())
   
-  if(control$est.ci){
-    if(control$verbose) cat("\n Computing standard errors ...")
-    hes_u <- -d2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb4se)
-    hes_c <- hes_u + nrow(Y$Y)*pMat$full
-    pdMhes <- m2pdm(hes_c)
-    if(control$verbose){
-      if(!pdMhes$is.PD){ cat(paste0("\r Computing standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
-      } else { cat(paste0("\r Computing standard errors ... done!")) } }
-    seb <- rep(NA,length(lb2cb(b)))
-    seb[lb2cb(rb4se)] <- sqrt(diag(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat))
-    seb <- cb2lb(seb,b)
-  } else seb <- hes_u <- hes_c <- NULL
+    if(!is.null(control$est.ci)){
+      if(control$est.ci == "Standard"){
+        if(control$verbose) cat("\n Computing standard errors ...")
+        hes_u <- -d2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb4se)
+        hes_c <- hes_u + nrow(Y$Y)*pMat$full
+        pdMhes <- m2pdm(hes_c)
+        if(control$verbose){
+          if(!pdMhes$is.PD){ cat(paste0("\r Computing standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+          } else { cat(paste0("\r Computing standard errors ... done!")) } }
+        seb <- rep(NA,length(lb2cb(b)))
+        seb[lb2cb(rb4se)] <- sqrt(diag(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat))
+        seb <- cb2lb(seb,b)
+      }
+      if(control$est.ci == "Bayesian"){
+        if(control$verbose) cat("\n Computing (Bayesian) standard errors ...")
+        hes_u <- -d2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb4se)
+        hes_c <- hes_u + nrow(Y$Y)*pMat$full
+        pdMhes <- m2pdm(hes_c)
+        if(control$verbose){
+          if(!pdMhes$is.PD){ cat(paste0("\r Computing (Bayesian) standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+          } else { cat(paste0("\r Computing (Bayesian) standard errors ... done!")) } }
+        seb <- rep(NA,length(lb2cb(b)))
+        seb[lb2cb(rb4se)] <- sqrt(diag(pdMhes$inv.mat))
+        seb <- cb2lb(seb,b)
+      }
+      if(control$est.ci == "Approximate"){
+        if(control$verbose) cat("\n Computing (approximate) standard errors ...")
+        hes_u <- ad2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb4se)
+        hes_c <- hes_u + nrow(Y$Y)*pMat$full
+        pdMhes <- m2pdm(hes_c)
+        if(control$verbose){
+          if(!pdMhes$is.PD){ cat(paste0("\r Computing (approximate) standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+          } else { cat(paste0("\r Computing (approximate) standard errors ... done!")) } }
+        seb <- rep(NA,length(lb2cb(b)))
+        seb[lb2cb(rb4se)] <- sqrt(diag(pdMhes$inv.mat))
+        seb <- cb2lb(seb,b)
+      }
+    } else seb <- hes_u <- hes_c <- NULL
+  # if(control$est.ci){
+  #   if(control$verbose) cat("\n Computing standard errors ...")
+  #   hes_u <- -d2ll(Y,ghQ,b,famL,"Fisher", pd = fyz_c$pD, rb4se)
+  #   hes_c <- hes_u + nrow(Y$Y)*pMat$full
+  #   pdMhes <- m2pdm(hes_c)
+  #   if(control$verbose){
+  #     if(!pdMhes$is.PD){ cat(paste0("\r Computing standard errors ... done!\n \r Warning: Fisher Information matrix is not positive definite at solution (fixed)."))
+  #     } else { cat(paste0("\r Computing standard errors ... done!")) } }
+  #   seb <- rep(NA,length(lb2cb(b)))
+  #   seb[lb2cb(rb4se)] <- sqrt(diag(pdMhes$inv.mat%*%hes_u%*%pdMhes$inv.mat))
+  #   seb <- cb2lb(seb,b)
+  # } else seb <- hes_u <- hes_c <- NULL
   
   return(list(b = b, Rz = Rz, loglik = c(fyz_c$ll - 0.5*nrow(Y$Y)*crossprod(b.,pMat$full)%*%b.),
               unploglik = fyz_c$ll, convergence = convg,
