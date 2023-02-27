@@ -1,4 +1,3 @@
-
 rm(list = ls())
 set.seed(1234)
 
@@ -9,62 +8,50 @@ source("R/misc.R")
 source("R/simC1.R")
 source("R/simC2.R")
 
-# n = 500     # Number of individuals
-# # # # nsim = 1000  # Number of simulations
-# # # 
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# # Simulation 1: Heteroscedastic Normal model:
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# p = 10
-# famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Normal()}
-# lc <- NULL
-# lc$mu <- matrix(1,ncol = 3, nrow = p)
-# lc$sigma <- matrix(1, ncol = 3, nrow = p)
-# lc$mu[,1] <- runif(p,1,2)
-# lc$mu[,c(2,3)] <- runif(length(lc$mu[,c(2,3)]),0.5,1.5) * sample(c(-1,1),size = 2*p,replace = T)
-# lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# # For sparse factor loading matrices:
-# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# lc$mu[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
-# for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.3)*lc$mu[i,3] }
-# lc$sigma[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
-# for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.3)*lc$sigma[i,3] }
-# # # ~~~~~~~~~~~~
-# # # Simulations:
-# # # ~~~~~~~~~~~~
-# AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,.45,.45,1),nrow = 2), iden.res = "eiv")
-# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv")
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T,
-#               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
-# AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv", est.ci = "Approximate")
-# AE <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, iden.res = "eiv", est.ci = "Approximate",
-#               penalty = "alasso", lambda = "auto", w.alasso = AD$b, corr.lv = T)
-# 
-# round(cbind(AA$b$mu,AB$b$mu,AC$b$mu, AD$b$mu,AE$b$mu),3) #,AB$b$mu,AC$b$mu,
-# round(cbind(AA$b$si,AB$b$si,AC$b$si,AD$b$si,AE$b$si),3) #,AB$b$si,AC$b$si
-# round(cbind(AA$Rz,AB$Rz,AC$Rz,AD$Rz,AE$Rz),3) #AB$Rz,AC$Rz,
-# AB$GBIC; AC$GBIC; AD$GBIC; AE$GBIC
+n = 500     # Number of individuals
+# # nsim = 1000  # Number of simulations
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Simulation 1: Heteroscedastic Normal model:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+p = 10
+famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Normal()}
+lc <- NULL
+lc$mu <- matrix(1,ncol = 3, nrow = p)
+lc$sigma <- matrix(1, ncol = 3, nrow = p)
+lc$mu[,1] <- runif(p,1,2)
+lc$mu[,-1] <- runif(length(lc$mu[,-1]),0.5,1.5) * sample(c(-1,1),size = 2*p,replace = T)
+lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For sparse factor loading matrices:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+lc$mu[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
+for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.3)*lc$mu[i,3] }
+lc$sigma[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
+for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.3)*lc$sigma[i,3] }
+# ~~~~~~~~~~~~
+# Simulations:
+# ~~~~~~~~~~~~
+AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,.45,.45,1),nrow = 2), iden.res = "eiv")
+AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv")
+AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv",
+              penalty = "alasso", lambda = "auto", w.alasso = AB$b)
+ 
+round(cbind(AA$b$mu,AB$b$mu,AC$b$mu),3) #,AB$b$mu,AC$b$mu, AD$b$mu,AE$b$mu
+round(cbind(AA$b$si,AB$b$si,AC$b$si),3) #,AB$b$si,AC$b$si,AD$b$si,AE$b$si
+round(cbind(AA$Rz,AB$Rz,AC$Rz),3) #,AC$Rz,AD$Rz,AE$Rz
+# AB$GBIC; #AC$GBIC; AD$GBIC; AE$GBIC
 
-
-# round(cbind(AA$b$mu,AB$b$mu,AC$b$mu),4)
-# round(cbind(AA$b$si,AB$b$si,AC$b$si),4)
-# AB$GBIC; AC$GBIC
-# AB$GAIC; AC$GAIC
-# AC$lambda;# AD$lambda
-# AC$sse;# AD$sse
-
-# data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = ~ Z1+Z2;ta.eq = NULL; nu.eq = NULL;
-# control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
-#             EM_appHess = F, EM_lrate = 0.001, est.ci = "Approximate",
-#             solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
-#             iden.res = "eiv", tol = sqrt(.Machine$double.eps), tolb = 1e-4,
-#             corr.lv = T, Rz = NULL,
-#             nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
-#             verbose = T, autoL_iter = 30, f.scores = F,
-#             penalty = "alasso", lambda = "auto", w.alasso = AD$b, gamma = NULL, a = NULL)
+data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = ~ Z1+Z2; ta.eq = NULL; nu.eq = NULL; q = 2;
+control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
+            EM_appHess = F, EM_lrate = 0.01, est.ci = "Standard",
+            solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
+            iden.res = "eiv", tol = sqrt(.Machine$double.eps), tolb = 1e-4,
+            corr.lv = T, Rz = NULL, var.lv = rep(1,q),
+            nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
+            verbose = T, autoL_iter = 30, f.scores = F,
+            penalty = "alasso", lambda = "auto", w.alasso = AB$b, gamma = NULL, a = NULL)
 
 # r1 <- NULL
 # for(p in c(5,10,20)){
@@ -196,6 +183,7 @@ source("R/simC2.R")
 # # Simulation 4: Beta:
 # # ~~~~~~~~~~~~~~~~~~~
 # # ~~~~~~~~~~~~~~~~~~~
+# n = 500
 # p = 10
 # famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Beta()}
 # lc <- NULL
@@ -323,30 +311,94 @@ source("R/misc.R")
 source("R/simC1.R")
 source("R/simC2.R")
 
-n = 1000     # Number of individuals 
+n = 2000     # Number of individuals 
  
-p = 10
+p = 3
 famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- SkewNormal()}
 lc <- NULL
 lc$mu <- matrix(1,ncol = 2, nrow = p)
 lc$sigma <- matrix(1, ncol = 2, nrow = p)
 lc$nu <- matrix(1, ncol = 2, nrow = p)
-lc$mu[,1] <- runif(p,1,2)
-lc$mu[,c(2)] <- runif(length(lc$mu[,c(2)]),0.5,1) * sample(c(-1,1),size = p,replace = T)
-lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
-lc$nu <- matrix(runif(length(lc$sigma),0.5,1.0), nrow = p) * sample(c(-1,1),size = p,replace = T)
+lc$mu[,1] <- runif(p,-1,1)
+lc$mu[,c(2)] <- runif(length(lc$mu[,c(2)]),0.5,1.5) * sample(c(-1,1),size = p,replace = T)
+lc$sigma <- matrix(runif(length(lc$sigma),0.2,0.4), nrow = p)
+lc$nu[,1] <- runif(p,-2,2)
+lc$nu[,2] <- matrix(runif(length(lc$nu[,2]),0.2,0.5), nrow = p) * sample(c(-1,1),size = p,replace = T)
+
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # For sparse factor loading matrices:
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# lc$sigma[sample(1:p, floor(p/2), replace = F),2] <- 0
+# lc$nu[sample(1:p, floor(p/2), replace = F),2] <- 0
 
 AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, start.val = lc)
-AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, verbose = T,
-              solver = "nlminb", iter.lim = 1000, EM_use2d = F, est.ci = "Approximate")
 
-round(cbind(AA$b$mu, AB$b$mu),3)
-round(cbind(AA$b$si, AB$b$si),3)
-round(cbind(AA$b$nu, AB$b$nu),3)
+A1 <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, verbose = T,
+              solver = "nlminb", iter.lim = 1000, start.val = lc, EM_use2d = F, est.ci = "Approximate", EM_iter = 3000)
+A1a <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, verbose = T,
+              solver = "nlminb", iter.lim = 1000, start.val = lc, EM_appHess = T, est.ci = "Approximate",
+              penalty = "alasso", lambda = "auto", w.alasso = A1$b)
 
-# data = AA$Y; family = famt; mu.eq = ~ Z1; sg.eq = ~ Z1; nu.eq = ~ Z1; ta.eq = NULL;
+A2 <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, verbose = T,
+              solver = "nlminb", iter.lim = 1000, EM_appHess = T, est.ci = "Approximate")
+A3 <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, verbose = T,
+              solver = "nlminb", iter.lim = 1000, start.val = "random", EM_appHess = T, est.ci = "Approximate")
 
-hist(AA$Y$Y5, breaks = 25)
+famf <- vector("list",p); for(i in 1:p){ famf[[i]] <- Normal()}
+AM <- glvmlss(data = AA$Y, family = famf, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T,
+              solver = "nlminb", iter.lim = 1000, EM_appHess = T, est.ci = "Approximate")
+AMa <- glvmlss(data = AA$Y, family = famf, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T,
+               solver = "nlminb", iter.lim = 1000, EM_appHess = T, est.ci = "Approximate",
+               penalty = "alasso", lambda = "auto", w.alasso = AM$b)
+
+round(cbind(AA$b$mu, A1$b$mu, A1a$b$mu), 3)# A2$b$mu, A3$b$mu, AM$b$mu),3) #, AM$b$mu
+round(cbind(AA$b$si, A1$b$si, A1a$b$si), 3)# A2$b$si, A3$b$si, AM$b$si),3) #, AM$b$si
+round(cbind(AA$b$nu, A1$b$nu, A1a$b$nu),3)# A2$b$nu, A3$b$nu, AM$b$nu),3) #, AM$b$nu
+
+round(A1a$lambda,3)
+
+round(cbind(A1$SE$mu, A1a$SE$mu),3) #, AM$SE$mu
+round(cbind(A1$SE$si, A1a$SE$si),3) #, AM$SE$si
+round(cbind(A1$SE$nu, A1a$SE$nu),3) #, AM$SE$nu
+
+# save.image("Session_n10K_DP-hetSKN_25-01-2023")
+ 
+r1 <- NULL
+for(p in c(5,10,20)){ # 
+  for(n in c(200,500,1000,5000)){ #,5000
+    r2 <- glvmlss_parsimpost(file = paste0("R/C1E4(CP-AppSE)n",n,"p",p,"_2023-02-16.Rds"),
+                             out = c("MSE","AB","PVS"),
+                             mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, plot = T, outs = T) # ta.eq = NULL
+    r1 <- rbind(r1,r2,deparse.level = 0); rm(r2)
+  };
+}; round(r1,4); #rm(r1)
+
+r1[,"PVS"] <- r1[,"PVS"]*100
+xtable::xtable(r1, digits = 4)
+
+# r1[,1] <- r1[,1]*100
+
+# rownames(r1) <- c(paste0(paste0("n",c(500,1000,5000)),"p",10), paste0(paste0("n",c(500,1000,5000)),"p",20))
+
+temp <- data.frame(x = apply(Xbe, MARGIN = 2, FUN = sd),
+                   y = colMeans(Xse),
+                   nu = as.factor(grepl("nu",colnames(Xse),fixed = T)))
+
+plot(x = temp$x, y = temp$y, col = temp$nu, pch = 16,
+     xlab = "Empirical SE", ylab = "Estimated SE (outer gradient)",
+     main = "Empirical vs estimated SE (n = 200, p = 10)")
+abline(a = 0, b = 1, col = 4, lwd = 2)
+ 
+
+data = AA$Y; family = famt; mu.eq = ~ Z1; sg.eq = ~ Z1; nu.eq = ~Z1; ta.eq = NULL; q = 1; info = "Hessian"
+control <- list(EM_iter = 1000, EM_use2d = F, iter.lim = 300,
+            EM_appHess = T, EM_lrate = 0.001, est.ci = "Standard",
+            solver = "nlminb", start.val = lc, mat.info = "Hessian", lazytrust = F,
+            iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
+            corr.lv = FALSE, Rz = NULL,
+            nQP = 40,
+            verbose = T, autoL_iter = 30, f.scores = F,
+            penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
 
 testf <- function(arg, Y, ghQ, borg, famL){
   b <- cb2lb(arg,borg)
@@ -356,20 +408,14 @@ testf <- function(arg, Y, ghQ, borg, famL){
 numGrad <- numDeriv::grad(func = testf, x = lb2cb(lc),Y = Y, ghQ = ghQ, borg = lc, famL = famL)
 anaGrad <- -d1ll(Y,ghQ,lc,famL,info,fyz(Y,ghQ,lc,famL)$pD,rb)
 
-plot.ts(numGrad, type = "l")
+plot.ts(numGrad, type = "o")
 lines(anaGrad, col = 2)
 
 numHess <- numDeriv::hessian(func = testf, x = lb2cb(lc),Y = Y, ghQ = ghQ, borg = lc, famL = famL)
-anaHess <- -d2ll(Y,ghQ,lc,famL,info,fyz(Y,ghQ,lc,famL)$pD,rb)
+anaHess <- -d2ll(Y,ghQ,lc,famL,"Hessian",fyz(Y,ghQ,lc,famL)$pD,rb)
+# appHess <- ad2ll(Y,ghQ,lc,famL,"Hessian",fyz(Y,ghQ,lc,famL)$pD, rb)
 
-plot.ts(c(numHess), type = "l")
-lines(c(anaHess), col = 2)
-
-gamma1 <- function(a){
-  b <- sqrt(2/pi)
-  delta <- function(aa) aa/sqrt(1+aa^2)
-  res <- (4-pi)/2*(b^3*delta(a)^3)/(1-b^2*delta(a)^2)^(3/2)
-  return(res)
-}
-
-curve(gamma1,-15,15,n=10000)
+plot.ts(diag(numHess) - diag(anaHess), type = "o")
+# plot.ts(diag(numHess) - diag(appHess), type = "o")
+# plot.ts(diag(anaHess) - diag(appHess), type = "o")
+lines(diag(anaHess), col = 2)
