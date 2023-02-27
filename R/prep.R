@@ -5,7 +5,7 @@ prep_cont <- function(control,q,p,...){
               EM_appHess = F, EM_lrate = 0.001, est.ci = "Standard",
               solver = "trust", start.val = NULL, mat.info = "Hessian", lazytrust = F,
               iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
-              corr.lv = FALSE, Rz = NULL,
+              corr.lv = FALSE, Rz = NULL, var.lv = rep(1,q),
               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 18, 25) else 10 },
               verbose = FALSE, autoL_iter = 30, f.scores = F,
               penalty = "none", lambda = NULL, w.alasso = NULL, gamma = NULL, a = NULL)
@@ -73,15 +73,27 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
   # Starting betas
   # ~~~~~~~~~~~~~~
   if(!is.null(control$start.val)){
-    if(!is.list(control$start.val)) stop("\n Provided starting values should be a list with dim p*(q+intercept) loading matrices for mu, sigma, nu, tau")
-    if(length(control$start.val) != length(form)) stop("\n Number of matrices in starting values should match number of parameters mu, sigma, nu, tau")
-    names(control$start.val) <- names(form)
-    for(i in names(control$start.val)) {
-      colnames(control$start.val[[i]]) <- colnames(ghQ$out[[i]]); rownames(control$start.val[[i]]) <- colnames(Y$Y)
-      if(length(control$start.val[[i]]) != p*ncol(ghQ$out[[i]])) stop("\n Provided starting values is not lenght p*(q+intercept), revise dimension")
-      if(!is.matrix(control$start.val[[i]])) control$start.val[[i]] <- matrix(control$start.val[[i]], nrow = p, ncol = ncol(ghQ$out[[i]]))
+    if(length(control$start.val) == 1 & is.character(control$start.val) & any(control$start.val == "random")){
+      b <- vector(mode = "list", length = length(form))
+      names(b) <- names(form)
+      tmpnames <- c("(Intercept)", paste0("Z", 1:q))
+      for(i in names(b)){
+        size_ <- p*(sum(attr(terms(form[[i]]),"order")) + 1)
+        b[[i]] <- matrix(runif(size_) * sample(c(1,-1), size = size_, replace = T), nrow = p)
+        rownames(b[[i]]) <- colnames(Y$Y)
+        colnames(b[[i]]) <- tmpnames[1:ncol(b[[i]])]
+      }
+    } else {
+      if(!is.list(control$start.val)) stop("\n Provided starting values should be a list with dim p*(q+intercept) loading matrices for mu, sigma, nu, tau")
+      if(length(control$start.val) != length(form)) stop("\n Number of matrices in starting values should match number of parameters mu, sigma, nu, tau")
+      names(control$start.val) <- names(form)
+      for(i in names(control$start.val)) {
+        colnames(control$start.val[[i]]) <- colnames(ghQ$out[[i]]); rownames(control$start.val[[i]]) <- colnames(Y$Y)
+        if(length(control$start.val[[i]]) != p*ncol(ghQ$out[[i]])) stop("\n Provided starting values is not lenght p*(q+intercept), revise dimension")
+        if(!is.matrix(control$start.val[[i]])) control$start.val[[i]] <- matrix(control$start.val[[i]], nrow = p, ncol = ncol(ghQ$out[[i]]))
+      }
+      b <- control$start.val
     }
-    b <- control$start.val
   } else {
     if(control$verbose) cat("\n Argument 'control$start.val' not supplied: Starting values via 'gamlss' and PCA.")
     b <- suppressWarnings(ibeta(Y,famL,form))
@@ -146,14 +158,14 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
     b <- rmat(control$iden.res,b) }
   # Sign
   # ~~~~
-  for(j in paste0("Z",1:q)){
-    if(j %in% colnames(b$b[[1]])){
-      if(b$b[[1]][,j][b$b[[1]][,j] != 0][1] < 0){
-        for(r in names(b$b)){
-          if(j %in% colnames(b$b[[r]])) b$b[[r]][,j] <- -b$b[[r]][,j] }
-      }
-    }
-  }
+  # for(j in paste0("Z",1:q)){
+  #   if(j %in% colnames(b$b[[1]])){
+  #     if(b$b[[1]][,j][b$b[[1]][,j] != 0][1] < 0){
+  #       for(r in names(b$b)){
+  #         if(j %in% colnames(b$b[[r]])) b$b[[r]][,j] <- -b$b[[r]][,j] }
+  #     }
+  #   }
+  # }
   return(b)
 }
 
@@ -171,9 +183,9 @@ sim_cont <- function(control,q,...){
 }
 
 sim_Z <- function(control,q,n,form){
-  if(sum(diag(control$Rz)) != q){ warning("Argument `control$Rz' standardised to a correlation matrix")
-    control$Rz <- diag(1/sqrt(diag(control$Rz)))%*%control$Rz%*%diag(1/sqrt(diag(control$Rz)))
-  }
+  # if(sum(diag(control$Rz)) != q){ warning("Argument `control$Rz' standardised to a correlation matrix")
+  #   control$Rz <- diag(1/sqrt(diag(control$Rz)))%*%control$Rz%*%diag(1/sqrt(diag(control$Rz)))
+  # }
   Z <- as.data.frame(mvtnorm::rmvnorm(n, control$muZ, control$Rz))
   colnames(Z) <- paste0("Z", 1:q)
   Zmod <- vector("list", length = length(form)); names(Zmod) <- names(form)

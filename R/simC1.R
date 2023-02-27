@@ -12,13 +12,12 @@ glvmlss_parsimE1 <- function(nsim, saveRes = T){
               tryCatch({
                 
                 set.seed(l)
-                A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-                c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25)
-                c1 <- Sys.time()
-                cof <- c(lb2cb(A$b), lb2cb(B$b))
-                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
-                return(c(cof,ex2)) },
+                A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc,iden.res = "eiv", Rz = matrix(c(1,.3,.3,1), nrow = 2))
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T, start.val = lc)
+                cof <- c(lb2cb(A$b), A$Rz[2,1], lb2cb(B$b), B$Rz[2,1])
+                ste <- c(lb2cb(B$SE$b),B$SE$Rz[1,2])
+                ex2 <- c(1,B$conv, B$iter, length(lb2cb(B$b)) + 1) # include the estimated correlation 
+                return(c(cof,ste,ex2)) },
                 error = function(e) { return(NA) }  ) } )
   stopCluster(cl)
   if(saveRes) saveRDS(FCOL, file = paste0("C1E1n",n, "p", p,"_",Sys.Date(),".Rds"))
@@ -39,13 +38,12 @@ glvmlss_parsimE2 <- function(nsim, saveRes = T){
               tryCatch({
                 
                 set.seed(l)
-                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-                c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25)
-                c1 <- Sys.time()
+                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc,iden.res = "eiv", Rz = matrix(c(1,.45,.45,1), nrow = 2))
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T, start.val = lc)
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
-                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
-                return(c(cof,ex2)) },
+                ste <- lb2cb(B$SE)
+                ex2 <- c(1,B$conv, B$iter, length(lb2cb(B$b)))
+                return(c(cof,ste,ex2)) },
                 error = function(e) { return(NA) }  ) } )
   stopCluster(cl)
   if(saveRes) saveRDS(FCOL, file = paste0("C1E2n",n, "p", p,"_",Sys.Date(),".Rds"))
@@ -67,35 +65,52 @@ glvmlss_parsimE3 <- function(nsim, saveRes = T){
                 
                 set.seed(l)
                 A <- glvmlss_sim(n,famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = lc)
-                c0 <- Sys.time()
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nQP = 40)
-                c1 <- Sys.time()
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nQP = 50, start.val = lc)
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
-                ex2 <- c(c1-c0, B$iter, length(lb2cb(B$b)))
-                return(c(cof,ex2)) },
+                ste <- lb2cb(B$SE)
+                ex2 <- c(0,B$conv, B$iter, length(lb2cb(B$b)))
+                return(c(cof,ste,ex2)) },
                 error = function(e) { return(NA) }  ) } )
   stopCluster(cl)
   if(saveRes) saveRDS(FCOL, file = paste0("C1E3n",n, "p", p,"_",Sys.Date(),".Rds"))
   return(FCOL)
 }
 
-glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
+glvmlss_parsimE4 <- function(nsim, saveRes = T){
+  cores <- ifelse(parallel::detectCores() > 32, 32, parallel::detectCores())
+  cl <- parallel::makeCluster(cores)
+  clusterExport(cl, ls(.GlobalEnv))
+  doSNOW::registerDoSNOW(cl)
+  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
+  opts <- list(progress = progress)
+  FCOL <- suppressWarnings(
+    foreach(l = 1:nsim,
+            .combine = rbind,
+            .options.snow = opts) %dopar% { # .export = ls(parent.frame()),
+              tryCatch({
+                
+                set.seed(l)
+                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, start.val = lc)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, nQP = 100,
+                             est.ci = "Approximate", solver = "nlminb", iter.lim = 1000, start.val = lc)
+                cof <- c(lb2cb(A$b), lb2cb(B$b))
+                ste <- lb2cb(B$SE)
+                ex2 <- c(0, B$conv, B$iter, length(lb2cb(B$b)))
+                return(c(cof,ste,ex2)) },
+                error = function(e) { return(NA) }  ) } )
+  stopCluster(cl)
+  if(saveRes) saveRDS(FCOL, file = paste0("C1E4(CP-AppSE)n",n, "p", p,"_",Sys.Date(),".Rds"))
+  return(FCOL)
+}
+
+glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0, iden.res = "eiv",
                                mu.eq = ~ Z1+Z2, sg.eq = NULL,
-                               ta.eq = NULL, nu.eq = NULL, plot = F, outs = T){
-  
-  colMeans_ <- function(X = X, trim = trim){
-    return(c(apply(X,MARGIN = 2,mean, trim = trim)))
-  }
+                               nu.eq = NULL, ta.eq = NULL, plot = F, outs = F){
   
   X <- readRDS(file)
   
-  environment(prep_form) <- environment()
-  form <- prep_form()
-  environment(prep_Z) <- environment()
-  q <- prep_Z()
-  # p <- as.numeric(sub(".Rds.*","",sub(".*p","", file)))
-  EX <- as.numeric(sub(".*R/C1E","",sub("n.*","", file)))
-  # n <- as.numeric(sub("p.*","",sub(".*n","", file)))
+  form <- prep_form(mu.eq = mu.eq, sg.eq = sg.eq, nu.eq = nu.eq, ta.eq = ta.eq)
+  q <- prep_Z(form = form)
   
   nam <- NULL
   for(i in names(form)){ nam <- rbind(nam,expand.grid(i,1:p,stringsAsFactors = F)) }
@@ -106,10 +121,11 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
     for(j in names(form)){
       nM <- append(nM,paste0(nam[grepl(j,as.character(nam))][i],".",c(0,seq_len(length(all.vars(as.formula(form[[j]])))))))
     }
-  }; rm(nam)
+  };
   
   ip <- !grepl(".0",nM,fixed = T)
-  if(q != 1) li1 <- c("mu1.2","sigma1.2","tau1.2","nu1.2") else li1 <- c("NA") # Depends on the type of identification!
+  if(q != 1 & iden.res == "eiv") li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1","tau1.2","tau2.1","nu1.2","nu2.1") else li1 <- c("NA")
+  if(q != 1 & iden.res != "eiv") li1 <- c("mu1.2","sigma1.2","tau1.2","nu1.2") else li1 <- c("NA") # Depends on the type of identification!
   li2 <- lapply(li1, function(i) !grepl(i,nM))
   for(i in 1:length(li2)){ ip <- ip & li2[[i]]}; names(ip) <- nM; rm(list=c("li1","li2"))
   ip[grepl(".0",nM,fixed = T)] <- T; nM <- nM[ip];
@@ -118,18 +134,45 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
     tmp <- grepl(paste0(".",i),nM,fixed = T)
     names(tmp) <- nM
     tmp <- tmp[nM]
-    assign(paste0("ip",i), tmp)
+    assign(paste0("ip",i), tmp); #rm(tmp)
   }
   
+  # Original simulations
   Xor <- X
-  X  <- X[complete.cases(X),]; X <- X[apply(X,1,min)!=-999, ]
-  ix <- mean(X[,ncol(X)])
+  # Cleaning number of estimated parameters
+  ix <- mean(X[,ncol(X)], na.rm = T)
+  probseedX <- is.na(X[,ncol(X)])
+  X  <- X[!probseedX,];
   X <- X[,-ncol(X)]
-  rR <- !(X[,ncol(X)] == 330)
-  Xb0 <- X[rR,seq_len(ix[1])[ip]]; colnames(Xb0) <- nM ;
-  Xbe <- X[rR,((ix[1]+1):(2*ix[1]))[ip]]; colnames(Xbe) <- nM
-  Xit <- X[, max((ix[1]+1):(2*ix[1]))+2]
-  Xti <- X[, max((ix[1]+1):(2*ix[1]))+1]
+  # Matrix for number of iterations
+  Xit <- X[, ncol(X), drop = F]
+  colnames(Xit) <- "iter"
+  X <- X[,-ncol(X)]
+  # Matrix for convergence status
+  Xc <- X[, ncol(X), drop = F]
+  colnames(Xc) <- "conv"
+  X <- X[,-ncol(X)]
+  # Matrix for LV correlation flag 
+  Xlvc <- X[, ncol(X), drop = F]
+  colnames(Xlvc) <- "LVcor"
+  X <- X[,-ncol(X)]
+  if(mean(Xlvc) == 1){
+    corFlag <- T
+    names(corFlag) <- "cor(Z1,Z2)"
+    ip <- c(ip,corFlag)
+    nM <- c(nM, names(corFlag))
+    for(i in 1:q){
+      tmp <- grepl(paste0(".",i),nM,fixed = T)
+      names(tmp) <- nM
+      tmp <- tmp[nM]
+      assign(paste0("ip",i), c(get(paste0("ip",i)), !corFlag)); #rm(tmp)
+    }
+  }
+  
+  Xb0 <- X[Xc == 1,seq_len(ix[1])[ip]]; colnames(Xb0) <- nM
+  Xbe <- X[Xc == 1,((ix[1]+1):(2*ix[1]))[ip]]; colnames(Xbe) <- nM
+  Xse <- X[Xc == 1,((2*ix[1]+1):(3*ix[1]))[ip]]; colnames(Xse) <- nM
+  Xit <- Xit[Xc == 1,]
   
   imu0 <- grepl("mu",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
   imul <- grepl("mu",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
@@ -139,8 +182,9 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   ital <- grepl("tau",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
   inu0 <- grepl("nu",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
   inul <- grepl("nu",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
+  icor <- grepl("cor",colnames(Xb0),fixed = T)
   ili <- list("mu0" = imu0, "mu1" = imul, "sg0" = isg0, "sg1" = isgl,
-              "ta0" = ita0, "ta1" = ital, "nu0" = inu0, "nu1" = inul)
+              "ta0" = ita0, "ta1" = ital, "nu0" = inu0, "nu1" = inul, "Rz" = icor)
   for(i in names(ili)){ if(all(!ili[[i]])) ili[[i]] <- NULL }
   
   # Fixing sign
@@ -148,21 +192,24 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   
   for(i in 1:nrow(Xbe)){
     for(j in 1:q){
+      flagj = 0
       for(ii in names(ili)[grepl("1",names(ili),fixed = T)]){
         ij <- which.max(abs(Xbe[i,ili[[ii]] & get(paste0("ip",j))]))
-        if(sign(Xbe[i,ili[[ii]] & get(paste0("ip",j))][ij]) != sign(Xb0[i,ili[[ii]] & get(paste0("ip",j))][ij])) Xbe[i,ili[[ii]] & get(paste0("ip",j))] <- -Xbe[i,ili[[ii]] & get(paste0("ip",j))]
+        if(sign(Xbe[i,ili[[ii]] & get(paste0("ip",j))][ij]) != sign(Xb0[i,ili[[ii]] & get(paste0("ip",j))][ij])){
+          Xbe[i,ili[[ii]] & get(paste0("ip",j))] <- -Xbe[i,ili[[ii]] & get(paste0("ip",j))]
+          flagj = flagj + 1
+        }
       }
-      # ij <- which.max(abs(Xbe[i,get(paste0("ip",j))]))
-      # if(sign(Xbe[i,get(paste0("ip",j))][ij]) != sign(Xb0[i,get(paste0("ip",j))][ij])) Xbe[i,get(paste0("ip",j))] <- -Xbe[i,get(paste0("ip",j))]
+      if(flagj == 2) Xbe[i,"cor(Z1,Z2)"] <- -Xbe[i,"cor(Z1,Z2)"]
     }
   }
   
   res <- nam <- NULL
   for(ii in names(ili)){
-    if("MSE" %in% out) assign(paste0("AvMSE",ii), mean(colMeans_((Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]])^2, trim = trim)) )
-    if("AB" %in% out) assign(paste0("AvAB",ii), mean(abs(colMeans_(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]], trim = trim))) )
-    if("SB" %in% out) assign(paste0("AvSB",ii), mean((colMeans_(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]], trim = trim))^2) )
-    if("RB" %in% out) assign(paste0("AvRB",ii), mean((colMeans_(Xb0[,ili[[ii]]] - Xbe[,ili[[ii]]], trim = trim))/abs(colMeans_(Xb0[,ili[[ii]]], trim = trim))) ) } 
+    if("MSE" %in% out) assign(paste0("AvMSE",ii), mean(colMeans((Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F])^2)) )
+    if("AB" %in% out) assign(paste0("AvAB",ii), mean(abs(colMeans(Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F]))) )
+    if("SB" %in% out) assign(paste0("AvSB",ii), mean((colMeans(Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F]))^2) )
+    if("RB" %in% out) assign(paste0("AvRB",ii), mean((colMeans(Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F]))/abs(colMeans(Xb0[,ili[[ii]]]))) ) } 
   
   if("MSE" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvMSE",ii))); nam <- c(nam, paste0("AvMSE",ii)) }
   if("AB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvAB",ii))); nam <- c(nam, paste0("AvAB",ii)) }
@@ -171,8 +218,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   names(res) <- nam
   
   if("iter" %in% out){ nam <- c(names(res),"AvIter"); res <- c(res,mean(Xit)); names(res) <- nam }
-  if("time" %in% out){ nam <- c(names(res),"AvTime"); res <- c(res,mean(Xti)); names(res) <- nam }
-  if("PVS" %in% out){ nam <- c("PVS",names(res)); res <- c(nrow(Xbe)/nrow(Xor),res); names(res) <- nam }
+  if("PVS" %in% out){ nam <- c("PVS",names(res)); res <- c(mean(Xc),res); names(res) <- nam }
   
   if(plot){
     nid <- NULL
@@ -180,7 +226,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
       nid <- c(nid,which(ili[[ii]]))
     }
     boxplot(Xb0[,nid] - Xbe[,nid],
-            main = paste0("Bias (by type of parameter): Simulation ", EX, ", n = ",n,", p = ",p),
+            main = paste0("Bias (by type of parameter): Simulation, n = ",n,", p = ",p),
             xlab = "", ylab = "Bias", pch = 16,
             col = "gray90", xaxt = "n", cex = 0.5, outline = outs)
     mtext(side = 1, text = "Parameter index", line = 4)
@@ -195,5 +241,4 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0,
   }
   
   return(res)
-  # return(c(format(round(res,4),nsmall = 4,scientific = F)))
 }
