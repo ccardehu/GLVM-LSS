@@ -13,7 +13,7 @@ glvmlss_parsimE1 <- function(nsim, saveRes = T){
                 
                 set.seed(l)
                 A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc,iden.res = "eiv", Rz = matrix(c(1,.3,.3,1), nrow = 2))
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T, start.val = lc)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T, start.val = A$b)
                 cof <- c(lb2cb(A$b), A$Rz[2,1], lb2cb(B$b), B$Rz[2,1])
                 ste <- c(lb2cb(B$SE$b),B$SE$Rz[1,2])
                 ex2 <- c(1,B$conv, B$iter, length(lb2cb(B$b)) + 1) # include the estimated correlation 
@@ -39,7 +39,7 @@ glvmlss_parsimE2 <- function(nsim, saveRes = T){
                 
                 set.seed(l)
                 A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc,iden.res = "eiv", Rz = matrix(c(1,.45,.45,1), nrow = 2))
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T, start.val = lc)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T, start.val = A$b)
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
                 ste <- lb2cb(B$SE)
                 ex2 <- c(1,B$conv, B$iter, length(lb2cb(B$b)))
@@ -65,7 +65,7 @@ glvmlss_parsimE3 <- function(nsim, saveRes = T){
                 
                 set.seed(l)
                 A <- glvmlss_sim(n,famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = lc)
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nQP = 50, start.val = lc)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nQP = 50, start.val = A$b)
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
                 ste <- lb2cb(B$SE)
                 ex2 <- c(0,B$conv, B$iter, length(lb2cb(B$b)))
@@ -92,7 +92,7 @@ glvmlss_parsimE4 <- function(nsim, saveRes = T){
                 set.seed(l)
                 A <- glvmlss_sim(n,famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, start.val = lc)
                 B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, nu.eq = ~ Z1, nQP = 100,
-                             est.ci = "Approximate", solver = "nlminb", iter.lim = 1000, start.val = lc)
+                             est.ci = "Approximate", solver = "nlminb", iter.lim = 1000, start.val = A$b)
                 cof <- c(lb2cb(A$b), lb2cb(B$b))
                 ste <- lb2cb(B$SE)
                 ex2 <- c(0, B$conv, B$iter, length(lb2cb(B$b)))
@@ -106,7 +106,7 @@ glvmlss_parsimE4 <- function(nsim, saveRes = T){
 glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0, iden.res = "eiv",
                                mu.eq = ~ Z1+Z2, sg.eq = NULL,
                                nu.eq = NULL, ta.eq = NULL, plot = F, outs = F){
-  
+
   X <- readRDS(file)
   
   form <- prep_form(mu.eq = mu.eq, sg.eq = sg.eq, nu.eq = nu.eq, ta.eq = ta.eq)
@@ -125,7 +125,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0, iden.res = "
   
   ip <- !grepl(".0",nM,fixed = T)
   if(q != 1 & iden.res == "eiv") li1 <- c("mu1.2","mu2.1","sigma1.2","sigma2.1","tau1.2","tau2.1","nu1.2","nu2.1") else li1 <- c("NA")
-  if(q != 1 & iden.res != "eiv") li1 <- c("mu1.2","sigma1.2","tau1.2","nu1.2") else li1 <- c("NA") # Depends on the type of identification!
+  if(q != 1 & iden.res == "recursive") li1 <- c("mu1.2","sigma1.2","tau1.2","nu1.2") else li1 <- c("NA") # Depends on the type of identification!
   li2 <- lapply(li1, function(i) !grepl(i,nM))
   for(i in 1:length(li2)){ ip <- ip & li2[[i]]}; names(ip) <- nM; rm(list=c("li1","li2"))
   ip[grepl(".0",nM,fixed = T)] <- T; nM <- nM[ip];
@@ -173,7 +173,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0, iden.res = "
   Xbe <- X[Xc == 1,((ix[1]+1):(2*ix[1]))[ip]]; colnames(Xbe) <- nM
   Xse <- X[Xc == 1,((2*ix[1]+1):(3*ix[1]))[ip]]; colnames(Xse) <- nM
   Xit <- Xit[Xc == 1,]
-  
+
   imu0 <- grepl("mu",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
   imul <- grepl("mu",colnames(Xb0),fixed = T) & !grepl(".0",colnames(Xb0),fixed = T)
   isg0 <- grepl("sigma",colnames(Xb0),fixed = T) & grepl(".0",colnames(Xb0),fixed = T)
@@ -209,8 +209,9 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0, iden.res = "
     if("MSE" %in% out) assign(paste0("AvMSE",ii), mean(colMeans((Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F])^2)) )
     if("AB" %in% out) assign(paste0("AvAB",ii), mean(abs(colMeans(Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F]))) )
     if("SB" %in% out) assign(paste0("AvSB",ii), mean((colMeans(Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F]))^2) )
-    if("RB" %in% out) assign(paste0("AvRB",ii), mean((colMeans(Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F]))/abs(colMeans(Xb0[,ili[[ii]]]))) ) } 
-  
+    if("RB" %in% out) assign(paste0("AvRB",ii), mean((colMeans(Xb0[,ili[[ii]], drop = F] - Xbe[,ili[[ii]], drop = F]))/abs(colMeans(Xb0[,ili[[ii]]]))) )
+  } 
+
   if("MSE" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvMSE",ii))); nam <- c(nam, paste0("AvMSE",ii)) }
   if("AB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvAB",ii))); nam <- c(nam, paste0("AvAB",ii)) }
   if("SB" %in% out) for(ii in names(ili)){ res <- c(res, get(paste0("AvSB",ii))); nam <- c(nam, paste0("AvSB",ii)) }
@@ -219,7 +220,7 @@ glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0, iden.res = "
   
   if("iter" %in% out){ nam <- c(names(res),"AvIter"); res <- c(res,mean(Xit)); names(res) <- nam }
   if("PVS" %in% out){ nam <- c("PVS",names(res)); res <- c(mean(Xc),res); names(res) <- nam }
-  
+
   if(plot){
     nid <- NULL
     for(ii in names(ili)){

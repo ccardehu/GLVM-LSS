@@ -118,9 +118,8 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
     if(!control$iden.res %in% c("orthogonal", "eiv", "recursive")) stop("Argument 'control$iden.res' should be one of c(orthogonal, eiv, recursive).")
     if(control$iden.res == "orthogonal"){
       rb <- penb <- b
+      b <- fixOrthob(b)
       for(i in 1:length(b)){
-        if(ncol(b[[i]]) > 1){
-          b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u }
         rb[[i]] <- penb[[i]] <- !is.na(rb[[i]])
         penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F
       }

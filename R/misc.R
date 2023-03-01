@@ -825,3 +825,15 @@ newRz <- function(Rz,pD,ghQ,q,control){
   
   return(.Rz)
 }
+
+fixOrthob <- function(b){
+  for(i in 1:length(b)){
+    if(ncol(b[[i]]) > 1){
+      Zcol <- which(!grepl("(Intercept)", colnames(b[[i]]), fixed = T))
+      for(r in Zcol){
+        b[[i]][,r] <- b[[i]][,r]/sqrt(c(crossprod(b[[i]][,r])))
+      }
+    }
+  }
+  return(b)
+}
