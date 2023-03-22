@@ -67,6 +67,9 @@ glvmlss <- function(data, family = list(),
     fit$f.scores <- as.data.frame(fyz_c$pD%*%(c(ghQ$weights)*ghQ$points)[,,drop=F]) 
     names(fit$f.scores) <- colnames(ghQ$points) }
   
+  fit$p <- p
+  fit$q <- q
+  
   return(fit)
 }
 
@@ -77,15 +80,13 @@ glvmlss_fit <- function(){
   cb <- pb[lb2cb(rb)]
   info <- control$mat.info
   iter <- 0
-  updSS <- vector(mode = "numeric",length = p)
   llk <- numeric(control$EM_iter + 1)
   dfyz_t <- fyz(Y,ghQ,b,famL)
   llk[1] <- -dfyz_t$ll
   EM_appHess <- control$EM_appHess
   posbc <- seq(1:length(lb2cb(b)))[lb2cb(rb)]
   posbM <- lb2mb(cb2lb(seq(1:length(lb2cb(b))), b = b))
-  SS <- rep(control$EM_lrate, p)
-  
+
   while(!convg){
     bold1 <- b
     iter <- iter + 1
@@ -123,13 +124,19 @@ glvmlss_fit <- function(){
           cat(paste0("\r EM iter: ",iter,", marginal loglik.: ", round(-llk[iter+1],5)))
       }
     } else {
+      updSS <- vector(mode = "numeric",length = p)
+      SS <- rep(control$EM_lrate, p)
       eps = rep(1,p)        
       for(ii in 1:p){
         cbold <- cb
         while(eps[ii] > 0){
           if(SS[ii] == sqrt(.Machine$double.eps)){eps[ii] = 0; break}
           idx <- posbc %in% posbM[ii,]
-          cb[idx] <- cb[idx] - SS[ii]*d1ll_t[idx]
+          count = 0
+          while(count < 4){
+            cb[idx] <- cb[idx] - SS[ii]*d1ll_t[idx]
+            count = count + 1
+          }
           pb[lb2cb(rb)] <- cb
           b <- cb2lb(pb,b)
           if(!is.null(control$iden.res) && control$iden.res == "orthogonal") b <- fixOrthob(b)
@@ -185,7 +192,7 @@ glvmlss_fit <- function(){
   
   if(control$solver == "nlminb"){
     if(control$verbose) cat("\n Direct MML estimation (nlminb) ...")
-    cb <- nlminb(start = cb, objective = lla, gradient = d1lla, control = list(iter.max = control$iter.lim),
+    cb <- nlminb(start = cb, objective = lla, gradient = d1lla, control = list(eval.max = control$inter.lim, iter.max = control$iter.lim),
                  Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
     pb[lb2cb(rb)] <- cb$par
     b <- cb2lb(pb,b)
@@ -288,7 +295,6 @@ glvmlss_penfit <- function(){
     cb <- pb[lb2cb(rb)]
     info <- control$mat.info
     iter <- 0
-    updSS <- vector(mode = "numeric",length = p)
     llk <- numeric(control$EM_iter + 1)
     dfyz_t <- fyz(Y,ghQ,b,famL)
     pMat <- pM(b,rb,bp,penalty = pen.control$penalty,
@@ -297,8 +303,7 @@ glvmlss_penfit <- function(){
     EM_appHess <- control$EM_appHess
     posbc <- seq(1:length(lb2cb(b)))[lb2cb(rb)]
     posbM <- lb2mb(cb2lb(seq(1:length(lb2cb(b))), b = b))
-    SS <- rep(control$EM_lrate, p)
-    
+
     while(!convg){
       bold1 <- b
       iter <- iter + 1
@@ -356,13 +361,19 @@ glvmlss_penfit <- function(){
           ssehist[1] <- SSE(loglambda = log(pen.control$lambda[pen.control$lambda.auto]),
                             b = b, gra = -d1ll_t, hes = da2ll_t, rb = rb, bp = bp, pml = pen.control, Y = Y)
         }
+        updSS <- vector(mode = "numeric",length = p)
+        SS <- rep(control$EM_lrate, p)
         eps = rep(1,p)        
         for(ii in 1:p){
           cbold <- cb
           while(eps[ii] > 0){
             if(SS[ii] == sqrt(.Machine$double.eps)){eps[ii] = 0; break}
             idx <- posbc %in% posbM[ii,]
-            cb[idx] <- cb[idx] - SS[ii]*d1ll_t[idx]
+            count = 0
+            while(count < 4){
+              cb[idx] <- cb[idx] - SS[ii]*d1ll_t[idx]
+              count = count + 1
+            }
             pb[lb2cb(rb)] <- cb
             b <- cb2lb(pb,b)
             if(!is.null(control$iden.res) && control$iden.res == "orthogonal") b <- fixOrthob(b)

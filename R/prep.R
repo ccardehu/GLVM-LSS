@@ -110,10 +110,12 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
         penb[[i]][1,] <- F }
       b <-  list(b = b, rb = rb, penb = penb)
       return(b) }
-    if(control$verbose & q != 1 & !control$corr.lv){ cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
-    control$iden.res <- "recursive" }
-    if(control$verbose & q != 1 & control$corr.lv){ cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variable identification restriction (correlated factors).")
-    control$iden.res <- "eiv" } }
+    if(q != 1 & !control$corr.lv){
+      if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction (uncorrelated factors).")
+      control$iden.res <- "recursive" }
+    if(q != 1 & control$corr.lv){
+      if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variable identification restriction (correlated factors).")
+      control$iden.res <- "eiv" } }
   if(is.character(control$iden.res)){
     if(!control$iden.res %in% c("orthogonal", "eiv", "recursive")) stop("Argument 'control$iden.res' should be one of c(orthogonal, eiv, recursive).")
     if(control$iden.res == "orthogonal"){
@@ -126,20 +128,20 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
     }
     if(control$iden.res == "eiv"){
       rb <- penb <- b
-      for(i in 1:length(b)){
-        for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
+      for(i in names(b)){
+        if(i == "mu") for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
         rb[[i]] <- penb[[i]] <- b[[i]] != 0 & !is.na(b[[i]])
         penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F 
-        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F # Not penalise loadings in diagonal (to give direction)
+        if(i == "mu") diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F # Not penalise loadings in diagonal (to give direction)
       }
     }
     if(control$iden.res == "recursive"){
       rb <- penb <- b
-      for(i in 1:length(b)){
-        b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")][upper.tri(b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")])] <- 0
+      for(i in names(b)){
+        if(i == "mu") b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")][upper.tri(b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")])] <- 0
         rb[[i]] <- penb[[i]] <- b[[i]] != 0 & !is.na(b[[i]])
         penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F
-        diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F # Not penalise loadings in diagonal (to give direction)
+        if(i == "mu") diag(penb[[i]][,!grepl("(Intercept)", colnames(penb[[i]]), fixed = T)]) <- F # Not penalise loadings in diagonal (to give direction)
       }
     }
     b <-  list(b = b, rb = rb, penb = penb)
@@ -147,7 +149,7 @@ prep_stva <- function(control,form,ghQ,Y,p,famL,q){
     if(q == 1){
       if(control$verbose) cat("\n Argument 'control$iden.res' not needed for one-factor models (q == 1).")
       rb <- penb <- b
-      for(i in 1:length(b)){
+      for(i in names(b)){
         rb[[i]] <- penb[[i]] <- !is.na(rb[[i]])
         penb[[i]][,grepl("(Intercept)", colnames(penb[[i]]), fixed = T)] <- F 
         penb[[i]][1,2] <- F }
@@ -218,27 +220,47 @@ sim_stva <- function(control,p,Z,form,q){
   # Constraints matrices (for each parameter)
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   if(is.null(control$iden.res)){
-    if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction.")
-    control$iden.res <- "recursive" }
+    if(q == 1){
+      rb <- b
+      for(i in 1:length(b)){
+        rb[[i]] <- !is.na(rb[[i]])
+      }
+      b <-  list(b = b, rb = rb)
+    }
+    if(q != 1 & (sum(control$Rz) == 2)){
+      if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using recursive identification restriction (uncorrelated factors).")
+      control$iden.res <- "recursive" }
+    if(q != 1 & !(sum(control$Rz) == 2)){
+      if(control$verbose) cat("\n Argument 'control$iden.res' not supplied: Using errors-in-variable identification restriction (correlated factors).")
+      control$iden.res <- "eiv" } 
+  }
   if(is.character(control$iden.res)){
     if(!control$iden.res %in% c("orthogonal", "eiv", "recursive")) stop("Argument 'control$iden.res' should be one of c(orthogonal, eiv, recursive).")
     if(control$iden.res == "orthogonal"){
       rb <- b
-      for(i in 1:length(b)){
-        b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)] <- svd(b[[i]][,!grepl("(Intercept)", colnames(b[[i]]), fixed = T)])$u
+      b <- fixOrthob(b)
+      for(i in names(b)){
         rb[[i]] <- !is.na(rb[[i]]) } }
     if(control$iden.res == "eiv"){
       rb <- b
-      for(i in 1:length(b)){
-        for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
+      for(i in names(b)){
+        if(i == "mu") for(r in 1:q){ b[[i]][r, !colnames(b[[i]]) %in% c("(Intercept)", paste0("Z",r))] <- 0 }
         rb[[i]] <- b[[i]] != 0 } }
     if(control$iden.res == "recursive"){
       rb <- b
-      for(i in 1:length(b)){
-        b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")][upper.tri(b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")])] <- 0
+      for(i in names(b)){
+        if(i == "mu") b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")][upper.tri(b[[i]][,!colnames(b[[i]]) %in% c("(Intercept)")])] <- 0
         rb[[i]] <- b[[i]] != 0 } }
     b <-  list(b = b, rb = rb)
   } else {
+    if(q == 1){
+      if(control$verbose) cat("\n Argument 'control$iden.res' not needed for one-factor models (q == 1). Z1 is Standard Normal.")
+      rb <- b
+      for(i in names(b)){
+        rb[[i]] <- !is.na(rb[[i]])
+      }
+      b <-  list(b = b, rb = rb)
+    }
     if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
     b <- rmat(control$iden.res,b) }
   # Sign

@@ -392,10 +392,10 @@ mvghQ <- function(n, mu, psi, formula = ~ Z1 + Z2) {
   return(list(points = pts, weights = c(wts), out = out))
 }
 
-lb2mb <- function(b){
+lb2mb <- function(b, rmname = T){
   l2m <- NULL
   for(i in 1:length(b)){ l2m <- cbind(l2m,b[[i]]) }
-  return(unname(l2m))
+  if(rmname) return(unname(l2m)) else return(l2m)
 }
 
 lb2cb <- function(b){
@@ -784,7 +784,7 @@ hessRz <- function(Rz,Y,b,famL,form,q,control){
   objF2 <- function(Rzvecf,Yf,bf,famLf,formf,controlf,qf){
     Rzf <- diag(qf)
     Rzf[upper.tri(Rzf, diag = T)] <- Rzvecf
-    Rzf <- Rzf + t(Rzf) - diag(qf)
+    Rzf <- Rzf + t(Rzf) - diag(diag(Rzf))
     ghQf <- prep_ghq(controlf$nQP, formf, Rzf)
     dfyz_t <- fyz(Yf,ghQf,bf,famLf)
     return(dfyz_t$ll)
@@ -830,10 +830,62 @@ fixOrthob <- function(b){
   for(i in 1:length(b)){
     if(ncol(b[[i]]) > 1){
       Zcol <- which(!grepl("(Intercept)", colnames(b[[i]]), fixed = T))
-      for(r in Zcol){
-        b[[i]][,r] <- b[[i]][,r]/sqrt(c(crossprod(b[[i]][,r])))
-      }
+      qrtmp <- qr(b[[i]][,Zcol])
+      b[[i]][,Zcol] <- b[[i]][,Zcol]%*%solve(qr.R(qrtmp))
     }
   }
   return(b)
+}
+
+rotb <- function(model, rotation = "Lp", Lp = 1){
+  tmp <- NULL
+  for(i in names(model$b)){
+    rept <- model$b[[i]][,colnames(model$b[[i]]) != "(Intercept)"]
+    if(any(dim(rept) == c(0,0))) rept <- NULL
+    tmp <- rbind(tmp, rept)
+  }
+  tmp <- tmp[complete.cases(tmp),]
+  
+  if(rotation == "geominQ"){
+    tmpb <- GPArotation::geominQ(tmp)$load
+    tmpRz <- GPArotation::geominQ(tmp)$Phi
+  }
+  if(rotation == "oblimin"){
+    tmpb <- GPArotation::oblimin(tmp)$load
+    tmpRz <- GPArotation::oblimin(tmp)$Phi
+  }
+  if(rotation == "varimax"){
+    tmpb <- GPArotation::Varimax(tmp)$load
+    tmpRz <- GPArotation::Varimax(tmp)$Phi
+  }
+  if(rotation == "Lp"){
+    source("R/Lp_rotation.R")
+    tmpb <- irls(p = Lp, A = tmp)$L
+    tmpRz <- crossprod(irls(p = Lp, A = tmp)$T)
+  }
+  
+  res <- list(b = list())
+  ii <- 0
+  for(i in names(model$b)){
+    if(sum(colnames(model$b[[i]]) != "(Intercept)") == 0){ 
+      res$b[[i]] <- model$b[[i]][, "(Intercept)", drop = F]
+      ii + 1; next }
+    res$b[[i]] <- cbind(model$b[[i]][, "(Intercept)", drop = F], tmpb[(ii*model$p+1):((ii+1)*model$p),])
+    colnames(res$b[[i]]) <- colnames(model$b[[i]])
+    ii <- ii + 1
+  }
+  
+  res$Rz <- tmpRz
+  res$rotation = rotation
+  return(res)
+}
+
+matMSE <- function(model, base){
+  MSE <- NULL
+  for(i in names(AA$b)){
+    MSE <- c(MSE,mean((model$b[[i]]-base$b[[i]])^2))
+  }
+  MSE <- c(MSE,mean((model$Rz[lower.tri(model$Rz)] - base$Rz[lower.tri(base$Rz)])^2))
+  MSE <- mean(MSE)
+  return(MSE)
 }
