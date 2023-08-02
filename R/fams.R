@@ -194,7 +194,8 @@ Beta <- function(mu.link = "logit", sg.link = "logit"){
     y <- y.(y)
     dvy <- list(mu = NULL, sg = NULL)
     dvy$mu = sapply(1:qp, function(r){ (((1 - sg[r]^2)/(sg[r]^2))*(-digamma(alp[r]) + digamma(bet[r]) + log(y) - log(1 - y))) * sta.mu$mu.eta(sta.mu$linkfun(mu[r])) })
-    dvy$sg = sapply(1:qp, function(r){ -(2/(sg[r]^3)) * (mu[r] * (-digamma(alp[r]) + digamma(alp[r] + bet[r]) + log(y)) + (1 - mu[r]) * (-digamma(bet[r]) + digamma(alp[r] + bet[r]) + log(1 - y))) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) } )
+    dvy$sg = sapply(1:qp, function(r){ -(2/(sg[r]^3)) * (mu[r] * (-digamma(alp[r]) + digamma(alp[r] + bet[r]) + log(y))
+                                                         + (1 - mu[r]) * (-digamma(bet[r]) + digamma(alp[r] + bet[r]) + log(1 - y))) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) } )
     return(dvy)
   }
 
@@ -269,7 +270,7 @@ Poisson <- function(mu.link = "log"){
     if(info == "Fisher"){
       dvy$mu = sapply(1:qp, function(r){ rep(-1/mu[r] * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2, length(y)) } )
     } else {
-      dvy$mu = sapply(1:qp, function(r){ -y/mu[r] * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2 + dv1Y$mu[,r] } )
+      dvy$mu = sapply(1:qp, function(r){ -y/mu[r]^2 * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2 + dv1Y$mu[,r] } )
     }
     return(dvy)
   }

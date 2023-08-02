@@ -766,7 +766,7 @@ hessRzEM <- function(Rz,ghQ,pD,q,control){
   objF1 <- function(Rzvecf,ghQf,pDf,qf){
     Rzf <- diag(qf)
     Rzf[upper.tri(Rzf, diag = T)] <- Rzvecf
-    Rzf <- Rzf + t(Rzf) - diag(qf)
+    Rzf <- Rzf + t(Rzf) - diag(diag(Rzf))
     llkZ <- sum(sapply(1:nrow(pDf), function(m){ sum(mvnfast::dmvn(ghQf$points, mu = rep(0,qf), sigma = Rzf, log = T)*pDf[m,]*c(ghQf$weights)) } ) )
     return(llkZ)
   }
@@ -870,7 +870,12 @@ rotb <- function(model, rotation = "Lp", Lp = 1){
     if(sum(colnames(model$b[[i]]) != "(Intercept)") == 0){ 
       res$b[[i]] <- model$b[[i]][, "(Intercept)", drop = F]
       ii + 1; next }
-    res$b[[i]] <- cbind(model$b[[i]][, "(Intercept)", drop = F], tmpb[(ii*model$p+1):((ii+1)*model$p),])
+    if(!"(Intercept)" %in% colnames(model$b[[i]])){
+      tmpb0 <- NULL
+    } else {
+      tmpb0 <- model$b[[i]][, "(Intercept)", drop = F]
+    }
+    res$b[[i]] <- cbind(tmpb0, tmpb[(ii*model$p+1):((ii+1)*model$p),])
     colnames(res$b[[i]]) <- colnames(model$b[[i]])
     ii <- ii + 1
   }
@@ -885,7 +890,15 @@ matMSE <- function(model, base){
   for(i in names(AA$b)){
     MSE <- c(MSE,mean((model$b[[i]]-base$b[[i]])^2))
   }
-  MSE <- c(MSE,mean((model$Rz[lower.tri(model$Rz)] - base$Rz[lower.tri(base$Rz)])^2))
-  MSE <- mean(MSE)
+  MSE <- c(mean(MSE),mean((model$Rz[lower.tri(model$Rz)] - base$Rz[lower.tri(base$Rz)])^2))
+  names(MSE) <- c("A","Rz")
+  # MSE <- mean(MSE)
   return(MSE)
+}
+
+evalmllk <- function(data,b,Rz,famL,mu.eq = NULL, sg.eq = NULL, nu.eq = NULL, ta.eq = NULL){
+  Y <- Y <- prep_Y(data)
+  form <- prep_form(mu.eq, sg.eq, nu.eq, ta.eq)
+  ghQ <- prep_ghq(nQP = 50, form = form, Rz = Rz)
+  return(fyz(Y,ghQ,b,famL)$ll)
 }

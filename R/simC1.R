@@ -13,7 +13,8 @@ glvmlss_parsimE1 <- function(nsim, saveRes = T){
                 
                 set.seed(l)
                 A <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc,iden.res = "eiv", Rz = matrix(c(1,.3,.3,1), nrow = 2))
-                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T, start.val = A$b)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nQP = 25, iden.res = "eiv", corr.lv = T,
+                             start.val = A$b, Rz = matrix(c(1,.3,.3,1), nrow = 2))
                 cof <- c(lb2cb(A$b), A$Rz[2,1], lb2cb(B$b), B$Rz[2,1])
                 ste <- c(lb2cb(B$SE$b),B$SE$Rz[1,2])
                 ex2 <- c(1,B$conv, B$iter, length(lb2cb(B$b)) + 1) # include the estimated correlation 
@@ -102,6 +103,34 @@ glvmlss_parsimE4 <- function(nsim, saveRes = T){
   if(saveRes) saveRDS(FCOL, file = paste0("C1E4(CP-AppSE)n",n, "p", p,"_",Sys.Date(),".Rds"))
   return(FCOL)
 }
+
+glvmlss_parsimEConf <- function(nsim, saveRes = T){
+  cores <- ifelse(parallel::detectCores() > 32, 32, parallel::detectCores())
+  cl <- parallel::makeCluster(cores)
+  clusterExport(cl, ls(.GlobalEnv))
+  doSNOW::registerDoSNOW(cl)
+  progress <- function(a) setTxtProgressBar(txtProgressBar(max = nsim, style = 3), a)
+  opts <- list(progress = progress)
+  FCOL <- suppressWarnings(
+    foreach(l = 1:nsim,
+            .combine = rbind,
+            .options.snow = opts) %dopar% { # .export = ls(parent.frame()),
+              tryCatch({
+                
+                set.seed(l)
+                A <- glvmlss_sim(n,famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nu.eq = ~ Z1+Z2, start.val = lc, Rz = Rz, iden.res = iRes)
+                B <- glvmlss(data = A$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, nu.eq = ~ Z1+Z2, EM_use2d = F,
+                             EM_iter = 500, iter.lim = 1000, start.val = A$b, iden.res = iRes, corr.lv = T, Rz = Rz)
+                cof <- c(lb2cb(A$b)[lb2cb(B$rb)], A$Rz[lower.tri(A$Rz, diag = F)], lb2cb(B$b)[lb2cb(B$rb)], B$Rz[lower.tri(B$Rz, diag = F)])
+                ste <- c(lb2cb(B$SE$b)[lb2cb(B$rb)], B$SE$Rz[lower.tri(B$Rz, diag = F)])
+                ex2 <- c(n, B$conv, length(lb2cb(B$b)[lb2cb(B$rb)]) + length(B$Rz[lower.tri(B$Rz, diag = F)]))
+                return(c(cof,ste,ex2)) },
+                error = function(e) { return(NA) }  ) } )
+  stopCluster(cl)
+  if(saveRes) saveRDS(FCOL, file = paste0("C1E5_Conf_n",n,"_",Sys.Date(),".Rds"))
+  return(FCOL)
+}
+
 
 glvmlss_parsimpost <- function(file, out = c("MSE","AB"), trim = 0, iden.res = "eiv",
                                mu.eq = ~ Z1+Z2, sg.eq = NULL,

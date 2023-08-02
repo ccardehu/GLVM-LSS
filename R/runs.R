@@ -34,30 +34,30 @@ for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0
 # Simulations:
 # ~~~~~~~~~~~~
 
-AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,.3,.3,1), nrow = 2))
+AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,.45,.45,1), nrow = 2))
+# Oblique MML solution
 AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", corr.lv = T)
-# Orthogonal solution for rotation
-AX <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb")
-# Orthogonal solution ignoring heteroscedasticity
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ 1, verbose = T, solver = "nlminb")
-# Penalised solution
-AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", corr.lv = T,
-              penalty = "alasso", lambda = "auto", w.alasso = AB$b)
-
-round(cbind(AA$b$mu,AB$b$mu,AC$b$mu,rotb(AX,rotation = "Lp")$b$mu),2)
-round(cbind(AA$b$si,AB$b$si,AC$b$si,rotb(AX,rotation = "Lp")$b$si),2)
-round(cbind(AA$Rz,AB$Rz,AC$Rz,rotb(AX,rotation = "Lp")$Rz),2)
-AB$GBIC; AC$GBIC; AX$GBIC
-
-MSE <- c(matMSE(AB), matMSE(AC), matMSE(rotb(AX,rotation = "Lp")))
-names(MSE) <- c("MLE", "PMLE", "L_p") # "Orth", "GeominQ", 
-round(MSE,4)
+# # Oblique PMML solution
+# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", corr.lv = T,
+#               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
+# # Orthogonal MML solution (for rotation)
+# AX <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", EM_use2d = F)
+# 
+# 
+# round(cbind(AA$b$mu,AB$b$mu,AC$b$mu,rotb(AX,rotation = "Lp")$b$mu),2)
+# round(cbind(AA$b$si,AB$b$si,AC$b$si,rotb(AX,rotation = "Lp")$b$si),2)
+# round(cbind(AA$Rz,AB$Rz,AC$Rz,rotb(AX,rotation = "Lp")$Rz),2)
+# AB$GBIC; AC$GBIC; AX$GBIC
+# 
+# MSE <- cbind(matMSE(AB,AA), matMSE(AC,AA), matMSE(rotb(AX,rotation = "Lp"),AA))
+# colnames(MSE) <- c("MLE", "PMLE", "L_p") # "Orth", "GeominQ", 
+# round(MSE,4)
 
 # data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = ~ Z1+Z2; ta.eq = NULL; nu.eq = NULL; q = 2;
 # control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
 #             EM_appHess = F, EM_lrate = 0.01, est.ci = "Standard",
 #             solver = "nlminb", start.val = NULL, mat.info = "Hessian", lazytrust = F,
-#             iden.res = "eiv", tol = sqrt(.Machine$double.eps), tolb = 1e-4,
+#             iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
 #             corr.lv = T, Rz = NULL, var.lv = c(1,1),
 #             nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
 #             verbose = T, autoL_iter = 30, f.scores = F,
@@ -193,16 +193,16 @@ round(MSE,4)
 # # Simulation 4: Beta:
 # # ~~~~~~~~~~~~~~~~~~~
 # # ~~~~~~~~~~~~~~~~~~~
-# n = 500
-# p = 10
+# n = 1000
+# p = 6
 # famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Beta()}
 # lc <- NULL
-# lc$mu <- matrix(1,ncol = 2, nrow = p)
-# lc$sigma <- matrix(1, ncol = 2, nrow = p)
+# lc$mu <- matrix(1,ncol = 3, nrow = p)
+# lc$sigma <- matrix(1, ncol = 3, nrow = p)
 # lc$mu[,1] <- runif(length(lc$mu[,1]), -1.5, 1.5)
-# lc$mu[,2] <- runif(length(lc$mu[,1]), 0.5, 1.5) * sample(c(-1,1), p ,replace = T)
+# lc$mu[,2:3] <- runif(length(lc$mu[,2:3]), 0.5, 1.5) * sample(c(-1,1), 2*p ,replace = T)
 # lc$sigma[,1] <- runif(length(lc$sigma[,1]), -2, -0.5)
-# lc$sigma[,2] <- runif(length(lc$sigma[,1]), 0.3, 0.6)* sample(c(-1,1), p ,replace = T)
+# lc$sigma[,2:3] <- runif(length(lc$sigma[,2:3]), 0.3, 0.6)* sample(c(-1,1), 2*p ,replace = T)
 # if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]
 # if(lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2]
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -212,19 +212,21 @@ round(MSE,4)
 # # # ~~~~~~~~~~~~
 # # # Simulations:
 # # # ~~~~~~~~~~~~
-# AA <- glvmlss_sim(n, famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = lc)
+# AA <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
 # A0 <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ 1, verbose = T, f.scores = T)
-# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T, f.scores = T)
-# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T, f.scores = T,
-#               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
-#   
-# round(cbind(AA$b$mu,AB$b$mu,AC$b$m),4)
-# round(cbind(AA$b$s,AB$b$s,AC$b$s),4)
+# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, f.scores = T, start.val = lc, est.ci = "Standard")
+# AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, f.scores = T, est.ci = "Standard")
+# AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, f.scores = T, est.ci = "Standard", start.val = "random", seed = 111)
+# # AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T, f.scores = T,
+# #               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
+# #   
+# round(cbind(AA$b$mu,AB$b$mu,AC$b$m, AD$b$m),4)
+# round(cbind(AA$b$s,AB$b$s,AC$b$s, AD$b$s),4)
 # 
-# round(cbind(AB$SE$mu,AC$S$m),4)
-# round(cbind(AB$SE$s,AC$S$s),4)
+# round(cbind(AB$SE$b$mu,AC$SE$b$m),4)
+# round(cbind(AB$SE$b$s,AC$SE$b$s),4)
 # 
-# A0$GBIC; AB$GBIC; AC$GBIC
+# A0$GBIC; AB$GBIC; AC$GBIC; AD$GBIC
 # A0$GAIC; AB$GAIC; AC$GAIC
 # AC$lambda
 # AC$sse
