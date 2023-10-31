@@ -653,36 +653,36 @@ nearPD <- function (M, eig.tol = 1e-06, conv.tol = 1e-07, posd.tol = 1e-08,
   return(list(mat = X, values = e$values, vectors = e$vectors))
 }
 
-# grL <- function(lvec,ghQf,pDf,qf){
-# 
-#   Lf <- diag(qf)
-#   lvecorg <- lvec
-#   lvec <- c(1,lvec)
-#   Lf[upper.tri(Lf, diag = T)] <- lvec
-#   Lf <- t(Lf) # Upper triangular (as in paper)
-#   gra <- vector(mode = "numeric", length(lvecorg))
-# 
-#   auxF <- function(m,ghQff,pDff,Gyf){
-#     zm  <- Reduce("+",lapply(1:nrow(ghQff$points), function(i){ matrix(ghQff$points[i,])*pDff[m,i]*c(ghQff$weights)[i] }))
-#     z2m <- Reduce("+",lapply(1:nrow(ghQff$points), function(i){ tcrossprod(matrix(ghQff$points[i,]) - zm)*pDff[m,i]*c(ghQff$weights)[i] }))
-# 
-#     P2 <- sum(diag(Gyf%*%z2m))
-#     P3 <- t(zm)%*%Gyf%*%zm
-#     return(P2 + P3)
-#   }
-# 
-#   for(i in 1:length(lvecorg)){
-#     Dy <- matrix(0, nrow = nrow(Lf), ncol(Lf))
-#     Dy[which(Lf == lvecorg[i])] <- 1
-#     Ay <- t(Lf)%*%solve(Lf%*%t(Lf))
-#     Gy <- solve(Lf%*%t(Lf))%*%Dy%*%Ay
-#     P1 <- -nrow(pDf)*sum(diag(Ay%*%Dy))
-#     P2P3 <- Reduce("+",lapply(1:nrow(pDf), function(m){auxF(m,ghQf,pDf,Gy) }))
-#     gra[i] <- P1+P2P3
-#   }
-# 
-#   return(gra)
-# }
+grL <- function(lvec,ghQf,pDf,qf){
+
+  Lf <- diag(qf)
+  lvecorg <- lvec
+  lvec <- c(1,lvec)
+  Lf[upper.tri(Lf, diag = T)] <- lvec
+  Lf <- t(Lf) # Upper triangular (as in paper)
+  gra <- vector(mode = "numeric", length(lvecorg))
+
+  auxF <- function(m,ghQff,pDff,Gyf){
+    zm  <- Reduce("+",lapply(1:nrow(ghQff$points), function(i){ matrix(ghQff$points[i,])*pDff[m,i]*c(ghQff$weights)[i] }))
+    z2m <- Reduce("+",lapply(1:nrow(ghQff$points), function(i){ tcrossprod(matrix(ghQff$points[i,]) - zm)*pDff[m,i]*c(ghQff$weights)[i] }))
+
+    P2 <- sum(diag(Gyf%*%z2m))
+    P3 <- t(zm)%*%Gyf%*%zm
+    return(P2 + P3)
+  }
+
+  for(i in 1:length(lvecorg)){
+    Dy <- matrix(0, nrow = nrow(Lf), ncol(Lf))
+    Dy[which(Lf == lvecorg[i])] <- 1
+    Ay <- t(Lf)%*%solve(Lf%*%t(Lf))
+    Gy <- solve(Lf%*%t(Lf))%*%Dy%*%Ay
+    P1 <- -nrow(pDf)*sum(diag(Ay%*%Dy))
+    P2P3 <- Reduce("+",lapply(1:nrow(pDf), function(m){auxF(m,ghQf,pDf,Gy) }))
+    gra[i] <- P1+P2P3
+  }
+
+  return(gra)
+}
 # 
 # hessL <- function(lvec,ghQf,pDf,qf){
 # 
@@ -744,6 +744,11 @@ nearPD <- function (M, eig.tol = 1e-06, conv.tol = 1e-07, posd.tol = 1e-08,
 # 
 #   return(hess)
 # }
+# 
+# Rz
+# lvecT = t(chol(Rz))[lower.tri(Rz,diag = T)][-1]
+# pDf = dfyz_t$pD
+# qf = q
 # 
 # rmA <- grL(lvecT, ghQf = ghQ ,pDf = pDf,qf = qf)
 # rmB <- numDeriv::grad(fun = opRz, x = lvecT, ghQf = ghQf ,pDf = pDf,qf = qf)

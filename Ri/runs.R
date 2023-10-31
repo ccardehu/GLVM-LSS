@@ -1,20 +1,20 @@
 rm(list = ls())
 set.seed(1234)
 
-source("R/prep.R")
-source("R/fams.R")
-source("R/glvmlss.R")
-source("R/misc.R")
-source("R/simC1.R")
-source("R/simC2.R")
+source("Ri/prep.R")
+source("Ri/fams.R")
+source("Ri/glvmlss.R")
+source("Ri/misc.R")
+source("Ri/simC1.R")
+source("Ri/simC2.R")
 
 n = 500     # Number of individuals
 # nsim = 1000  # Number of simulations
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Simulation 1: Heteroscedastic Normal model:
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # Simulation 1: Heteroscedastic Normal model:
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 p = 10
 famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Normal()}
 lc <- NULL
@@ -23,24 +23,21 @@ lc$sigma <- matrix(1, ncol = 3, nrow = p)
 lc$mu[,1] <- runif(p,1,2)
 lc$mu[,-1] <- runif(length(lc$mu[,-1]),0.5,1.5) * sample(c(-1,1),size = 2*p,replace = T)
 lc$sigma <- matrix(runif(length(lc$sigma),0.1,0.4), nrow = p)
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# For sparse factor loading matrices:
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-lc$mu[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
-for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.3)*lc$mu[i,3] }
-lc$sigma[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
-for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.3)*lc$sigma[i,3] }
-# ~~~~~~~~~~~~
-# Simulations:
-# ~~~~~~~~~~~~
-
-AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,.45,.45,1), nrow = 2))
-# Oblique MML solution
-AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", corr.lv = T)
-# # Oblique PMML solution
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# # For sparse factor loading matrices:
+# # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# lc$mu[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
+# for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.3)*lc$mu[i,3] }
+# lc$sigma[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
+# for(i in 3:nrow(lc$sigma)){ if(lc$sigma[i,2] != 0) lc$sigma[i,3] <- rbinom(1,1,0.3)*lc$sigma[i,3] }
+# # ~~~~~~~~~~~~
+# # Simulations:
+# # ~~~~~~~~~~~~
+# 
+AA <- glvmlss_sim(n = n, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc, Rz = matrix(c(1,.5,.5,1), nrow = 2))
+# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", corr.lv = T)
 # AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", corr.lv = T,
 #               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
-# # Orthogonal MML solution (for rotation)
 # AX <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, solver = "nlminb", EM_use2d = F)
 # 
 # 
@@ -59,8 +56,10 @@ AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verb
 #             solver = "nlminb", start.val = NULL, mat.info = "Hessian", lazytrust = F,
 #             iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
 #             corr.lv = T, Rz = NULL, var.lv = c(1,1),
-#             nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
-#             verbose = T, autoL_iter = 30, f.scores = F,
+#             nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 25, 35) else 10 },
+#             verbose = T, autoL_iter = 30)
+#             
+#             , f.scores = F,
 #             penalty = "alasso", lambda = "auto", w.alasso = AB$b, gamma = NULL, a = NULL)
 
 # {r1 <- NULL
@@ -85,28 +84,28 @@ AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verb
 #   };
 # }; round(r1,4);
 
-# # ~~~~~~~~~~~~~~~~~~~~~~~~
-# # ~~~~~~~~~~~~~~~~~~~~~~~~
-# # Simulation 2: IRT model:
-# # ~~~~~~~~~~~~~~~~~~~~~~~~
-# # ~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# Simulation 2: IRT model:
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~
 # p = 10
 # famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Binomial()}
 # lc <- NULL
 # lc$mu <- matrix(1,ncol = 3, nrow = p)
 # lc$mu[,1] <- runif(length(lc$mu[,1]),-1,1)
-# lc$mu[,c(2:3)] <- runif(length(lc$mu[,c(2:3)]),1.5,2.5) * sample(c(-1,1),size = 2*p,replace = T)
+# lc$mu[,-1] <- runif(length(lc$mu[,-1]),0.5,1.5) * sample(c(-1,1),size = 2*p,replace = T)
 # if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]; if(lc$mu[2,3] < 0) lc$mu[2,3] <- -lc$mu[2,3];
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # For sparse factor loading matrices:
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # lc$mu[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
 # for(i in 3:nrow(lc$mu)){ if(lc$mu[i,2] != 0) lc$mu[i,3] <- rbinom(1,1,0.5)*lc$mu[i,3] }
-# # ~~~~~~~~~~~~
-# # Simulations:
-# # ~~~~~~~~~~~~
-# AA <- glvmlss_sim(n,famt, mu.eq = ~Z1+Z2, start.val = lc, Rz = matrix(c(1,.45,.45,1),nrow = 2), iden.res = "eiv")
-# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, verbose = T)
+# # # ~~~~~~~~~~~~
+# # # Simulations:
+# # # ~~~~~~~~~~~~
+# AA <- glvmlss_sim(n,famt, mu.eq = ~Z1+Z2, start.val = lc, Rz = matrix(c(1,.5,.5,1),nrow = 2))
+# AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, verbose = T,, corr.lv = T, iden.res = "eiv")
 # AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, verbose = T,
 #               penalty = "alasso", lambda = "auto", w.alasso = AB$b)
 # AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, verbose = T, corr.lv = T, iden.res = "eiv")
@@ -122,6 +121,16 @@ AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verb
 # GAIC(AB); GAIC(AC)
 # AC$lambda
 # AC$sse
+# data = AA$Y; family = famt; mu.eq = ~ Z1+Z2; sg.eq = NULL; ta.eq = NULL; nu.eq = NULL; q = 2;
+# control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
+#             EM_appHess = F, EM_lrate = 0.01, est.ci = "Standard",
+#             solver = "nlminb", start.val = NULL, mat.info = "Hessian", lazytrust = F,
+#             iden.res = NULL, tol = sqrt(.Machine$double.eps), tolb = 1e-4,
+#             corr.lv = T, Rz = NULL, var.lv = c(1,1),
+#             nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 25, 35) else 10 },
+#             verbose = T, autoL_iter = 30)
+# 
+# 
 # 
 # r1 <- NULL
 # for(p in c(10,20)){
@@ -197,23 +206,23 @@ AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verb
 # p = 6
 # famt <- vector("list",p); for(i in 1:p){ famt[[i]] <- Beta()}
 # lc <- NULL
-# lc$mu <- matrix(1,ncol = 3, nrow = p)
-# lc$sigma <- matrix(1, ncol = 3, nrow = p)
+# lc$mu <- matrix(1,ncol = 2, nrow = p)
+# lc$sigma <- matrix(1, ncol = 2, nrow = p)
 # lc$mu[,1] <- runif(length(lc$mu[,1]), -1.5, 1.5)
-# lc$mu[,2:3] <- runif(length(lc$mu[,2:3]), 0.5, 1.5) * sample(c(-1,1), 2*p ,replace = T)
+# lc$mu[,-1] <- runif(length(lc$mu[,-1]), 0.5, 1.5) * sample(c(-1,1), 1*p ,replace = T)
 # lc$sigma[,1] <- runif(length(lc$sigma[,1]), -2, -0.5)
-# lc$sigma[,2:3] <- runif(length(lc$sigma[,2:3]), 0.3, 0.6)* sample(c(-1,1), 2*p ,replace = T)
+# lc$sigma[,-1] <- runif(length(lc$sigma[,-1]), 0.3, 0.6)* sample(c(-1,1), 1*p ,replace = T)
 # if(lc$mu[1,2] < 0) lc$mu[1,2] <- -lc$mu[1,2]
 # if(lc$sigma[1,2] < 0) lc$sigma[1,2] <- -lc$sigma[1,2]
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # # For sparse factor loading matrices:
 # # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # lc$sigma[sample(2:p, floor((p-2)/2), replace = F),2] <- 0
-# # # ~~~~~~~~~~~~
-# # # Simulations:
-# # # ~~~~~~~~~~~~
-# AA <- glvmlss_sim(n, famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, start.val = lc)
-# A0 <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ 1, verbose = T, f.scores = T)
+# # ~~~~~~~~~~~~
+# # Simulations:
+# # ~~~~~~~~~~~~
+# AA <- glvmlss_sim(n, famt, mu.eq = ~ Z1, sg.eq = ~ Z1, start.val = lc)
+# A0 <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1, sg.eq = ~ Z1, verbose = T)
 # AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, f.scores = T, start.val = lc, est.ci = "Standard")
 # AC <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, f.scores = T, est.ci = "Standard")
 # AD <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verbose = T, f.scores = T, est.ci = "Standard", start.val = "random", seed = 111)
@@ -252,14 +261,14 @@ AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verb
 # }
 # legend("bottomright", legend = paste0("item",1:p), lwd = 3, col = 1:p, cex = 0.8)
 # 
-# data = AA$Y; family = famt; mu.eq = ~ Z1; sg.eq = ~ Z1;ta.eq = NULL; nu.eq = NULL;
+# data = AA$Y; family = famt; mu.eq = ~ Z1; sg.eq = ~ Z1; ta.eq = NULL; nu.eq = NULL;q = 1;
 # control <- list(EM_iter = 30, EM_use2d = T, iter.lim = 300,
 #               EM_appHess = F, EM_lrate = 0.001, est.ci = T,
-#               solver = "trust", start.val = NULL, mat.info = "Hessian",
+#               solver = "nlminb", start.val = NULL, mat.info = "Hessian",
 #               iden.res = NULL, tol = sqrt(.Machine$double.eps), corr.lv = FALSE,
 #               nQP = if(q == 1) 40 else { if(q == 2) ifelse(p <= 10, 15, 25) else 10 },
-#               verbose = TRUE, autoL_iter = 30,
-#               penalty = "alasso", lambda = "auto", w.alasso = AB$b, gamma = NULL, a = NULL)
+#               verbose = TRUE, autoL_iter = 30)#,
+#               # penalty = "alasso", lambda = "auto", w.alasso = AB$b, gamma = NULL, a = NULL)
 # 
 # r1 <- NULL
 # for(p in c(10,20)){
@@ -394,7 +403,7 @@ AB <- glvmlss(data = AA$Y, family = famt, mu.eq = ~ Z1+Z2, sg.eq = ~ Z1+Z2, verb
 # }
 # 
 # numGrad <- numDeriv::grad(func = testf, x = lb2cb(lc),Y = Y, ghQ = ghQ, borg = lc, famL = famL)
-# anaGrad <- -d1ll(Y,ghQ,lc,famL,info,fyz(Y,ghQ,lc,famL)$pD,rb)
+# anaGrad <- -d1ll(Y,ghQ,b,famL,info,fyz(Y,ghQ,lc,famL)$pD,rb)
 # 
 # plot.ts(numGrad, type = "o")
 # lines(anaGrad, col = 2)

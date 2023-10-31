@@ -867,10 +867,10 @@ SkewNormal <- function(mu.link = "identity", sg.link = "log", nu.link = "logit")
       dvy$mu = sapply(1:qp, function(r) d2mu(y,mud[r],sgd[r],nud[r]) ) # * dmddmc * sta.mu$mu.eta(sta.mu$linkfun(mu[r]))^2
       dvy$sg = sapply(1:qp, function(r){((dmddsc(nuc[r]) * d2mu(y,mud[r],sgd[r],nud[r]) + dsddsc(nuc[r]) * dcms(y,mud[r],sgd[r],nud[r])) * dmddsc(nuc[r]) + 
                                          (dmddsc(nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dsddsc(nuc[r]) * d2sg(y,mud[r],sgd[r],nud[r])) * dsddsc(nuc[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r]))^2 + dv1Y$sg[,r] } )
-      dvy$nu = sapply(1:qp, function(r){((dmddnc(sg[r],nuc[r]) * d2mu(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r]) * dcmn(y,mud[r],sgd[r],nud[r]) ) * dmddnc(sg[r],nuc[r]) + 
-                                         (dmddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * d2sg(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r]) * dcsn(y,mud[r],sgd[r],nud[r]) ) * dsddnc(sg[r],nuc[r]) + 
-                                         (dmddnc(sg[r],nuc[r]) * dcmn(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcsn(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r]) * d2nu(y,mud[r],sgd[r],nud[r]) ) * dnddnc(nuc[r]) ) * dnucdp^2 * sta.nu$mu.eta(sta.nu$linkfun(nu[r]))^2
-                                        + numDeriv::grad(function(x) sta.nu$mu.eta(sta.nu$linkfun(pmin(pmax(x, sqrt(.Machine$double.eps)), 1-sqrt(.Machine$double.eps)))), nu[r]) * dv1Y$nu[,r] } )
+      dvy$nu = sapply(1:qp, function(r){((dmddnc(sg[r],nuc[r]) * d2mu(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r]) * dcmn(y,mud[r],sgd[r],nud[r]) ) * dmddnc(sg[r],nuc[r]) +
+                                         (dmddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * d2sg(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r]) * dcsn(y,mud[r],sgd[r],nud[r]) ) * dsddnc(sg[r],nuc[r]) +
+                                         (dmddnc(sg[r],nuc[r]) * dcmn(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcsn(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r]) * d2nu(y,mud[r],sgd[r],nud[r]) ) * dnddnc(nuc[r]) ) * dnucdp^2 * sta.nu$mu.eta(sta.nu$linkfun(nu[r]))^2 + 
+                                          numDeriv::grad(function(x) sta.nu$mu.eta(sta.nu$linkfun(pmin(pmax(x, sqrt(.Machine$double.eps)), 1-sqrt(.Machine$double.eps)))), nu[r]) * dv1Y$nu[,r] } )
     }
     return(dvy)
   }
@@ -889,14 +889,14 @@ SkewNormal <- function(mu.link = "identity", sg.link = "log", nu.link = "logit")
     dvy <- list(mu = list(sg = NULL, nu = NULL), sg = list(nu = NULL))
     if(info == "Fisher"){
       dvy$mu$sg = sapply(1:qp, function(r){ rep((dmddsc(nuc[r]) * d2muF(y,mud[r],sgd[r],nud[r]) + dsddsc(nuc[r]) * dcmsF(y,mud[r],sgd[r],nud[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])), length(y) ) } )
-      dvy$mu$nu = sapply(1:qp, function(r){ rep((dmddnc(sg[r],nuc[r]) * d2muF(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcmsF(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcmnF(y,mud[r],sgd[r],nud[r]) ) * sta.nu$mu.eta(sta.sg$linkfun(nu[r])), length(y)) } )
+      dvy$mu$nu = sapply(1:qp, function(r){ rep((dmddnc(sg[r],nuc[r]) * d2muF(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcmsF(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcmnF(y,mud[r],sgd[r],nud[r]) ) * sta.nu$mu.eta(sta.nu$linkfun(nu[r])), length(y)) } )
       dvy$sg$nu = sapply(1:qp, function(r){ rep(((dmddnc(sg[r],nuc[r]) * d2muF(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcmsF(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcmnF(y,mud[r],sgd[r],nud[r]) ) * dmddsc(nuc[r]) + 
-                                                 (dmddnc(sg[r],nuc[r]) * dcmsF(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * d2sgF(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcsnF(y,mud[r],sgd[r],nud[r]) ) * dsddsc(nuc[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) * sta.nu$mu.eta(sta.sg$linkfun(nu[r])), length(y)) } )
+                                                 (dmddnc(sg[r],nuc[r]) * dcmsF(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * d2sgF(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcsnF(y,mud[r],sgd[r],nud[r]) ) * dsddsc(nuc[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) * sta.nu$mu.eta(sta.nu$linkfun(nu[r])), length(y)) } )
     } else {
       dvy$mu$sg = sapply(1:qp, function(r){ (dmddsc(nuc[r]) * d2mu(y,mud[r],sgd[r],nud[r]) + dsddsc(nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) })
-      dvy$mu$nu = sapply(1:qp, function(r){ (dmddnc(sg[r],nuc[r]) * d2mu(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcmn(y,mud[r],sgd[r],nud[r]) ) * sta.nu$mu.eta(sta.sg$linkfun(nu[r]))})
+      dvy$mu$nu = sapply(1:qp, function(r){ (dmddnc(sg[r],nuc[r]) * d2mu(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcmn(y,mud[r],sgd[r],nud[r]) ) * sta.nu$mu.eta(sta.nu$linkfun(nu[r]))})
       dvy$sg$nu = sapply(1:qp, function(r){ ((dmddnc(sg[r],nuc[r]) * d2mu(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcmn(y,mud[r],sgd[r],nud[r]) ) * dmddsc(nuc[r]) + 
-                                             (dmddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * d2sg(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcsn(y,mud[r],sgd[r],nud[r]) ) * dsddsc(nuc[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) * sta.nu$mu.eta(sta.sg$linkfun(nu[r])) })
+                                             (dmddnc(sg[r],nuc[r]) * dcms(y,mud[r],sgd[r],nud[r]) + dsddnc(sg[r],nuc[r]) * d2sg(y,mud[r],sgd[r],nud[r]) + dnddnc(nuc[r])*dcsn(y,mud[r],sgd[r],nud[r]) ) * dsddsc(nuc[r]) ) * sta.sg$mu.eta(sta.sg$linkfun(sg[r])) * sta.nu$mu.eta(sta.nu$linkfun(nu[r])) })
     }
     return(dvy)
   }

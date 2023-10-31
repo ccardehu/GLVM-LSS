@@ -251,22 +251,26 @@ glvmlss_fit <- function(){
         convg <- ifelse(xb$convergence == 0,1,0)
         if(control$verbose) cat(paste0("\r Direct MML estimation (", control$solver, ") ... Converged. Marg. loglik.: ", round(-xb$value,5)))
       } else {
-        xb <- optim(cb, fn = lla, gr = d1lla, method = control$solver,
-                    control = list(maxit = control$iter.lim, fnscale = 1),
-                    Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
-        pb[lb2cb(rb)] <- xb$par
-        b <- cb2lb(pb,b)
-        cb <- lb2cb(b)[lb2cb(rb)]
-        if(!is.null(control$iden.res) && !is.list(control$iden.res) && control$iden.res == "orthogonal") b <- fixOrthob(b)
-        convg <- ifelse(xb$convergence == 0,1,0)
-        dfyz_t <- fyz(Y,ghQ,b,famL)
-        Rz_ <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q, control)
-        ghQ <- prep_ghq(control$nQP,form,Rz_)
-        dfyz_t_ <- fyz(Y,ghQ,b,famL)
-        Rz <- Rz_
-        if(control$verbose) cat(paste0("\r Direct MML estimation (", control$solver, ") ... Converged (\u03A6 updates: ", innerloop,
-                                       "). Marg. loglik.: ", round(dfyz_t_$ll,5)))
-        if(any(abs(dfyz_t$ll - dfyz_t_$ll) < control$tol, innerloop == control$iter.lim)) break
+        innerloop <- 0
+        repeat{
+          innerloop <- innerloop + 1
+          xb <- optim(cb, fn = lla, gr = d1lla, method = control$solver,
+                      control = list(maxit = control$iter.lim, fnscale = 1),
+                      Y = Y, bg = b, ghQ = ghQ, famL = famL, info = info, rb = rb)
+          pb[lb2cb(rb)] <- xb$par
+          b <- cb2lb(pb,b)
+          cb <- lb2cb(b)[lb2cb(rb)]
+          if(!is.null(control$iden.res) && !is.list(control$iden.res) && control$iden.res == "orthogonal") b <- fixOrthob(b)
+          convg <- ifelse(xb$convergence == 0,1,0)
+          dfyz_t <- fyz(Y,ghQ,b,famL)
+          Rz_ <- newRz(Rz = Rz, ghQ = ghQ, pD = dfyz_t$pD, q = q, control)
+          ghQ <- prep_ghq(control$nQP,form,Rz_)
+          dfyz_t_ <- fyz(Y,ghQ,b,famL)
+          Rz <- Rz_
+          if(control$verbose) cat(paste0("\r Direct MML estimation (", control$solver, ") ... Converged (\u03A6 updates: ", innerloop,
+                                         "). Marg. loglik.: ", round(dfyz_t_$ll,5)))
+          if(any(abs(dfyz_t$ll - dfyz_t_$ll) < control$tol, innerloop == control$iter.lim)) break
+        }
       }
     }
   }

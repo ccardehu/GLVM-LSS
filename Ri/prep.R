@@ -268,14 +268,15 @@ sim_stva <- function(control,p,Z,form,q){
   } else {
     if(q == 1){
       if(control$verbose) cat("\n Argument 'control$iden.res' not needed for one-factor models (q == 1). Z1 is Standard Normal.")
-      rb <- b
-      for(i in names(b)){
-        rb[[i]] <- !is.na(rb[[i]])
-      }
-      b <-  list(b = b, rb = rb)
+      # rb <- b
+      # for(i in names(b)){
+      #   rb[[i]] <- !is.na(rb[[i]])
+      # }
+      # b <-  list(b = b, rb = rb)
+    } else {
+      if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
+      b <- rmat(control$iden.res,b)
     }
-    if(!is.list(control$iden.res)) stop("Argument 'control$iden.res' should be a list with element(s), each of the type c('parameter',item,'restricted variable',value)")
-    b <- rmat(control$iden.res,b)
     flagSign <- F}
   # Sign
   # ~~~~
