@@ -1,12 +1,26 @@
 Package: glvmlss
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Generalized Latent Variable Models for Location, Scale, and Shape parameters
+Version: 0.0.0.1
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    person("Camilo", "Cárdenas-Hurtado", , "c.a.cardenas-hurtado@lse.ac.uk", role = c("aut", "cre"),
+    comment = c(ORCID = "0009-0003-1073-0912"))
+Description: Functions for fitting Generalized Latent Variable Models for Location, Scale, and Shape Parameters (GLVM-LSS).
+License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
+LinkingTo: 
+    Rcpp,
+    RcppArmadillo,
+    RcppEnsmallen,
+    BH
+Imports: 
+    BH,
+    Rcpp,
+    RcppArmadillo,
+    RcppEnsmallen,
+    gamlss
+Depends:
+    R (>= 4.0.0),
+    numDeriv
+SystemRequirements: C++11
