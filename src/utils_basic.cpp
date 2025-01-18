@@ -24,31 +24,20 @@ arma::uword ixd2ll(int& k1, int& k2, int& K){
   return 0;
 }
 
-arma::mat count_b(arma::cube& b, const int p){
-  int K = b.n_slices;
+arma::mat count_b(arma::cube& rb, const int p){
+  int K = rb.n_slices;
   arma::mat out(p,K);
   for(int k = 0; k < K; k++){
-    arma::mat btmp = b.slice(k);
+    arma::mat rbtmp = rb.slice(k);
     for(int i = 0; i < p; i++){
-      arma::rowvec rtmp = btmp.row(i);
+      arma::rowvec rtmp = rbtmp.row(i);
       int q = rtmp.size();
       for(int j = 0; j < q; j++){
-        out(i,k) += (!std::isnan(btmp(i,j)) & (btmp(i,j) != 0)) ? 1.0 : 0.0;
+        out(i,k) += (std::isnan(rbtmp(i,j))) ? 1.0 : 0.0;
       }
     }
   }
   return out;
-}
-
-arma::cube lb2Cb(Rcpp::List& b, const int p, const int q){
-  int K = b.size() ;
-  arma::cube bc(p,q+1,K,fill::zeros);
-  for(int i = 0; i < K; i++){
-    arma::mat Mc = Rcpp::as<arma::mat>(b(i));
-    arma::uvec idx = arma::find(Mc != 0);
-    bc.slice(i).elem(idx) = Mc.elem(idx);
-  }
-  return bc;
 }
 
 arma::mat Cb2Mb(arma::cube& b){
@@ -61,8 +50,12 @@ arma::mat Cb2Mb(arma::cube& b){
   return bt;
 }
 
-arma::vec Cb2Vb(arma::cube& b){
-  return arma::nonzeros(arma::vectorise(Cb2Mb(b), 1).t()) ;
+arma::vec Cb2Vb(arma::cube& b, arma::cube& rb){
+  arma::vec rbV = arma::vectorise(Cb2Mb(rb), 1).t();
+  arma::vec bV = arma::vectorise(Cb2Mb(b), 1).t();
+  arma::uvec idx = arma::find_nan(rbV);
+  arma::vec out = bV(idx);
+  return out ;
 }
 
 arma::cube Mb2Cb(arma::mat mb,
@@ -80,9 +73,11 @@ arma::cube Mb2Cb(arma::mat mb,
 
 arma::cube Vb2Cb(arma::vec& vb,
                  arma::cube& b,
+                 arma::cube& rb,
                  const int q){
   arma::mat bM = Cb2Mb(b).t();
-  arma::uvec id0 = arma::find(bM != 0);
+  arma::mat rbM = Cb2Mb(rb).t();
+  arma::uvec id0 = arma::find_nan(rbM);
   bM(id0) = vb;
   int k = b.n_slices;
   arma::cube bC = Mb2Cb(bM.t(),q,k);
@@ -495,11 +490,16 @@ arma::vec log_mvnN(arma::mat& y,
   return out;
 }
 
-void fixL(arma::mat& L){
+void fixL(arma::mat& L, arma::mat& R){
   int q = L.n_rows;
+  arma::vec dR = R.diag();
   for(int i = 0; i < q; i++){
-    double cross = arma::dot(L.row(i),L.row(i));
-    L.row(i) = L.row(i)/std::sqrt(cross);
+    if(dR(i) != 1.0){
+      continue;
+    } else {
+      double cross = arma::dot(L.row(i),L.row(i));
+      L.row(i) = L.row(i)/std::sqrt(cross);
+    }
   }
 }
 
@@ -508,11 +508,9 @@ Rcpp::NumericVector chol2cor(Rcpp::NumericVector& vLi, int& q){
   arma::vec vL(vLi.begin(),ncor,false,false);
   arma::mat L = eye(q,q);
   arma::uvec Li = arma::trimatl_ind(arma::size(L));
-  arma::uvec idx = arma::regspace<arma::uvec>(1,Li.n_elem-1);
-  Li = Li(idx);
   L(Li) = vL;
   arma::mat R = L*L.t();
-  arma::uvec Ri = arma::trimatl_ind(arma::size(R),-1);
+  arma::uvec Ri = arma::trimatl_ind(arma::size(R));
   arma::vec out = R(Ri);
   return Rcpp::wrap(out);
 }
@@ -520,11 +518,34 @@ Rcpp::NumericVector chol2cor(Rcpp::NumericVector& vLi, int& q){
 Rcpp::NumericMatrix Jchol(Rcpp::NumericVector& vLi,
                           int q) {
 
-  Rcpp::Environment numDeriv("package:numDeriv");
-  Rcpp::Function jacobian = numDeriv["jacobian"];
+  Rcpp::Environment numDerivR = Rcpp::Environment::namespace_env("numDeriv");
+  Rcpp::Function jacobian = numDerivR["jacobian"];
   Rcpp::NumericMatrix out = jacobian(Rcpp::_["func"] = Rcpp::InternalFunction(chol2cor),
                                      Rcpp::_["x"] = vLi,
                                      Rcpp::_["q"] = q);
 
   return out;
+}
+
+void fixb(arma::cube& b,
+          arma::cube& rb,
+          Rcpp::Nullable<Rcpp::NumericVector> c2fi = R_NilValue){
+  if(c2fi.isNotNull()){
+    arma::vec  c2f = Rcpp::as<arma::vec>(c2fi);
+    arma::uvec c2fp = arma::conv_to<arma::uvec>::from(arma::abs(c2f));
+    arma::vec  c2fs = arma::sign(c2f);
+    int nq = c2f.size();
+    for(int i = 0; i < nq; i++){
+      arma::uvec idx = arma::find_nan(rb.col(c2fp(i)));
+      if(idx.size() == 0){
+        continue;
+      } else{
+         // if(b(idx(0), c2fp(i), 0) < 0){
+         if(arma::sign(b(idx(0), c2fp(i), 0)) !=  c2fs(i)){
+          // b.col(c2fp(i)) *= c2fs(i);
+          b.col(c2fp(i)) *= -1.0;
+        }
+      }
+    }
+  }
 }

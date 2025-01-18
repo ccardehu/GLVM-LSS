@@ -1,26 +1,28 @@
 Package: glvmlss
-Title: Generalized Latent Variable Models for Location, Scale, and Shape parameters
-Version: 0.0.0.1
+Title: Generalized Latent Variable Models for Location, Scale, and Shape
+    parameters
+Version: 0.0.1
 Authors@R: 
     person("Camilo", "Cárdenas-Hurtado", , "c.a.cardenas-hurtado@lse.ac.uk", role = c("aut", "cre"),
-    comment = c(ORCID = "0009-0003-1073-0912"))
-Description: Functions for fitting Generalized Latent Variable Models for Location, Scale, and Shape Parameters (GLVM-LSS).
+           comment = c(ORCID = "0009-0003-1073-0912"))
+Description: Functions for fitting Generalized Latent Variable Models for
+    Location, Scale, and Shape Parameters (GLVM-LSS).
 License: GPL (>= 3)
-Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.3
-LinkingTo: 
+Depends:
+    R (>= 4.0.0)
+Imports: 
+    BH,
+    gamlss,
+    numDeriv,
     Rcpp,
     RcppArmadillo,
-    RcppEnsmallen,
-    BH
-Imports: 
+    RcppEnsmallen
+LinkingTo: 
     BH,
     Rcpp,
     RcppArmadillo,
-    RcppEnsmallen,
-    gamlss
-Depends:
-    R (>= 4.0.0),
-    numDeriv
-SystemRequirements: C++11
+    RcppEnsmallen
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+LazyData: true

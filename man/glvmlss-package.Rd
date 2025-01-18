@@ -3,7 +3,6 @@
 \docType{package}
 \name{glvmlss-package}
 \alias{glvmlss-package}
-\alias{_PACKAGE}
 \title{glvmlss: Generalized Latent Variable Models for Location, Scale, and Shape parameters}
 \description{
 Functions for fitting Generalized Latent Variable Models for Location, Scale, and Shape Parameters (GLVM-LSS).

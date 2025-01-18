@@ -52,3 +52,30 @@ fixy <- function(x){
   if (any(x == 0, na.rm = T)) x[x == 0] <- sqrt(.Machine$double.eps)
   return(x)
 }
+
+genrb <- function(b){
+  rb <- ifelse(b == 0 | b == 1, b, NA)
+  return(rb)
+}
+
+genrR <- function(R){
+  rR <- ifelse(R == 0 | R == 1, R, NA)
+  return(rR)
+}
+
+rb2b <- function(b,rb){
+  b[!is.na(rb)] <- rb[!is.na(rb)]
+  return(list(b = b, rb = rb, irb = sum(!is.na(rb[,,1]))))
+}
+
+rR2R <- function(R,rR){
+  if(!isSymmetric(rR)){
+    rR[upper.tri(rR)] <- t(rR)[upper.tri(rR)]
+  }
+  R[!is.na(rR)] <- rR[!is.na(rR)]
+  return(list(R = R, rR = rR, irR = sum(!is.na(rR[lower.tri(rR,diag = T)]))))
+}
+
+is.diag <- function(m){
+  all(m[lower.tri(m)] == 0, m[upper.tri(m)] == 0)
+}

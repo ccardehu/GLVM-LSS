@@ -11,18 +11,30 @@ pr_form <- function(mu.eq, sg.eq, nu.eq, ta.eq){
   return(form)
 }
 
-pr_control <- function(control, ...){
+pr_control <- function(control,q,...){
 
-  con <- list("EM.maxit" = 0, "DM.maxit" = 500, "R.maxit" = 50,
+  con <- list("EM.maxit" = 20, "DM.maxit" = 500, "R.maxit" = 50,
               "nQP" = 25, "Fisher" = T, "verbose" = T,
-              "EM.useGD" = F, "LR" = 0.001,
-              "start.b" = NULL, "start.R" = NULL, "restr" = NULL,
-              "corLV" = F, "tolerance" = sqrt(.Machine$double.eps))
+              "EM.useGD" = F, "LR" = 1e-3,
+              "start.b" = NULL, "start.R" = NULL, "restr.b" = NULL, "restr.R" = NULL,
+              "estim.R" = T, "sign.restr.b" = NULL, "updt.R.every" = 1,
+              "corLV" = F, "tolerance" = 1e-4) # sqrt(.Machine$double.eps)
   control <- c(control, list(...))
   namC <- names(con)
   con[(namc <- names(control))] <- control
   if (length(namc[!namc %in% namC]) > 0)
     warning("Unknown names in control: ", paste(namc[!namc %in% namC], collapse = ", "))
+  # Sanity checks:
+  if(!is.null(con$start.R)){
+    if(is.diag(con$start.R)) con$corLV <- F else con$corLV <- T
+  }
+  if(q == 1){
+    con$estim.R <- F
+    con$corLV <- F
+  } else {
+    con$nQP <- 15
+  }
+  if(!is.integer(con$updt.R.every)) con$updt.R.every <- as.integer(round(con$updt.R.every))
   return(con)
 }
 
@@ -33,57 +45,164 @@ pr_q <- function(form){
   return(q)
 }
 
-pr_b <- function(Y,family,form,control,q){
-  if(!is.null(control$start.b)){
-    b <- control$start.b
-    if(!is.null(control$restr)) b <- b*control$restr
-    return(b)
-  } else {
-    if(control$verbose) cat("\n Defining starting values (gamlss + PCA; missing control$start.b) ...")
-    b <- suppressWarnings(b_ini(Y,family,form))
-    if(control$verbose) cat("\r Defining starting values (gamlss + PCA; missing control$start.b) ... Done!")
-    if(!is.null(control$restr)){
-      b <- b*control$restr
-      return(b)
-    }
-    if(control$corLV){
-      if(control$verbose & q != 1) cat("\n Imposing errors-in-variables restrictions (missing control$restr; control$corLV == T).")
-      for(r in 1:q){
-        b[r, !colnames(b) %in% c("(Intercept)", paste0("Z",r)), 1] <- 0
-      }
-      return(b)
-    } else {
-      if(control$verbose & q != 1) cat("\n Imposing recursive restrictions (missing control$restr; control$corLV == F).")
-      b[,!colnames(b) %in% c("(Intercept)"),1][upper.tri(b[, !colnames(b) %in% c("(Intercept)"), 1])] <- 0
-      return(b)
-    }
-  }
-}
+pr_bR <- function(Y,family,form,control,q){
 
-pr_bsim <- function(control,q,p,form){
-  if(is.null(control$start.b)) stop("\n Initial values not reported (missing argument: control$start.b)")
-  b <- control$start.b
-  colnames(b) <- c("(Intercept)", rep(paste0("Z",1:q)))
-  rownames(b) <- paste0("Y",1:p)
-  dimnames(b)[[3]] <- names(form)
-  if(q == 1){
-    return(b)
-  } else {
-    if(!is.null(control$restr)){
-      b <- b*control$restr
-      return(b)
+  nostartb <- is.null(control$start.b)
+  norestrb <- is.null(control$restr.b)
+  nostartR <- is.null(control$start.R)
+  norestrR <- is.null(control$restr.R)
+
+  if(all(!nostartb,!norestrb,!nostartR,!norestrR)){
+    bL <- rb2b(control$start.b, control$restr.b)
+    RL <- rR2R(control$start.R, control$restr.R)
+    if(bL$irb + RL$irR < q^2) stop(paste0("\n Not enough identification restrictions (",bL$irb," in control$restr.b + ",RL$irR," in control$restr.R)"))
+    return(list(b = bL$b, rb = bL$rb, R = RL$R, rR = RL$rR))
+  }
+
+  if(all(nostartb,norestrb,nostartR,norestrR)){
+    if(!control$corLV){
+      control$start.R <- control$restr.R <- diag(q)
     } else {
+      control$start.R <- matrix(0.05,q,q); diag(control$start.R) <- 1
+      control$restr.R <- matrix(NA,q,q); diag(control$restr.R) <- 1
+    }
+    if(control$verbose) cat("\n Defining starting values (PCA + gamlss; missing control$start.b) ...")
+    b <- suppressWarnings(b_ini(Y,family,form))
+    if(control$verbose) cat("\r Defining starting values (PCA + gamlss; missing control$start.b) ... Done!")
+    if(q > 1){
       if(control$corLV){
-        if(control$verbose) cat("\n Imposing errors-in-variables restrictions (missing control$restr; control$corLV == T).")
+        if(control$verbose) cat("\n Imposing errors-in-variables restrictions (missing control$restr.b; control$corLV == T).")
         for(r in 1:q){
           b[r, !colnames(b) %in% c("(Intercept)", paste0("Z",r)), 1] <- 0
         }
-        return(b)
       } else {
-        if(control$verbose) cat("\n Imposing recursive restrictions (missing control$restr; control$corLV == F).")
+        if(control$verbose) cat("\n Imposing recursive restrictions (missing control$restr.b; control$corLV == F).")
         b[,!colnames(b) %in% c("(Intercept)"),1][upper.tri(b[, !colnames(b) %in% c("(Intercept)"), 1])] <- 0
-        return(b)
       }
     }
+    control$start.b <- b
+    control$restr.b <- genrb(b)
+    bL <- rb2b(control$start.b, control$restr.b)
+    RL <- rR2R(control$start.R, control$restr.R)
+    if(bL$irb + RL$irR < q^2) stop(paste0("\n Not enough identification restrictions (",bL$irb," in control$restr.b + ",RL$irR," in control$restr.R)"))
+    return(list(b = bL$b, rb = bL$rb, R = RL$R, rR = RL$rR))
   }
+
+  if(!nostartR & !nostartb){
+    if(norestrR) control$restr.R <- genrR(control$start.R)
+    if(norestrb) control$restr.b <- genrb(control$start.b)
+    bL <- rb2b(control$start.b, control$restr.b)
+    RL <- rR2R(control$start.R, control$restr.R)
+    if(bL$irb + RL$irR < q^2) stop(paste0("\n Not enough identification restrictions (",bL$irb," in control$restr.b + ",RL$irR," in control$restr.R)"))
+    return(list(b = bL$b, rb = bL$rb, R = RL$R, rR = RL$rR))
+  }
+
+  if(nostartR & nostartb){
+    if(!control$corLV){
+      control$start.R <- diag(1.1,q)
+    } else {
+      control$start.R <- matrix(0.05,q,q); diag(control$start.R) <- 1.1
+    }
+    if(norestrR){
+      diag(control$start.R) <- 1
+      control$restr.R <- genrR(control$start.R)
+    }
+    if(control$verbose) cat("\n Defining starting values (PCA + gamlss; missing control$start.b) ...")
+    b <- suppressWarnings(b_ini(Y,family,form))
+    if(control$verbose) cat("\r Defining starting values (PCA + gamlss; missing control$start.b) ... Done!")
+    if(norestrb & q > 1){
+      if(control$corLV){
+        if(control$verbose) cat("\n Imposing errors-in-variables restrictions (missing control$restr.b; control$corLV == T).")
+        for(r in 1:q){
+          b[r, !colnames(b) %in% c("(Intercept)", paste0("Z",r)), 1] <- 0
+        }
+      } else {
+        if(control$verbose) cat("\n Imposing recursive restrictions (missing control$restr.b; control$corLV == F).")
+        b[,!colnames(b) %in% c("(Intercept)"),1][upper.tri(b[, !colnames(b) %in% c("(Intercept)"), 1])] <- 0
+      }
+      control$restr.b <- genrb(b)
+    }
+    control$start.b <- b
+    bL <- rb2b(control$start.b, control$restr.b)
+    RL <- rR2R(control$start.R, control$restr.R)
+    if(bL$irb + RL$irR < q^2) stop(paste0("\n Not enough identification restrictions (",bL$irb," in control$restr.b + ",RL$irR," in control$restr.R)"))
+    return(list(b = bL$b, rb = bL$rb, R = RL$R, rR = RL$rR))
+  }
+
+  if(nostartR & !nostartb){
+    if(!control$corLV){
+      control$start.R <- diag(1.1,q)
+    } else {
+      control$start.R <- matrix(0.05,q,q); diag(control$start.R) <- 1.1
+    }
+    if(norestrR){
+      diag(control$start.R) <- 1
+      control$restr.R <- genrR(control$start.R)
+    }
+    if(norestrb) control$restr.b <- genrb(control$start.b)
+    bL <- rb2b(control$start.b, control$restr.b)
+    RL <- rR2R(control$start.R, control$restr.R)
+    if(bL$irb + RL$irR < q^2) stop(paste0("\n Not enough identification restrictions (",bL$irb," in control$restr.b + ",RL$irR," in control$restr.R)"))
+    return(list(b = bL$b, rb = bL$rb, R = RL$R, rR = RL$rR))
+  }
+
+  if(!nostartR & nostartb){
+    if(norestrR) control$restr.R <- genrR(control$start.R)
+    if(control$verbose) cat("\n Defining starting values (PCA + gamlss; missing control$start.b) ...")
+    b <- suppressWarnings(b_ini(Y,family,form))
+    if(control$verbose) cat("\r Defining starting values (PCA + gamlss; missing control$start.b) ... Done!")
+    if(norestrb & q > 1){
+      if(control$corLV){
+        if(control$verbose) cat("\n Imposing errors-in-variables restrictions (missing control$restr.b; control$corLV == T).")
+        for(r in 1:q){
+          b[r, !colnames(b) %in% c("(Intercept)", paste0("Z",r)), 1] <- 0
+        }
+      } else {
+        if(control$verbose) cat("\n Imposing recursive restrictions (missing control$restr.b; control$corLV == F).")
+        b[,!colnames(b) %in% c("(Intercept)"),1][upper.tri(b[, !colnames(b) %in% c("(Intercept)"), 1])] <- 0
+      }
+      control$restr.b <- genrb(b)
+    }
+    control$start.b <- b
+    bL <- rb2b(control$start.b, control$restr.b)
+    RL <- rR2R(control$start.R, control$restr.R)
+    if(bL$irb + RL$irR < q^2) stop(paste0("\n Not enough identification restrictions (",bL$irb," in control$restr.b + ",RL$irR," in control$restr.R)"))
+    return(list(b = bL$b, rb = bL$rb, R = RL$R, rR = RL$rR))
+  }
+}
+
+pr_bRsim <- function(control,q,p,form){
+
+  nostartb <- is.null(control$start.b)
+  norestrb <- is.null(control$restr.b)
+  nostartR <- is.null(control$start.R)
+  norestrR <- is.null(control$restr.R)
+
+  if(nostartb) stop("\n Missing argument: control$start.b")
+  colnames(control$start.b) <- c("(Intercept)", paste0("Z",1:q))
+  rownames(control$start.b) <- paste0("Y",1:p)
+  dimnames(control$start.b)[[3]] <- names(form)
+  if(norestrb) control$restr.b <- genrb(control$start.b)
+
+  if(nostartR){
+    if(!control$corLV){
+      if(control$verbose) cat("\n Missing control$start.R: R set to diag(q) (control$corLV == F).")
+      control$start.R <- diag(1.1,q)
+    } else {
+      if(control$verbose) cat("\n Missing control$start.R: Off-diagonal entries in R set to 0.3 (control$corLV == T).")
+      control$start.R <- matrix(0.3,q,q); diag(control$start.R) <- 1.1
+    }
+    if(norestrR){
+      diag(control$start.R) <- 1
+      control$restr.R <- genrR(control$start.R)
+    }
+  } else {
+    if(norestrR) control$restr.R <- genrR(control$start.R)
+  }
+  bL <- rb2b(control$start.b, control$restr.b)
+  RL <- rR2R(control$start.R, control$restr.R)
+  if(bL$irb + RL$irR < q^2) stop(paste0("\n Not enough identification restrictions (",bL$irb," in control$restr.b and ",RL$irR," in control$restr.R)"))
+  colnames(RL$R) <- rownames(RL$R) <- paste0("Z",1:q)
+  dimnames(RL$rR) <- dimnames(RL$R)
+  return(list(b = bL$b, rb = bL$rb, R = RL$R, rR = RL$rR))
 }

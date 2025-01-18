@@ -13,7 +13,7 @@ using namespace ens;
 Rcpp::List ghQ::ghq(const int &n){
   int m = trunc((n + 1) / 2) ;
   Rcpp::NumericVector x(n,-1.0), w(n,-1.0) ;
-  double z, p1, p2, p3 , z1 , pp ;
+  double z = 0.0, p1, p2, p3 , z1 , pp ;
   for(int i = 0; i < m; i++){
     if(i == 0){
       z = std::sqrt(2.0 * n + 1.0) - 1.85575 * std::pow(2.0 * n + 1.0, -0.16667) ;

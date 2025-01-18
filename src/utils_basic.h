@@ -3,17 +3,15 @@
 
 arma::uword ixd2ll(int& k1, int& k2, int& K);
 
-arma::mat count_b(arma::cube& b, const int p);
-
-arma::cube lb2Cb(Rcpp::List& b, const int p, const int q);
+arma::mat count_b(arma::cube& rb, const int p);
 
 arma::mat Cb2Mb(arma::cube& b);
 
-arma::vec Cb2Vb(arma::cube& b);
+arma::vec Cb2Vb(arma::cube& b, arma::cube& rb);
 
 arma::cube Mb2Cb(arma::mat mb, const int q, const int K);
 
-arma::cube Vb2Cb(arma::vec& vb, arma::cube& b, const int q);
+arma::cube Vb2Cb(arma::vec& vb, arma::cube& b, arma::cube& rb, const int q);
 
 arma::mat vec2mat(arma::vec& x, int nrow, int ncol);
 
@@ -104,10 +102,12 @@ double EVzm(arma::mat& G,
 
 arma::vec log_mvnN(arma::mat& y, arma::mat& S);
 
-void fixL(arma::mat& L);
+void fixL(arma::mat& L, arma::mat& R);
 
 Rcpp::NumericVector chol2cor(Rcpp::NumericVector& vLi, int& q);
 
 Rcpp::NumericMatrix Jchol(Rcpp::NumericVector& vLi,int q);
+
+void fixb(arma::cube& b, arma::cube& rb, Rcpp::Nullable<Rcpp::NumericVector> c2fi);
 
 #endif

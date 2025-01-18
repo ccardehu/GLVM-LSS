@@ -13,8 +13,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // glvmlss_rcpp
-Rcpp::List glvmlss_rcpp(Rcpp::NumericMatrix& Yr, Rcpp::CharacterVector& famr, const int q, arma::cube& b, Rcpp::List& control);
-RcppExport SEXP _glvmlss_glvmlss_rcpp(SEXP YrSEXP, SEXP famrSEXP, SEXP qSEXP, SEXP bSEXP, SEXP controlSEXP) {
+Rcpp::List glvmlss_rcpp(Rcpp::NumericMatrix& Yr, Rcpp::CharacterVector& famr, const int q, arma::cube& b, arma::cube& rb, arma::mat& R, arma::mat& rR, Rcpp::List& control);
+RcppExport SEXP _glvmlss_glvmlss_rcpp(SEXP YrSEXP, SEXP famrSEXP, SEXP qSEXP, SEXP bSEXP, SEXP rbSEXP, SEXP RSEXP, SEXP rRSEXP, SEXP controlSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -22,14 +22,17 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::CharacterVector& >::type famr(famrSEXP);
     Rcpp::traits::input_parameter< const int >::type q(qSEXP);
     Rcpp::traits::input_parameter< arma::cube& >::type b(bSEXP);
+    Rcpp::traits::input_parameter< arma::cube& >::type rb(rbSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type R(RSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type rR(rRSEXP);
     Rcpp::traits::input_parameter< Rcpp::List& >::type control(controlSEXP);
-    rcpp_result_gen = Rcpp::wrap(glvmlss_rcpp(Yr, famr, q, b, control));
+    rcpp_result_gen = Rcpp::wrap(glvmlss_rcpp(Yr, famr, q, b, rb, R, rR, control));
     return rcpp_result_gen;
 END_RCPP
 }
 // glvmlss_rcpp_sim
-Rcpp::List glvmlss_rcpp_sim(const int n, Rcpp::CharacterVector& famr, const int q, arma::cube& b, Rcpp::List& control);
-RcppExport SEXP _glvmlss_glvmlss_rcpp_sim(SEXP nSEXP, SEXP famrSEXP, SEXP qSEXP, SEXP bSEXP, SEXP controlSEXP) {
+Rcpp::List glvmlss_rcpp_sim(const int n, Rcpp::CharacterVector& famr, const int q, arma::cube& b, arma::mat& R, Rcpp::List& control);
+RcppExport SEXP _glvmlss_glvmlss_rcpp_sim(SEXP nSEXP, SEXP famrSEXP, SEXP qSEXP, SEXP bSEXP, SEXP RSEXP, SEXP controlSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -37,15 +40,16 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::CharacterVector& >::type famr(famrSEXP);
     Rcpp::traits::input_parameter< const int >::type q(qSEXP);
     Rcpp::traits::input_parameter< arma::cube& >::type b(bSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type R(RSEXP);
     Rcpp::traits::input_parameter< Rcpp::List& >::type control(controlSEXP);
-    rcpp_result_gen = Rcpp::wrap(glvmlss_rcpp_sim(n, famr, q, b, control));
+    rcpp_result_gen = Rcpp::wrap(glvmlss_rcpp_sim(n, famr, q, b, R, control));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_glvmlss_glvmlss_rcpp", (DL_FUNC) &_glvmlss_glvmlss_rcpp, 5},
-    {"_glvmlss_glvmlss_rcpp_sim", (DL_FUNC) &_glvmlss_glvmlss_rcpp_sim, 5},
+    {"_glvmlss_glvmlss_rcpp", (DL_FUNC) &_glvmlss_glvmlss_rcpp, 8},
+    {"_glvmlss_glvmlss_rcpp_sim", (DL_FUNC) &_glvmlss_glvmlss_rcpp_sim, 6},
     {NULL, NULL, 0}
 };
 

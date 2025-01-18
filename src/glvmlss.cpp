@@ -18,31 +18,33 @@ Rcpp::List glvmlss_rcpp(Rcpp::NumericMatrix& Yr,
                         Rcpp::CharacterVector& famr,
                         const int q,
                         arma::cube& b,
+                        arma::cube& rb,
+                        arma::mat& R,
+                        arma::mat& rR,
                         Rcpp::List& control){
 
   int nqp = control["nQP"];
-  bool flagVERBO = control["verbose"], flagCORLV = control["corLV"] ;
+  bool flagVERBO = control["verbose"];
+  bool flagCORLV = control["estim.R"];
   bool flagGD = control["EM.useGD"];
-  arma::mat Si = control["start.R"];
-
-  ghQ Q(q,nqp,Si);
-  fYZ fyz(Yr,famr,Q,b);
-
   int EM_iL = control["EM.maxit"];
   int DM_iL = control["DM.maxit"];
 
+  ghQ Q(q,nqp,R);
+  fYZ fyz(Yr,famr,Q,b);
+
   if(EM_iL != 0){
     if(flagGD){
-      EM_stepGD(Yr,famr,b,Q,fyz,control);
+      EM_stepGD(Yr,famr,b,rb,rR,Q,fyz,control);
     } else {
-      EM_step(Yr,famr,b,Q,fyz,control);
+      EM_step(Yr,famr,b,rb,rR,Q,fyz,control);
     }
   }
-  if(DM_iL != 0) DM_step(Yr,famr,b,Q,fyz,control);
+  if(DM_iL != 0) DM_step(Yr,famr,b,rb,rR,Q,fyz,control);
 
   arma::mat pD = fyz.get_pD();
   if(flagVERBO) Rcpp::Rcout << "\n Computing standard errors ... " ;
-  Rcpp::List se = SEs(Yr,famr,Q,b,pD,flagCORLV);
+  Rcpp::List se = SEs(Yr,famr,Q,b,rb,rR,pD,flagCORLV);
   if(flagVERBO) Rcpp::Rcout << "\r Computing standard errors ... Done!" ;
 
   arma::cube seb = se["seb"];
@@ -54,13 +56,13 @@ Rcpp::List glvmlss_rcpp(Rcpp::NumericMatrix& Yr,
   double BIC = -2.0*fyz.get_ll() + std::log(n)*K;
 
   if(flagCORLV){
-    arma::vec seR = se["seR"];
+    arma::mat seR = se["seR"];
     return Rcpp::List::create(Rcpp::Named("b") = b,
                               Rcpp::Named("R") = Q.get_sigm(),
                               Rcpp::Named("ll") = fyz.get_ll(),
                               Rcpp::Named("seb") = seb,
                               Rcpp::Named("seR") = seR,
-                              Rcpp::Named("z") = fsc,
+                              Rcpp::Named("Z") = fsc,
                               Rcpp::Named("AIC") = AIC,
                               Rcpp::Named("BIC") = BIC,
                               Rcpp::Named("K") = K) ;
@@ -69,7 +71,7 @@ Rcpp::List glvmlss_rcpp(Rcpp::NumericMatrix& Yr,
                               Rcpp::Named("R") = Q.get_sigm(),
                               Rcpp::Named("ll") = fyz.get_ll(),
                               Rcpp::Named("seb") = seb,
-                              Rcpp::Named("z") = fsc,
+                              Rcpp::Named("Z") = fsc,
                               Rcpp::Named("AIC") = AIC,
                               Rcpp::Named("BIC") = BIC,
                               Rcpp::Named("K") = K) ;
@@ -81,15 +83,14 @@ Rcpp::List glvmlss_rcpp_sim(const int n,
                             Rcpp::CharacterVector& famr,
                             const int q,
                             arma::cube& b,
+                            arma::mat& R,
                             Rcpp::List& control){
 
   int nqp = control["nQP"];
-  arma::mat Si = control["start.R"];
-
   int p = famr.length();
   arma::mat Yo(n,p);
 
-  ghQ Q(q,nqp,Si);
+  ghQ Q(q,nqp,R);
   Rcpp::NumericMatrix Zr = Q.get_simZ(q,n);
   arma::mat Z(Zr.begin(),n,q+1,false,false);
 
@@ -103,5 +104,5 @@ Rcpp::List glvmlss_rcpp_sim(const int n,
   return Rcpp::List::create(Rcpp::Named("Y") = Yo,
                             Rcpp::Named("Z") = Z,
                             Rcpp::Named("b") = b,
-                            Rcpp::Named("R") = Si) ;
+                            Rcpp::Named("R") = R) ;
 }
