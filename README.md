@@ -1,3 +1,5 @@
+# Generalized Latent Variable Models for Location, Scale, and Shape parameters
+
 ### Overview
 
 An **`R`** package for fitting Generalized Latent Variable Models for Location,
