@@ -32,7 +32,7 @@ Current implementation of the **``glvmlss``** package allows for mixed data foll
 
 ### Installation
 
-You can install the released version of penfa from CRAN with:
+You can install the released version of **``glvmlss``** from CRAN with:
 
 ``` r
 install.packages("glvmlss")
